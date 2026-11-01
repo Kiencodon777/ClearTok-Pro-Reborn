@@ -40,26 +40,26 @@ jobs:
       run: flutter build apk --release --no-tree-shake-icons
 
     - name: Prepare APK Asset
-      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn-v2.0.5.apk
+      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn-v2.0.6.apk
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ClearTok-Pro-Reborn-Release-APK
-        path: ClearTok-Pro-Reborn-v2.0.5.apk
+        path: ClearTok-Pro-Reborn-v2.0.6.apk
 
     - name: Auto Publish to GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v2.0.5
-        name: ClearTok Pro Reborn v2.0.5 (Live Deletion Engine Fix)
+        tag_name: v2.0.6
+        name: ClearTok Pro Reborn v2.0.6 (Live Deletion Engine Fix)
         body: |
-          ### ClearTok Pro Reborn v2.0.5
+          ### ClearTok Pro Reborn v2.0.6
           
           - **Fix Deletion Modal Freeze**: Fixed race condition in batch deletion stream by converting to `StreamBuilder` and instantiating fresh engine per deletion session.
           - **Real-Time Live Ticker & Error Reporting**: Modal displays actual live feedback and error codes from TikTok's API.
           - **Auto-Sync Local Database**: Cleanly removes unreposted videos and updates metrics instantly.
           - **Full UI/UX ProMax Polish**: Modern Dark theme with Cyber Obsidian and Crimson accents.
-        files: ClearTok-Pro-Reborn-v2.0.5.apk
+        files: ClearTok-Pro-Reborn-v2.0.6.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

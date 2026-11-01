@@ -180,72 +180,121 @@ class TikTokClient {
     return ScanResult(videos: videos, nextCursor: nextCursor, hasMore: hasMore);
   }
 
-  /// Robust un-repost implementation supporting query param, form, and json fallbacks
+  /// Complete un-repost implementation matching exact TikTok Web API parameters
   Future<DeleteResult> deleteSingleRepost({required String itemId}) async {
     const functionBody = r'''
       try {
-        // Fallback 1: Query param URL as discovered in libapp.so (POST https://www.tiktok.com/tiktok/v1/upvote/delete?item_id=... with same-origin)
-        const urlWithQuery = deleteEndpoint + '?item_id=' + encodeURIComponent(itemId);
-        let resp = await fetch(urlWithQuery, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Accept': '*/*' }
-        });
+        // Extract CSRF token from live document cookies
+        const getCsrf = () => {
+          const m = document.cookie.match(/(?:^|;\s*)(?:tt_csrf_token|csrf_token|passport_csrf_token)=([^;]+)/);
+          return m ? decodeURIComponent(m[1]) : '';
+        };
+        const csrf = getCsrf();
 
-        let raw = await resp.text();
-        let parsed = null;
-        try { parsed = JSON.parse(raw); } catch(_) {}
-
-        if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
-          return JSON.stringify({ success: true, status_code: 0, message: 'ok', raw: raw });
+        const baseHeaders = {
+          'Accept': 'application/json, text/plain, */*'
+        };
+        if (csrf) {
+          baseHeaders['x-secsdk-csrf-token'] = csrf;
         }
 
-        // Fallback 2: Form URL Encoded Body
-        resp = await fetch(deleteEndpoint, {
+        const urlWithAid = deleteEndpoint.includes('?') 
+          ? (deleteEndpoint + '&aid=' + String(aid)) 
+          : (deleteEndpoint + '?aid=' + String(aid));
+
+        // Format 1 (Standard Web JSON with item_id and type: 1)
+        try {
+          const jsonHeaders = Object.assign({}, baseHeaders, { 'Content-Type': 'application/json' });
+          const resp = await fetch(urlWithAid, {
+            method: 'POST',
+            credentials: 'include',
+            headers: jsonHeaders,
+            body: JSON.stringify({
+              item_id: String(itemId),
+              type: 1
+            })
+          });
+
+          const raw = await resp.text();
+          let parsed = null;
+          try { parsed = JSON.parse(raw); } catch(_) {}
+
+          if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
+            return JSON.stringify({ success: true, status_code: 0, message: 'ok (json-type1)', raw: raw });
+          }
+        } catch (_) {}
+
+        // Format 2 (Form URL Encoded with item_id and type=1)
+        try {
+          const formHeaders = Object.assign({}, baseHeaders, { 'Content-Type': 'application/x-www-form-urlencoded' });
+          const resp = await fetch(urlWithAid, {
+            method: 'POST',
+            credentials: 'include',
+            headers: formHeaders,
+            body: 'item_id=' + encodeURIComponent(itemId) + '&type=1'
+          });
+
+          const raw = await resp.text();
+          let parsed = null;
+          try { parsed = JSON.parse(raw); } catch(_) {}
+
+          if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
+            return JSON.stringify({ success: true, status_code: 0, message: 'ok (form-type1)', raw: raw });
+          }
+        } catch (_) {}
+
+        // Format 3 (Query Parameters with aid, item_id, and type=1)
+        try {
+          const queryUrl = urlWithAid + '&item_id=' + encodeURIComponent(itemId) + '&type=1';
+          const resp = await fetch(queryUrl, {
+            method: 'POST',
+            credentials: 'include',
+            headers: baseHeaders
+          });
+
+          const raw = await resp.text();
+          let parsed = null;
+          try { parsed = JSON.parse(raw); } catch(_) {}
+
+          if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
+            return JSON.stringify({ success: true, status_code: 0, message: 'ok (query-type1)', raw: raw });
+          }
+
+          // If all 3 formats returned a parsed error, return the last error response
+          if (parsed) {
+            return JSON.stringify({
+              success: false,
+              status_code: parsed.status_code ?? -1,
+              message: parsed.status_msg ?? parsed.error ?? 'API error',
+              raw: raw
+            });
+          }
+        } catch (_) {}
+
+        // Format 4 (Fallback query with same-origin credentials)
+        const finalUrl = urlWithAid + '&item_id=' + encodeURIComponent(itemId) + '&type=1';
+        const finalResp = await fetch(finalUrl, {
           method: 'POST',
           credentials: 'same-origin',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Accept': '*/*'
-          },
-          body: 'item_id=' + encodeURIComponent(itemId)
+          headers: baseHeaders
         });
 
-        raw = await resp.text();
-        parsed = null;
-        try { parsed = JSON.parse(raw); } catch(_) {}
+        const finalRaw = await finalResp.text();
+        let finalParsed = null;
+        try { finalParsed = JSON.parse(finalRaw); } catch(_) {}
 
-        if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
-          return JSON.stringify({ success: true, status_code: 0, message: 'ok (form-body)', raw: raw });
+        if (finalParsed && (finalParsed.status_code === 0 || finalParsed.status_code === '0')) {
+          return JSON.stringify({ success: true, status_code: 0, message: 'ok (same-origin)', raw: finalRaw });
         }
 
-        // Fallback 3: JSON payload
-        resp = await fetch(deleteEndpoint, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': '*/*'
-          },
-          body: JSON.stringify({ item_id: itemId })
-        });
-
-        raw = await resp.text();
-        parsed = null;
-        try { parsed = JSON.parse(raw); } catch(_) {}
-
-        if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
-          return JSON.stringify({ success: true, status_code: 0, message: 'ok (json-body)', raw: raw });
-        }
-
-        const errCode = parsed ? (parsed.status_code ?? -1) : resp.status;
-        const errMsg = parsed ? (parsed.status_msg ?? parsed.error ?? 'Unknown error') : ('HTTP ' + resp.status);
+        const errCode = finalParsed ? (finalParsed.status_code ?? -1) : finalResp.status;
+        const errMsg = finalParsed ? (finalParsed.status_msg ?? finalParsed.error ?? 'Unknown error') : ('HTTP ' + finalResp.status);
 
         return JSON.stringify({
           success: false,
           status_code: errCode,
           message: errMsg,
-          raw: raw
+          raw: finalRaw
         });
       } catch (e) {
         return JSON.stringify({ success: false, status_code: -1, message: e.toString(), raw: '' });
@@ -256,6 +305,7 @@ class TikTokClient {
       functionBody: functionBody,
       arguments: {
         'deleteEndpoint': remoteConfig.deleteEndpoint,
+        'aid': remoteConfig.aid,
         'itemId': itemId,
       },
     );
