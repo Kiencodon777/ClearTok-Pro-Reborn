@@ -1083,6 +1083,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                       children: [
                         const Text(
                           'ClearTok Studio Pro',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                         Row(
@@ -1096,13 +1098,15 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                               ),
                             ),
                             const SizedBox(width: 6),
-                            Text(
+                            Flexible(child: Text(
                               user != null ? '@${user.uniqueId}' : 'Chưa kết nối tài khoản',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: user != null ? Colors.white70 : Colors.amberAccent,
                               ),
-                            ),
+                            )),
                           ],
                         ),
                       ],
@@ -1648,14 +1652,17 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
             children: [
               Icon(icon, size: 14, color: isSelected ? Colors.white : Colors.white60),
               const SizedBox(width: 6),
-              Text(
+              Flexible(child: Text(
                 label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: isSelected ? Colors.white : Colors.white60,
                   fontSize: 11,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
-              ),
+              )),
             ],
           ),
         ),
@@ -1683,7 +1690,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(title, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                Flexible(child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white54, fontSize: 11))),
                 Icon(icon, color: color, size: 16),
               ],
             ),
