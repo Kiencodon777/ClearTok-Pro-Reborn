@@ -27,7 +27,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   final Set<String> _selectedIds = {};
   bool _isScanning = false;
   String _searchQuery = '';
-  String _selectedFilter = 'all'; // all, selected, most_liked, newest, oldest
+  String _selectedFilter = 'all';
 
   TikTokDeletionEngine? _engine;
   BatchDeletionProgress? _deletionProgress;
@@ -50,7 +50,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     setState(() {
       _videos = widget.database.getAllReposts();
       _selectedIds.clear();
-      _selectedIds.addAll(_videos.map((v) => v.id)); // Default select all
+      _selectedIds.addAll(_videos.map((v) => v.id));
     });
   }
 
@@ -99,7 +99,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
 
   Future<void> _startScan() async {
     if (widget.client == null || widget.currentUser == null) {
-      _showSnack('Vui lòng qua tab "TikTok" đăng nhập trước nhé anh yêu!', isError: true);
+      _showSnack('Vui lòng qua tab "TikTok Web" đăng nhập trước nhé anh yêu!', isError: true);
       return;
     }
 
@@ -128,12 +128,74 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
         await Future.delayed(const Duration(milliseconds: 300));
       }
 
-      _showSnack('Quét hoàn tất! Đã tìm thấy $totalFound repost mới.');
+      if (totalFound > 0) {
+        _showSnack('Quét hoàn tất! Đã tìm thấy $totalFound video Repost.');
+      } else {
+        _showNoRepostDialog();
+      }
     } catch (e) {
       _showSnack('Lỗi quét: $e', isError: true);
     } finally {
       setState(() => _isScanning = false);
     }
+  }
+
+  void _showNoRepostDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E2235),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.info_outline, color: Color(0xFF25F4EE), size: 28),
+            SizedBox(width: 10),
+            Text('Kết Quả Quét', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'TikTok phản hồi không tìm thấy video Repost nào (0 video).',
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: const Text(
+                'Mẹo: Nếu tài khoản của anh chắc chắn có video đã Repost, hãy bấm nút dưới đây để chuyển sang tab TikTok Web Desktop và bấm vào biểu tượng "Người" (Trang cá nhân) để TikTok tải dữ liệu Repost lên trước nhé!',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Đóng', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFE2C55),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              widget.onSwitchToBrowser();
+            },
+            child: const Text('Mở TikTok Web Desktop'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _triggerBatchDelete() {

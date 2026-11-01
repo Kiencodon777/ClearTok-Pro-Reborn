@@ -30,13 +30,14 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
   bool _isLoading = true;
   String _currentUrl = '';
 
+  // EXACT desktop macOS User-Agent recovered from ClearTok's webview_transport.dart
+  static const String desktopUserAgent =
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
   final String _initialUrl = 'https://www.tiktok.com/login/phone-or-email/email/?lang=en&tt_not_installed=true';
-  final String _customUserAgent =
-      'Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final isLogged = widget.currentUser != null;
 
     return Scaffold(
@@ -52,7 +53,7 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
                 color: const Color(0xFFFE2C55).withOpacity(0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.public, color: Color(0xFFFE2C55), size: 20),
+              child: const Icon(Icons.desktop_mac, color: Color(0xFF25F4EE), size: 20),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -60,15 +61,16 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'TikTok Session',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                    'TikTok Desktop Web',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   Text(
-                    isLogged ? '@${widget.currentUser!.uniqueId}' : 'Login required',
+                    isLogged ? '@${widget.currentUser!.uniqueId} (Mục Repost Đã Sẵn Sàng)' : 'Cần đăng nhập tài khoản',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 11,
                       color: isLogged ? const Color(0xFF25F4EE) : Colors.white54,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -76,14 +78,23 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
           ],
         ),
         actions: [
+          if (isLogged)
+            IconButton(
+              icon: const Icon(Icons.person, color: Color(0xFF25F4EE)),
+              tooltip: 'Mở trang cá nhân Desktop (Xem mục Repost)',
+              onPressed: () {
+                final profileUrl = 'https://www.tiktok.com/@${widget.currentUser!.uniqueId}';
+                _webViewController?.loadUrl(urlRequest: URLRequest(url: WebUri(profileUrl)));
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white70),
-            tooltip: 'Reload Page',
+            tooltip: 'Tải lại trang',
             onPressed: () => _webViewController?.reload(),
           ),
           IconButton(
             icon: const Icon(Icons.lock_reset, color: Colors.white70),
-            tooltip: 'Direct Login Page',
+            tooltip: 'Về trang đăng nhập',
             onPressed: () {
               _webViewController?.loadUrl(
                 urlRequest: URLRequest(url: WebUri(_initialUrl)),
@@ -107,7 +118,8 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
           InAppWebView(
             initialUrlRequest: URLRequest(url: WebUri(_initialUrl)),
             initialSettings: InAppWebViewSettings(
-              userAgent: _customUserAgent,
+              userAgent: desktopUserAgent,
+              preferredContentMode: UserPreferredContentMode.DESKTOP,
               javaScriptEnabled: true,
               domStorageEnabled: true,
               databaseEnabled: true,
@@ -152,7 +164,7 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
               final uri = navigationAction.request.url;
               if (uri == null) return NavigationActionPolicy.ALLOW;
 
-              // Fix Net::ERR_UNKNOWN_URL_SCHEME for tiktok:// and snssdk://
+              // Prevent Net::ERR_UNKNOWN_URL_SCHEME on Android
               if (uri.scheme == 'tiktok' || uri.scheme.startsWith('snssdk')) {
                 final targetUrl = uri.queryParameters['url'];
                 if (targetUrl != null && targetUrl.isNotEmpty) {

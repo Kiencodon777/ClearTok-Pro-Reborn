@@ -73,7 +73,7 @@ class RemotePayloadConfig {
     ''';
   }
 
-  /// High-fidelity scan script reconstructed directly from libapp.so
+  /// High-fidelity scan script reconstructed directly from libapp.so with same-origin credentials
   String buildScanScript({required int cursor, required String secUid, int count = 30}) {
     return '''
       (async function() {
@@ -90,9 +90,9 @@ class RemotePayloadConfig {
 
           const response = await fetch(endpoint + '?' + params.toString(), {
             method: 'GET',
-            credentials: 'include',
+            credentials: 'same-origin',
             headers: {
-              'Accept': 'application/json, text/plain, */*'
+              'Accept': '*/*'
             }
           });
 
@@ -105,18 +105,18 @@ class RemotePayloadConfig {
     ''';
   }
 
-  /// High-fidelity un-repost script reconstructed from libapp.so
+  /// High-fidelity un-repost script reconstructed from libapp.so with same-origin credentials
   String buildDeleteScript({required String itemId, required String csrfToken}) {
     return '''
       (async function() {
         try {
           const resp = await fetch('$deleteEndpoint', {
             method: 'POST',
-            credentials: 'include',
+            credentials: 'same-origin',
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded',
               'x-secsdk-csrf-token': '$csrfToken',
-              'Accept': 'application/json, text/plain, */*'
+              'Accept': '*/*'
             },
             body: 'item_id=' + encodeURIComponent('$itemId')
           });
