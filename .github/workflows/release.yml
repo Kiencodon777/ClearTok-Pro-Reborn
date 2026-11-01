@@ -98,3 +98,4 @@ jobs:
             dist/*.apk
             dist/*.ipa
             dist/*.zip
+            dist/*.sha256
