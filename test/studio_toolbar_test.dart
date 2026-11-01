@@ -27,6 +27,7 @@ void main() {
     expect(find.text('Project Name'), findsNothing);
     expect(find.text('Đợt quét:'), findsNothing);
     expect(find.text('D&K'), findsOneWidget);
+    expect(find.text('Viết Kiên & Anh Dũng', findRichText: true), findsOneWidget);
     await tester.tap(find.byTooltip('Mở rộng công cụ'));
     await tester.pumpAndSettle();
     expect(find.text('Đợt quét:'), findsOneWidget);
@@ -36,5 +37,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Đợt quét:'), findsNothing);
     expect(db.expanded, false);
+    await tester.tap(find.byTooltip('Menu Studio'));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.insights_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.file_download_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.system_update_rounded), findsOneWidget);
+    expect(find.text('Tổng quan tương tác của bạn'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

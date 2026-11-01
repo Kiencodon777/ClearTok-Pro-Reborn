@@ -1112,17 +1112,6 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                       ],
                     ),
                   ),
-                  TextButton(
-                    onPressed: () => showModalBottomSheet<void>(
-                      context: context, isScrollControlled: true,
-                      builder: (ctx) => SafeArea(child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                          Align(alignment: Alignment.topRight, child: IconButton(
-                            tooltip: 'Đóng credit', icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx))),
-                          const ProjectCredits(expanded: true),
-                        ])))),
-                    child: const Text('D&K', style: TextStyle(color: Color(0xFF25F4EE), fontWeight: FontWeight.w900)),
-                  ),
                   IconButton(
                     tooltip: _toolsExpanded ? 'Thu gọn công cụ' : 'Mở rộng công cụ',
                     icon: Icon(_toolsExpanded ? Icons.expand_less : Icons.tune, color: const Color(0xFF25F4EE)),
@@ -1133,17 +1122,27 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                   ),
                   PopupMenuButton<String>(
                     tooltip: 'Menu Studio',
+                    icon: const Icon(Icons.more_horiz_rounded, color: Color(0xFF25F4EE)),
+                    color: const Color(0xFF171D2C),
+                    elevation: 18,
+                    shadowColor: Colors.black87,
+                    surfaceTintColor: Colors.transparent,
+                    position: PopupMenuPosition.under,
+                    offset: const Offset(0, 8),
+                    constraints: const BoxConstraints(minWidth: 270, maxWidth: 310),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22),
+                      side: const BorderSide(color: Color(0xFF344258))),
                     onSelected: (value) {
                       if (value == 'analytics') _showAnalyticsModal();
                       if (value == 'export') _showExportModal();
                       if (value == 'settings') _showSettingsModal();
                       if (value == 'update') AppUpdates.check(context, widget.database, manual: true);
                     },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'analytics', child: Text('Thống kê')),
-                      PopupMenuItem(value: 'export', child: Text('Xuất CSV/JSON')),
-                      PopupMenuItem(value: 'settings', child: Text('Cài đặt')),
-                      PopupMenuItem(value: 'update', child: Text('Kiểm tra cập nhật')),
+                    itemBuilder: (_) => [
+                      _studioMenuItem('analytics', Icons.insights_rounded, const Color(0xFF25F4EE), 'Thống kê', 'Tổng quan tương tác của bạn'),
+                      _studioMenuItem('export', Icons.file_download_outlined, const Color(0xFFAAB2FF), 'Xuất CSV/JSON', 'Lưu báo cáo vào thiết bị'),
+                      _studioMenuItem('settings', Icons.tune_rounded, const Color(0xFFFFB875), 'Cài đặt', 'Tùy chỉnh nhịp xử lý'),
+                      _studioMenuItem('update', Icons.system_update_rounded, const Color(0xFFFF8DA7), 'Kiểm tra cập nhật', 'Khám phá phiên bản mới'),
                     ],
                   ),
                 ],
@@ -1359,10 +1358,38 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                   ? _buildFollowingList()
                   : _buildVideosGrid(),
             ),
+            ProjectCreditFooter(onTap: _showCreatorCredits),
           ],
         ),
       ),
     );
+  }
+
+  void _showCreatorCredits() {
+    showModalBottomSheet<void>(context: context, isScrollControlled: true,
+      backgroundColor: const Color(0xFF101521),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
+      builder: (ctx) => SafeArea(child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Align(alignment: Alignment.topRight, child: IconButton(
+            tooltip: 'Đóng credit', icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx))),
+          const ProjectCredits(expanded: true),
+        ]))));
+  }
+
+  PopupMenuItem<String> _studioMenuItem(String value, IconData icon, Color color, String title, String description) {
+    return PopupMenuItem<String>(value: value, height: 76,
+      child: Row(children: [
+        Container(width: 40, height: 40, alignment: Alignment.center,
+          decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
+          child: Icon(icon, color: color, size: 22)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(color: Color(0xFFF0F4FA), fontSize: 14, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 3),
+          Text(description, style: const TextStyle(color: Color(0xFFB6C3D3), fontSize: 11)),
+        ])),
+      ]));
   }
 
   Widget _buildFollowingList() {
