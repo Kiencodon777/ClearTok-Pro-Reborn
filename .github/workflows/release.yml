@@ -1,0 +1,80 @@
+name: Build and release Android and iOS
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: android
+            os: ubuntu-latest
+          - platform: ios
+            os: macos-14
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set version
+        shell: bash
+        run: echo "VERSION=2.3.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+      - uses: actions/setup-java@v4
+        if: matrix.platform == 'android'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.x'
+          channel: stable
+          cache: true
+      - name: Create platform scaffolding
+        run: flutter create --org com.cleartok --project-name cleartok_reborn --platforms=${{ matrix.platform }} .
+      - run: flutter pub get
+      - name: Test pagination and IPA packaging
+        run: |
+          flutter test test/scan_pagination_test.dart
+          python3 -m unittest discover -s test -p '*_test.py'
+      - name: Build APK
+        if: matrix.platform == 'android'
+        run: |
+          flutter build apk --release --no-tree-shake-icons --build-name="$VERSION" --build-number="$GITHUB_RUN_NUMBER"
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/ClearTok-Pro-Reborn-v${VERSION}.apk"
+      - name: Build unsigned IPA
+        if: matrix.platform == 'ios'
+        run: |
+          flutter build ios --release --no-codesign --build-name="$VERSION" --build-number="$GITHUB_RUN_NUMBER"
+          mkdir -p dist
+          python3 scripts/package_ipa.py build/ios/iphoneos/Runner.app "dist/ClearTok-Pro-Reborn-v${VERSION}.ipa"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist
+      - name: Publish both platforms from this commit
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v2.3.${{ github.run_number }}
+          name: ClearTok Pro Reborn v2.3.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          fail_on_unmatched_files: true
+          body: |
+            Source commit: ${{ github.sha }}
+            Android APK and unsigned iOS IPA from the same build.
+            Download the .ipa asset directly. Actions artifacts are outer ZIP archives; extract those before installing the IPA.
+          files: |
+            dist/*.apk
+            dist/*.ipa
