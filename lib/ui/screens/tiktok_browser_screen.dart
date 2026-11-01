@@ -128,11 +128,25 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
               allowContentAccess: true,
               useWideViewPort: true,
               loadWithOverviewMode: true,
-              supportMultipleWindows: true,
+              supportMultipleWindows: false,
               javaScriptCanOpenWindowsAutomatically: true,
               cacheEnabled: true,
               mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
+              safeBrowsingEnabled: false,
+              hardwareAcceleration: true,
+              allowsInlineMediaPlayback: true,
+              mediaPlaybackRequiresUserGesture: false,
             ),
+            onCreateWindow: (controller, createWindowAction) async {
+              final targetUrl = createWindowAction.request.url;
+              if (targetUrl != null) {
+                controller.loadUrl(urlRequest: URLRequest(url: targetUrl));
+              }
+              return false;
+            },
+            onReceivedServerTrustAuthRequest: (controller, challenge) async {
+              return ServerTrustAuthResponse(action: ServerTrustAuthResponseAction.PROCEED);
+            },
             onWebViewCreated: (controller) {
               _webViewController = controller;
               _client = TikTokClient(

@@ -40,29 +40,30 @@ jobs:
       run: flutter build apk --release --no-tree-shake-icons
 
     - name: Prepare APK Asset
-      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn-v2.1.1.apk
+      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn-v2.1.2.apk
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ClearTok-Pro-Reborn-Release-APK
-        path: ClearTok-Pro-Reborn-v2.1.1.apk
+        path: ClearTok-Pro-Reborn-v2.1.2.apk
 
     - name: Auto Publish to GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v2.1.1
-        name: "ClearTok Pro Reborn v2.1.1 (Scan Batch Limit 100 & Anti-Freeze)"
+        tag_name: v2.1.2
+        name: "ClearTok Pro Reborn v2.1.2 (Fix Wi-Fi Login Freeze & CAPTCHA Handler)"
         body: |
-          ### ClearTok Pro Reborn v2.1.1 - Scan Batch Limit & Performance Upgrade
+          ### ClearTok Pro Reborn v2.1.2 - Wi-Fi Login & Network Optimization
 
-          Theo góp ý đóng góp từ bạn của LO:
-          - **Tùy chọn giới hạn đợt quét (Scan Batch Limit)**: Thêm các nút chọn linh hoạt [50], [100 bài ⭐ Khuyên dùng], [200], [Tất cả ∞].
-          - **Chống đơ/treo quét**: Quét dừng dứt khoát ngay khi đủ 100 bài (thay vì cố quét cạn hàng ngàn video gây đứng máy hoặc rate-limit).
-          - **Hiển thị trực quan tiến độ quét**: Nút quét cập nhật realtime số lượng bài đã nạp (`X/100`).
-          - Tích hợp trọn vẹn Smart Anti-Ban, Analytics Dashboard, và sao lưu CSV/JSON.
+          - **Khắc phục triệt để lỗi đăng nhập xoay tròn trên Wi-Fi**:
+            - Sửa lỗi treo popup/verification captcha khi đăng nhập trên mạng Wi-Fi bằng cách chuyển `supportMultipleWindows: false` và bổ sung trình chuyển hướng URL `onCreateWindow`.
+            - Tắt `safeBrowsingEnabled` để tránh việc Google Safe Browsing / WebKit chặn DNS và handshake socket của ByteDance trên mạng gia đình.
+            - Kích hoạt `hardwareAcceleration`, `allowsInlineMediaPlayback` giúp giải mã mượt mà puzzle trượt CAPTCHA của TikTok.
+            - Bổ sung `onReceivedServerTrustAuthRequest` vượt qua các chứng chỉ SSL trung gian của nhà mạng Wi-Fi.
+          - **Đợt quét Repost 100 bài**: Chống đơ app, quét mượt mà và dứt khoát.
 
           Unlimited Quota - Safe & Clean Architecture
-        files: ClearTok-Pro-Reborn-v2.1.1.apk
+        files: ClearTok-Pro-Reborn-v2.1.2.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
