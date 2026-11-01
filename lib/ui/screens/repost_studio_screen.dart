@@ -160,11 +160,12 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     int cursor = 0;
     bool hasMore = true;
     int totalFound = 0;
+    int previousCursor = -1;
     final int targetLimit = _scanBatchLimit;
 
     try {
       if (_currentHub == 'unfollow') {
-        // Scan following users
+        // Scan following users with multi-batch pagination
         while (hasMore && (targetLimit <= 0 || totalFound < targetLimit)) {
           final res = await widget.client!.fetchFollowingUsersBatch(
             cursor: cursor,
@@ -174,8 +175,6 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
           if (res.users.isEmpty) break;
           await widget.database.saveFollowing(res.users);
           totalFound += res.users.length;
-          cursor = res.nextCursor;
-          hasMore = res.hasMore;
 
           setState(() {
             _currentScannedCount = totalFound;
@@ -183,10 +182,18 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
           });
 
           if (targetLimit > 0 && totalFound >= targetLimit) break;
-          await Future.delayed(const Duration(milliseconds: 300));
+          if (res.nextCursor <= 0 || res.nextCursor == cursor || res.nextCursor == previousCursor) {
+            break;
+          }
+
+          previousCursor = cursor;
+          cursor = res.nextCursor;
+          hasMore = res.hasMore;
+
+          await Future.delayed(const Duration(milliseconds: 350));
         }
       } else {
-        // Scan Reposts or Liked Videos
+        // Scan Reposts or Liked Videos with multi-batch pagination
         while (hasMore && (targetLimit <= 0 || totalFound < targetLimit)) {
           final res = (_currentHub == 'unlike')
               ? await widget.client!.fetchLikedVideosBatch(
@@ -207,8 +214,6 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
           }
 
           totalFound += res.videos.length;
-          cursor = res.nextCursor;
-          hasMore = res.hasMore;
 
           setState(() {
             _currentScannedCount = totalFound;
@@ -216,7 +221,15 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
           });
 
           if (targetLimit > 0 && totalFound >= targetLimit) break;
-          await Future.delayed(const Duration(milliseconds: 300));
+          if (res.nextCursor <= 0 || res.nextCursor == cursor || res.nextCursor == previousCursor) {
+            break;
+          }
+
+          previousCursor = cursor;
+          cursor = res.nextCursor;
+          hasMore = res.hasMore;
+
+          await Future.delayed(const Duration(milliseconds: 350));
         }
       }
 

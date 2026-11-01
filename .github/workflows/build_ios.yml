@@ -44,20 +44,20 @@ jobs:
       run: |
         mkdir -p Payload
         cp -r build/ios/iphoneos/Runner.app Payload/
-        zip -r ClearTok-Pro-Reborn-v2.2.0.ipa Payload
+        zip -r ClearTok-Pro-Reborn-v2.2.1.ipa Payload
         rm -rf Payload
 
     - name: Upload IPA Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ClearTok-Pro-Reborn-Release-IPA
-        path: ClearTok-Pro-Reborn-v2.2.0.ipa
+        path: ClearTok-Pro-Reborn-v2.2.1.ipa
 
     - name: Auto Publish IPA to GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v2.2.0
-        name: "ClearTok Pro Reborn v2.2.0 (Mass Un-Like & Mass Un-Follow Fully Live)"
-        files: ClearTok-Pro-Reborn-v2.2.0.ipa
+        tag_name: v2.2.1
+        name: "ClearTok Pro Reborn v2.2.1 (Fix Pagination Cursor & Scan 50/100/200 Full Batches)"
+        files: ClearTok-Pro-Reborn-v2.2.1.ipa
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
