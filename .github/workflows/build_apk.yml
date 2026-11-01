@@ -52,43 +52,27 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v2.1.0
-        name: ClearTok Pro Reborn v2.1.0 (Major Upgrade: Smart Anti-Ban, Analytics & Export)
+        name: "ClearTok Pro Reborn v2.1.0 (Smart Anti-Ban, Analytics & Export)"
         body: |
-          # 🚀 ClearTok Pro Reborn v2.1.0 — Major Innovation Release
-          
-          Bản phát hành lớn nâng cấp toàn diện ứng dụng thành **Siêu Vũ Khí Quản Trị TikTok (All-in-One Powerhouse)** với 5 sáng kiến đột phá:
+          ### ClearTok Pro Reborn v2.1.0 - Major Innovation Release
 
-          ---
+          Bản phát hành lớn nâng cấp toàn diện ứng dụng thành Siêu Vũ Khí Quản Trị TikTok:
 
-          ### 🌟 5 Sáng Kiến & Tính Năng Đột Phá Mới:
+          1. Smart Anti-Ban & Humanized Pulse Jitter:
+             - Tự động nghỉ sâu 12s-20s sau mỗi 10-20 video để giải nhiệt và né quét bot của TikTok.
+             - 3 Profiles: Turbo (300ms), Can Bang (700ms), Sieu An Toan (1500ms).
+          2. Studio Analytics Dashboard:
+             - Thống kê tổng số video, tổng like, like trung bình, và bảng xếp hạng Top Tác Giả được bạn repost nhiều nhất.
+          3. Export & Backup Engine (CSV & JSON):
+             - 1-click copy toàn bộ danh sách video đã quét dạng CSV hoặc JSON vào bộ nhớ tạm.
+          4. Smart Filters Pro:
+             - Lọc nhanh theo từng tác giả cụ thể (@Creator), nhiều Like, mới nhất, cũ nhất.
+          5. Ecosystem Expansion (Un-Like & Un-Follow API Support):
+             - Mở rộng Web Bridge cho hủy Thích và hủy Theo dõi hàng loạt.
+          6. Background Ongoing Notification Support:
+             - Thông báo tiến độ trực tiếp khi người dùng chuyển ứng dụng.
 
-          1. **🛡️ Smart Anti-Ban & Humanized Pulse Jitter Engine:**
-             - Bổ sung cơ chế **Nhịp Thở Tự Nhiên (Humanized Deep Rest)**: Cứ sau một lượng video (10-20 items), app sẽ tự động nghỉ sâu 12-20s với đồng hồ đếm ngược giải nhiệt, né tuyệt đối thuật toán phát hiện bot của TikTok.
-             - 3 Cấu hình tốc độ thông minh:
-               - 🚀 **Turbo** (300ms / video, không nghỉ).
-               - ⚖️ **Cân Bằng [Khuyên dùng]** (700ms / video, nghỉ 12s sau mỗi 20 video).
-               - 🛡️ **Siêu An Toàn [Cày Đêm]** (1500ms / video, nghỉ 20s sau mỗi 10 video).
-
-          2. **📊 Studio Analytics Dashboard:**
-             - Thống kê trực quan chỉ bằng 1 chạm: Tổng số video đã repost, tổng lượng Like, Like trung bình trên mỗi video.
-             - Bảng xếp hạng **Top Tác Giả Được Bạn Repost Nhiều Nhất**.
-
-          3. **💾 Export & Backup Engine (CSV & JSON):**
-             - Sao lưu toàn bộ danh sách video (ID, Username, Nickname, Like, Thời gian, Link Cover, Mô tả) vào bộ nhớ tạm dạng CSV hoặc JSON chỉ với 1 click trước khi hủy hàng loạt.
-
-          4. **🎯 Smart Filters Pro (Lọc Đa Tiêu Chí):**
-             - **Lọc theo Tác Giả (@Creator)**: Hộp thoại chọn nhanh tác giả cụ thể để xóa sạch repost của một kênh drama hoặc idol.
-             - Tìm kiếm thời gian thực theo tên tác giả hoặc nội dung mô tả video.
-
-          5. **⚡ Mở Rộng Hệ Sinh Thái (Un-Like & Un-Follow API Support):**
-             - Bổ sung API endpoints và Web Bridge sẵn sàng cho việc hủy Thích (`Mass Un-Like`) và hủy Theo dõi (`Mass Un-Follow`) hàng loạt.
-             - Thanh công cụ chuyển đổi nhanh Studio Hub (`Reposts` | `Un-Like` | `Un-Follow`).
-
-          6. **🔔 Background Notification Support:**
-             - Tích hợp thông báo Ongoing Notification hiển thị thanh phần trăm tiến độ và trạng thái giải nhiệt khi người dùng chuyển ứng dụng.
-
-          ---
-          **Zero Paywalls • Unlimited Quota ∞ • Safe & Open Source**
+          Unlimited Quota - Safe & Clean Architecture
         files: ClearTok-Pro-Reborn-v2.1.0.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

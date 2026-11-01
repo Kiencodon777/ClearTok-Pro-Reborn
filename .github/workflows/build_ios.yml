@@ -57,7 +57,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v2.1.0
-        name: ClearTok Pro Reborn v2.1.0 (Major Upgrade: Smart Anti-Ban, Analytics & Export)
+        name: "ClearTok Pro Reborn v2.1.0 (Smart Anti-Ban, Analytics & Export)"
         files: ClearTok-Pro-Reborn-v2.1.0.ipa
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
