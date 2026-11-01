@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/diagnostic_log.dart';
+import '../widgets/liquid_glass.dart';
 
 class DiagnosticLogScreen extends StatelessWidget {
   const DiagnosticLogScreen({super.key});
@@ -23,7 +24,9 @@ class DiagnosticLogScreen extends StatelessWidget {
           final entries = log.entries.reversed.toList();
           if (entries.isEmpty) return const Center(child: Text('Chưa có log. Thực hiện thao tác trong Studio rồi quay lại đây.'));
           return ListView.builder(itemCount: entries.length, itemBuilder: (context, index) =>
-            Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            LiquidGlassContainer(blur: false,
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              padding: const EdgeInsets.all(16),
               child: SelectableText(
                 '${entries[index]['http_status'] == 200 && entries[index]['response_kind'] == 'empty' ? 'PHÁT HIỆN: HTTP 200 rỗng — chưa xác nhận kết quả, không tự thử lại.\n' : ''}'
                 '${entries[index].entries.map((e) => '${e.key}: ${e.value}').join('\n')}')));

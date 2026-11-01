@@ -8,6 +8,7 @@ import '../../models/tiktok_video.dart';
 import '../../services/export_analytics_service.dart';
 import '../../services/tiktok_deletion_engine.dart';
 import '../../services/app_updates.dart';
+import '../widgets/liquid_glass.dart';
 
 class RepostStudioScreen extends StatefulWidget {
   final LocalDatabase database;
@@ -756,11 +757,11 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
             const SizedBox(height: 16),
             Row(
               children: [
-                _buildStatPill('Tổng Đã Quét', '${_videos.length}', const Color(0xFF8A2BE2)),
+                _buildStatPill('Tổng Đã Quét', '${_videos.length}', ClearTokColors.cyan),
                 const SizedBox(width: 8),
                 _buildStatPill('Tổng Like ❤️', '${analytics.totalLikes}', const Color(0xFFFE2C55)),
                 const SizedBox(width: 8),
-                _buildStatPill('Like TB', analytics.avgLikes.toStringAsFixed(1), const Color(0xFF00E5FF)),
+                _buildStatPill('Like TB', analytics.avgLikes.toStringAsFixed(1), ClearTokColors.cyan),
               ],
             ),
             const SizedBox(height: 20),
@@ -1057,7 +1058,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
         : (_currentHub == 'unlike' ? 'Bỏ Thích (${_selectedIds.length})' : 'Hủy Repost (${_selectedIds.length})');
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0E14),
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(
           children: [
@@ -1066,14 +1067,10 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [Color(0xFFFE2C55), Color(0xFF25F4EE)]),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.bolt, color: Colors.white, size: 22),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset('assets/brand/app_icon.jpg', width: 40, height: 40,
+                      fit: BoxFit.cover, semanticLabel: 'ClearTok Pro'),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1122,7 +1119,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                   PopupMenuButton<String>(
                     tooltip: 'Menu Studio',
                     icon: const Icon(Icons.more_horiz_rounded, color: Color(0xFF25F4EE)),
-                    color: const Color(0xFF171D2C),
+                    color: ClearTokColors.surface.withOpacity(.96),
                     elevation: 18,
                     shadowColor: Colors.black87,
                     surfaceTintColor: Colors.transparent,
@@ -1139,9 +1136,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                     },
                     itemBuilder: (_) => [
                       _studioMenuItem('analytics', Icons.insights_rounded, const Color(0xFF25F4EE), 'Thống kê', 'Tổng quan tương tác của bạn'),
-                      _studioMenuItem('export', Icons.file_download_outlined, const Color(0xFFAAB2FF), 'Xuất CSV/JSON', 'Lưu báo cáo vào thiết bị'),
-                      _studioMenuItem('settings', Icons.tune_rounded, const Color(0xFFFFB875), 'Cài đặt', 'Tùy chỉnh nhịp xử lý'),
-                      _studioMenuItem('update', Icons.system_update_rounded, const Color(0xFFFF8DA7), 'Kiểm tra cập nhật', 'Khám phá phiên bản mới'),
+                      _studioMenuItem('export', Icons.file_download_outlined, ClearTokColors.cyan, 'Xuất CSV/JSON', 'Lưu báo cáo vào thiết bị'),
+                      _studioMenuItem('settings', Icons.tune_rounded, ClearTokColors.pink, 'Cài đặt', 'Tùy chỉnh nhịp xử lý'),
+                      _studioMenuItem('update', Icons.system_update_rounded, ClearTokColors.pink, 'Kiểm tra cập nhật', 'Khám phá phiên bản mới'),
                     ],
                   ),
                 ],
@@ -1151,13 +1148,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
             // Studio Hub Switcher: Reposts | Mass Un-Like | Mass Un-Follow
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Container(
+              child: LiquidGlassContainer(
+                borderRadius: 22,
                 padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF161926),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white10),
-                ),
                 child: Row(
                   children: [
                     _buildHubTab('Reposts', 'repost', Icons.repeat_rounded),
@@ -1179,14 +1172,14 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                   _buildMetricCard(
                     title: 'Đã Quét',
                     value: '$itemCount',
-                    color: const Color(0xFF8A2BE2),
+                    color: ClearTokColors.cyan,
                     icon: Icons.video_library_rounded,
                   ),
                   const SizedBox(width: 10),
                   _buildMetricCard(
                     title: 'Đã Xử Lý',
                     value: '${widget.database.totalDeletedCount}',
-                    color: const Color(0xFF00E5FF),
+                    color: ClearTokColors.cyan,
                     icon: Icons.delete_sweep_rounded,
                   ),
                   const SizedBox(width: 10),
@@ -1228,34 +1221,23 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1E2235),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
+                    child: GlassActionButton(
                       icon: _isScanning
                           ? const SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                           : const Icon(Icons.sync_rounded),
-                      label: Text(scanBtnText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      label: scanBtnText,
                       onPressed: _isScanning ? null : _startScan,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFE2C55),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
+                    child: GlassActionButton(
+                      primary: true,
                       icon: const Icon(Icons.delete_forever_rounded),
-                      label: Text(actionBtnText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      label: actionBtnText,
                       onPressed: _triggerBatchAction,
                     ),
                   ),
@@ -1412,13 +1394,12 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
         final u = _filteredFollowing[idx];
         final isSelected = _selectedIds.contains(u.id);
 
-        return Container(
+        return LiquidGlassContainer(
+          key: ValueKey(u.id),
+          blur: false,
+          isSelected: isSelected,
           margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-            color: const Color(0xFF161926),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: isSelected ? const Color(0xFFFE2C55) : Colors.white10),
-          ),
+          borderRadius: 18,
           child: ListTile(
             leading: CircleAvatar(
               backgroundImage: u.avatarThumb.isNotEmpty ? NetworkImage(u.avatarThumb) : null,
@@ -1428,7 +1409,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                       style: const TextStyle(color: Color(0xFF25F4EE)))
                   : null,
             ),
-            title: Text('@${u.uniqueId}',
+            title: Text('@${u.uniqueId}', maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             subtitle: Text(
               u.nickname.isNotEmpty ? u.nickname : (u.bio.isNotEmpty ? u.bio : 'TikTok Creator'),
@@ -1642,7 +1623,14 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   Widget _buildHubTab(String label, String id, IconData icon) {
     final isSelected = _currentHub == id;
     return Expanded(
-      child: GestureDetector(
+      child: Semantics(
+        selected: isSelected,
+        button: true,
+        child: LiquidGlassContainer(
+        borderRadius: 18,
+        blur: false,
+        isSelected: isSelected,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
         onTap: () {
           setState(() {
             _currentHub = id;
@@ -1652,12 +1640,6 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
           });
           _loadItems();
         },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFFE2C55) : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -1676,8 +1658,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
               )),
             ],
           ),
-        ),
-      ),
+      )),
     );
   }
 
@@ -1688,13 +1669,10 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     required IconData icon,
   }) {
     return Expanded(
-      child: Container(
+      child: LiquidGlassContainer(
+        blur: false,
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF161926),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
+        borderRadius: 18,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1707,10 +1685,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
               ],
             ),
             const SizedBox(height: 6),
-            Text(
-              value,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
-            ),
+            FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+              child: Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color))),
           ],
         ),
       ),

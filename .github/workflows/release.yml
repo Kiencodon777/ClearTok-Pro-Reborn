@@ -34,10 +34,21 @@ jobs:
       - name: Create platform scaffolding
         run: flutter create --org com.cleartok --project-name cleartok_reborn --platforms=${{ matrix.platform }} .
       - run: flutter pub get
+      - name: Generate app launcher icons
+        run: dart run flutter_launcher_icons -f launcher_icons_${{ matrix.platform }}.yaml
       - name: Test pagination and IPA packaging
         run: |
-          flutter test test/scan_pagination_test.dart test/following_pagination_test.dart test/diagnostic_log_test.dart test/project_credits_test.dart test/app_updates_test.dart test/studio_toolbar_test.dart
+          flutter test test/scan_pagination_test.dart test/following_pagination_test.dart test/diagnostic_log_test.dart test/project_credits_test.dart test/app_updates_test.dart test/studio_toolbar_test.dart test/liquid_glass_test.dart
           python3 -m unittest discover -s test -p '*_test.py'
+      - name: Check Studio layouts and capture previews
+        if: matrix.platform == 'android'
+        run: flutter test --update-goldens test/studio_visual_test.dart
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'android'
+        with:
+          name: ui-previews
+          path: build/ui-previews/*.png
+          if-no-files-found: error
       - name: Build APK
         if: matrix.platform == 'android'
         run: |

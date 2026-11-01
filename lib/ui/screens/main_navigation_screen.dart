@@ -8,6 +8,7 @@ import 'tiktok_browser_screen.dart';
 import 'diagnostic_log_screen.dart';
 import '../../services/app_updates.dart';
 import '../widgets/project_credits.dart';
+import '../widgets/liquid_glass.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   final LocalDatabase database;
@@ -35,7 +36,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0E14),
+      backgroundColor: Colors.transparent,
       body: IndexedStack(
         index: _currentIndex,
         children: [
@@ -71,23 +72,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           const DiagnosticLogScreen(),
         ],
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF161926),
-          border: const Border(top: BorderSide(color: Colors.white10, width: 0.5)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.4),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: SafeArea(
+      bottomNavigationBar: SafeArea(
           top: false,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
+          LiquidGlassContainer(
+            margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+            borderRadius: 28,
+            child:
           MediaQuery.removePadding(context: context, removeBottom: true,
             child: NavigationBar(
+          height: 68,
           selectedIndex: _currentIndex,
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -121,10 +115,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             ),
             const NavigationDestination(icon: Icon(Icons.receipt_long), label: 'Log'),
           ],
-        )),
+        ))),
         if (_currentIndex == 1) const ProjectCreditFooter(),
         ])),
-      ),
     );
   }
 }
