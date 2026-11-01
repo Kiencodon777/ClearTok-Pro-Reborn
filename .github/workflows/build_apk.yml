@@ -36,8 +36,15 @@ jobs:
     - name: Build Release APK
       run: flutter build apk --release --no-tree-shake-icons
 
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
+    - name: Rename APK for Release
+      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn.apk
+
+    - name: Auto Publish to GitHub Release
+      uses: softprops/action-gh-release@v2
+      if: always()
       with:
-        name: ClearTok-Pro-Reborn-Release-APK
-        path: build/app/outputs/flutter-apk/app-release.apk
+        tag_name: v2.0.0
+        name: ClearTok Pro Reborn v2.0.0
+        files: ClearTok-Pro-Reborn.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -44,8 +44,12 @@ jobs:
         zip -r ClearTok-Pro-Reborn-v2.0.0.ipa Payload
         rm -rf Payload
 
-    - name: Upload IPA Artifact
-      uses: actions/upload-artifact@v4
+    - name: Auto Publish IPA to GitHub Release
+      uses: softprops/action-gh-release@v2
+      if: always()
       with:
-        name: ClearTok-Pro-Reborn-Release-IPA
-        path: ClearTok-Pro-Reborn-v2.0.0.ipa
+        tag_name: v2.0.0
+        name: ClearTok Pro Reborn v2.0.0
+        files: ClearTok-Pro-Reborn-v2.0.0.ipa
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
