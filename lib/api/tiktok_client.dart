@@ -3,6 +3,32 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../core/remote_payload_config.dart';
 import '../models/tiktok_video.dart';
 
+class TikTokUserProfile {
+  final String id;
+  final String uniqueId;
+  final String nickname;
+  final String avatarThumb;
+  final String secUid;
+
+  TikTokUserProfile({
+    required this.id,
+    required this.uniqueId,
+    required this.nickname,
+    required this.avatarThumb,
+    required this.secUid,
+  });
+
+  factory TikTokUserProfile.fromJson(Map<String, dynamic> json) {
+    return TikTokUserProfile(
+      id: json['id']?.toString() ?? '',
+      uniqueId: json['uniqueId']?.toString() ?? json['unique_id']?.toString() ?? '',
+      nickname: json['nickname']?.toString() ?? '',
+      avatarThumb: json['avatarThumb']?.toString() ?? json['avatar_thumb']?.toString() ?? '',
+      secUid: json['secUid']?.toString() ?? json['sec_uid']?.toString() ?? '',
+    );
+  }
+}
+
 class ScanResult {
   final List<TikTokVideo> videos;
   final int nextCursor;
@@ -17,6 +43,20 @@ class TikTokClient {
 
   TikTokClient({required this.webViewController, required this.remoteConfig});
 
+  Future<TikTokUserProfile?> extractLiveUserProfile() async {
+    try {
+      final script = remoteConfig.buildExtractUserScript();
+      final rawResult = await webViewController.evaluateJavascript(source: script);
+      if (rawResult == null) return null;
+
+      final data = jsonDecode(rawResult.toString()) as Map<String, dynamic>;
+      if (data['status'] == 'ok' && data['user'] != null) {
+        return TikTokUserProfile.fromJson(data['user'] as Map<String, dynamic>);
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<String?> getCookie(String name) async {
     final cookieManager = CookieManager.instance();
     final cookies = await cookieManager.getCookies(url: WebUri('https://www.tiktok.com'));
@@ -27,6 +67,22 @@ class TikTokClient {
   }
 
   Future<String> extractCsrfToken() async {
+    // 1. Try JavaScript document.cookie or meta tag
+    try {
+      final jsToken = await webViewController.evaluateJavascript(source: '''
+        (function() {
+          const match = document.cookie.match(/s_v_web_id=([^;]+)/);
+          if (match) return match[1];
+          const ttwid = document.cookie.match(/ttwid=([^;]+)/);
+          if (ttwid) return ttwid[1];
+          return '';
+        })();
+      ''');
+      if (jsToken != null && jsToken.toString().isNotEmpty) {
+        return jsToken.toString();
+      }
+    } catch (_) {}
+
     final token = await getCookie('s_v_web_id') ?? await getCookie('ttwid') ?? '';
     return token;
   }

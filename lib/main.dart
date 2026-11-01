@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'core/remote_payload_config.dart';
 import 'database/local_database.dart';
-import 'ui/screens/dashboard_screen.dart';
+import 'ui/screens/main_navigation_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,9 +31,14 @@ class ClearTokApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
-        colorSchemeSeed: Colors.deepPurple,
+        scaffoldBackgroundColor: const Color(0xFF0B0E14),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFFFE2C55),
+          secondary: Color(0xFF25F4EE),
+          surface: Color(0xFF161926),
+        ),
       ),
-      home: DashboardScreen(database: database, remoteConfig: remoteConfig),
+      home: MainNavigationScreen(database: database, remoteConfig: remoteConfig),
     );
   }
 }
