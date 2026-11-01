@@ -7,6 +7,7 @@ import '../../models/tiktok_follow_user.dart';
 import '../../models/tiktok_video.dart';
 import '../../services/export_analytics_service.dart';
 import '../../services/tiktok_deletion_engine.dart';
+import '../widgets/project_credits.dart';
 
 class RepostStudioScreen extends StatefulWidget {
   final LocalDatabase database;
@@ -1122,6 +1123,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                 ],
               ),
             ),
+
+            const ProjectCredits(),
 
             // Studio Hub Switcher: Reposts | Mass Un-Like | Mass Un-Follow
             Padding(
