@@ -36,7 +36,7 @@ jobs:
       - run: flutter pub get
       - name: Test pagination and IPA packaging
         run: |
-          flutter test test/scan_pagination_test.dart test/diagnostic_log_test.dart
+          flutter test test/scan_pagination_test.dart test/following_pagination_test.dart test/diagnostic_log_test.dart
           python3 -m unittest discover -s test -p '*_test.py'
       - name: Build APK
         if: matrix.platform == 'android'

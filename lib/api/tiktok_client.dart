@@ -4,6 +4,7 @@ import '../core/remote_payload_config.dart';
 import '../models/tiktok_follow_user.dart';
 import '../models/tiktok_video.dart';
 import 'scan_pagination.dart';
+import 'following_pagination.dart';
 import '../services/diagnostic_log.dart';
 
 class TikTokUserProfile {
@@ -237,7 +238,7 @@ class TikTokClient {
   }
 
   // ─── 3. FETCH FOLLOWING USERS (FOR MASS UN-FOLLOW) ────────────────────────
-  Future<FollowingScanResult> fetchFollowingUsersBatch({required int cursor, required String secUid}) async {
+  Future<FollowingScanResult> fetchFollowingUsersBatch({required String cursor, required String secUid}) async {
     const functionBody = r'''
       try {
         const endpoint = 'https://www.tiktok.com/api/user/list/';
@@ -277,14 +278,19 @@ class TikTokClient {
 
     final raw = asyncResult.value.toString();
     final data = jsonDecode(raw) as Map<String, dynamic>;
-    _checkScanResponse(data);
+    _checkScanResponse({...data, 'status_code': data['status_code'] ?? data['statusCode']});
     final userList = data['userList'] as List<dynamic>? ?? [];
     final users = userList
         .map((u) => TikTokFollowUser.fromJson(u as Map<String, dynamic>))
         .toList();
 
-    final nextCursor = scanNextCursor(data, cursor);
-    final hasMore = scanHasMore(data, users.length, nextCursor != cursor && nextCursor > 0);
+    final nextCursor = followingNextCursor(data, cursor);
+    final hasMore = followingHasMore(data, users.length, nextCursor != cursor);
+    DiagnosticLog.instance.record('scan.following', nextCursor == cursor && hasMore ? -2 : 0,
+      details: {'scan_count': users.length, 'scan_has_more': hasMore,
+        'scan_cursor_changed': nextCursor != cursor,
+        for (final key in ['maxCursor', 'max_cursor', 'minCursor', 'min_cursor', 'nextCursor', 'next_cursor', 'cursor'])
+          'scan_has_$key': data[key] != null});
 
     return FollowingScanResult(users: users, nextCursor: nextCursor, hasMore: hasMore);
   }

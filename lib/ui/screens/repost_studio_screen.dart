@@ -167,10 +167,12 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
 
     try {
       if (_currentHub == 'unfollow') {
+        var followingCursor = '0';
+        final followingCursors = <String>{'0'};
         // Scan following users with multi-batch pagination
         while (hasMore && (targetLimit <= 0 || totalFound < targetLimit)) {
           final res = await widget.client!.fetchFollowingUsersBatch(
-            cursor: cursor,
+            cursor: followingCursor,
             secUid: widget.currentUser!.secUid,
           );
 
@@ -186,18 +188,13 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
           });
 
           if (targetLimit > 0 && totalFound >= targetLimit) break;
-          if (res.hasMore && !seenCursors.add(res.nextCursor)) {
-            throw Exception('TikTok lặp cursor sau $totalFound mục; chưa quét hết.');
+          if (res.hasMore && !followingCursors.add(res.nextCursor)) {
+            throw Exception('Đã lưu $totalFound tài khoản. TikTok chưa trả cursor mới; mở Log xem scan.following.');
           }
-          if (res.nextCursor <= 0 || res.nextCursor == cursor || res.nextCursor == previousCursor) {
-            break;
-          }
-
-          previousCursor = cursor;
-          cursor = res.nextCursor;
+          followingCursor = res.nextCursor;
           hasMore = res.hasMore;
 
-          await Future.delayed(const Duration(milliseconds: 350));
+          await Future.delayed(const Duration(milliseconds: 1500));
         }
       } else {
         // Scan Reposts or Liked Videos with multi-batch pagination

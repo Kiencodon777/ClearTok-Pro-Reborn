@@ -12,7 +12,10 @@ class DiagnosticLog extends ChangeNotifier {
     'readback_http_status', 'readback_response_length', 'readback_redirected',
     'readback_verification_hint', 'readback_hydration_present',
     'readback_viewer_present', 'readback_same_session', 'readback_video_present',
-    'readback_video_matches', 'readback_liked_present', 'readback_exception'};
+    'readback_video_matches', 'readback_liked_present', 'readback_exception',
+    'scan_count', 'scan_has_more', 'scan_cursor_changed',
+    'scan_has_maxCursor', 'scan_has_max_cursor', 'scan_has_minCursor',
+    'scan_has_min_cursor', 'scan_has_nextCursor', 'scan_has_next_cursor', 'scan_has_cursor'};
 
   void record(String action, int code, {Map<String, dynamic> details = const {}}) {
     _entries.add({'time': DateTime.now().toUtc().toIso8601String(),
