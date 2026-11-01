@@ -14,7 +14,7 @@ jobs:
           - platform: android
             os: ubuntu-latest
           - platform: ios
-            os: macos-14
+            os: macos-15
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
