@@ -1207,18 +1207,16 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
             // Scan Batch Limit Selector Bar (50 | 100⭐ | 200 | Tất cả)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-              child: Row(
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   const Icon(Icons.tune_rounded, size: 14, color: Color(0xFF25F4EE)),
-                  const SizedBox(width: 6),
                   const Text('Đợt quét:', style: TextStyle(color: Colors.white54, fontSize: 11)),
-                  const Spacer(),
                   _buildScanLimitPill('50', 50),
-                  const SizedBox(width: 6),
                   _buildScanLimitPill('100 ⭐', 100),
-                  const SizedBox(width: 6),
                   _buildScanLimitPill('200', 200),
-                  const SizedBox(width: 6),
                   _buildScanLimitPill('Hết ∞', 0),
                 ],
               ),
