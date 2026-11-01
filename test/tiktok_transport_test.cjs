@@ -22,6 +22,11 @@ for (const [liked, sameAccount, expected] of [[false,true,0],[true,true,-2],[fal
       '/api/commit/item/digg/',{aweme_id:'123',type:'0',_author:'creator'},1988,Parser));
     assert.equal(result.status_code,expected);
     assert.equal(result.success,expected===0);
+    const detail=JSON.parse(result.raw);
+    assert.equal(detail.readback_confirmed,sameAccount);
+    assert.equal(detail.readback_same_session,sameAccount);
+    assert.equal(detail.readback_hydration_present,true);
+    assert.equal(detail.readback_video_matches,true);
     assert.equal(posts,1); assert.equal(gets,1);
   });
 }

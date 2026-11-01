@@ -8,7 +8,11 @@ class DiagnosticLog extends ChangeNotifier {
   static const allowed = {'http_status', 'redirected', 'content_type',
     'response_length', 'response_kind', 'csrf_present', 'elapsed_ms',
     'login_redirect', 'verification_hint', 'browser_mode',
-    'readback_attempted', 'readback_confirmed', 'readback_liked'};
+    'readback_attempted', 'readback_confirmed', 'readback_liked',
+    'readback_http_status', 'readback_response_length', 'readback_redirected',
+    'readback_verification_hint', 'readback_hydration_present',
+    'readback_viewer_present', 'readback_same_session', 'readback_video_present',
+    'readback_video_matches', 'readback_liked_present', 'readback_exception'};
 
   void record(String action, int code, {Map<String, dynamic> details = const {}}) {
     _entries.add({'time': DateTime.now().toUtc().toIso8601String(),

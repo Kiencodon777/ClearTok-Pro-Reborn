@@ -521,6 +521,7 @@ class TikTokClient {
             // A blank 200 is ambiguous. Read state once; never replay the POST.
             if (response.ok && !raw.trim() && path.includes('/item/digg/') && params._author) {
               detail.readback_attempted = true;
+              detail.readback_confirmed = false;
               try {
                 const profileId = user => String(user?.uid || user?.id || '');
                 const expectedUser = profileId(app.user);
@@ -528,18 +529,29 @@ class TikTokClient {
                   '/video/' + encodeURIComponent(params.aweme_id),
                   {credentials: 'include', signal: abort.signal, cache: 'no-store'});
                 const html = await page.text();
+                detail.readback_http_status = page.status;
+                detail.readback_response_length = html.length;
+                detail.readback_redirected = Boolean(page.redirected);
+                detail.readback_verification_hint = /captcha|verifycenter|verify-center/i.test(html);
                 const parsedPage = new DOMParser().parseFromString(html, 'text/html');
-                const hydration = JSON.parse(parsedPage.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__')?.textContent || '{}');
+                const hydrationText = parsedPage.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__')?.textContent;
+                detail.readback_hydration_present = Boolean(hydrationText);
+                const hydration = JSON.parse(hydrationText || '{}');
                 const scope = hydration.__DEFAULT_SCOPE__ || {};
                 const video = scope['webapp.video-detail']?.itemInfo?.itemStruct;
                 const sameSession = expectedUser && profileId(scope['webapp.app-context']?.user) === expectedUser;
+                detail.readback_viewer_present = Boolean(expectedUser);
+                detail.readback_same_session = Boolean(sameSession);
+                detail.readback_video_present = Boolean(video);
+                detail.readback_video_matches = Boolean(video && String(video.id) === String(params.aweme_id));
+                detail.readback_liked_present = typeof video?.digged === 'boolean';
                 if (page.ok && sameSession && String(video?.id) === String(params.aweme_id) && typeof video.digged === 'boolean') {
                   detail.readback_confirmed = true;
                   detail.readback_liked = video.digged;
                   if (!video.digged) return JSON.stringify({success: true, status_code: 0,
                     message: 'Đã xác nhận video không còn được thích.', raw: JSON.stringify(detail)});
                 }
-              } catch (_) { detail.readback_confirmed = false; }
+              } catch (_) { detail.readback_exception = true; }
             }
             return failure(response.ok ? -2 : response.status,
               'TikTok chưa xác nhận kết quả. Mở tab Log để xem chi tiết; kiểm tra video trước khi thử lại.', detail);
