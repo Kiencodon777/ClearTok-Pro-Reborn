@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "ClearTok Pro Web",
+  "version": "1.0.0",
+  "minimum_chrome_version": "111",
+  "description": "Dashboard local quản lý Repost, Likes và Following bằng phiên TikTok của bạn.",
+  "permissions": ["scripting", "storage"],
+  "host_permissions": ["https://www.tiktok.com/*"],
+  "background": {"service_worker": "background.js"},
+  "action": {"default_title": "Mở ClearTok Web"},
+  "content_security_policy": {"extension_pages": "script-src 'self'; object-src 'none'"}
+}

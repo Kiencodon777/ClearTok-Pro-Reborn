@@ -65,10 +65,15 @@ jobs:
       - run: node --test test/tiktok_transport_test.cjs
       - run: node scripts/build_diagnostic_web.cjs
       - run: node --test test/diagnostic_web_test.cjs
+      - name: Build full web dashboard and Chrome/Edge extension
+        run: |
+          node scripts/build_web_extension.cjs
+          node --test test/web_extension_test.cjs
       - name: Package web companion
         run: |
           mkdir -p dist
           python3 -c "import shutil; shutil.make_archive('dist/ClearTok-Diagnostic-Web-v2.3.${{ github.run_number }}', 'zip', 'build/diagnostic-web')"
+          python3 -c "import shutil; shutil.make_archive('dist/ClearTok-Pro-Web-v2.3.${{ github.run_number }}', 'zip', 'build/cleartok-web')"
       - uses: actions/upload-artifact@v4
         with:
           name: release-web
