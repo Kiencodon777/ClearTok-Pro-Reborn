@@ -48,8 +48,25 @@ jobs:
         if: matrix.platform == 'ios'
         run: |
           flutter build ios --release --no-codesign --build-name="$VERSION" --build-number="$GITHUB_RUN_NUMBER" --dart-define="APP_VERSION=$VERSION" --dart-define="UPDATE_FEED_URL=${{ vars.UPDATE_FEED_URL }}"
+      - name: Prepare IPA for re-signing and verify extracted bundle
+        if: matrix.platform == 'ios'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="build/ios/iphoneos/Runner.app"
+          # Give re-signers a consistent signature layout without an Apple identity.
+          xattr -cr "$APP"
+          while IFS= read -r -d '' nested; do
+            codesign --force --sign - --timestamp=none "$nested"
+          done < <(find "$APP" -depth \( -name '*.framework' -o -name '*.dylib' -o -name '*.appex' \) -print0)
+          codesign --force --sign - --timestamp=none "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
           mkdir -p dist
           python3 scripts/package_ipa.py build/ios/iphoneos/Runner.app "dist/ClearTok-Pro-Reborn-v${VERSION}.ipa"
+          CHECK_DIR="$(mktemp -d)"
+          ditto -x -k "dist/ClearTok-Pro-Reborn-v${VERSION}.ipa" "$CHECK_DIR"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$CHECK_DIR/Payload/Runner.app/Info.plist"
+          codesign --verify --deep --strict --verbose=2 "$CHECK_DIR/Payload/Runner.app"
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.platform }}
@@ -102,6 +119,7 @@ jobs:
           body: |
             Source commit: ${{ github.sha }}
             Android APK and unsigned iOS IPA from the same build.
+            IPA includes verified ad-hoc signatures for re-signing compatibility; sign it with your own iOS certificate before installation.
             Download the .ipa asset directly. Actions artifacts are outer ZIP archives; extract those before installing the IPA.
           files: |
             dist/*.apk
