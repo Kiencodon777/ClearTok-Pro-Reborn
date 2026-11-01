@@ -161,6 +161,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     bool hasMore = true;
     int totalFound = 0;
     int previousCursor = -1;
+    final seenIds = <String>{};
+    final seenCursors = <int>{0};
     final int targetLimit = _scanBatchLimit;
 
     try {
@@ -173,8 +175,10 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
           );
 
           if (res.users.isEmpty) break;
-          await widget.database.saveFollowing(res.users);
-          totalFound += res.users.length;
+          final items = res.users.where((u) => u.id.isNotEmpty && seenIds.add(u.id))
+              .take(targetLimit > 0 ? targetLimit - totalFound : res.users.length).toList();
+          await widget.database.saveFollowing(items);
+          totalFound += items.length;
 
           setState(() {
             _currentScannedCount = totalFound;
@@ -182,6 +186,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
           });
 
           if (targetLimit > 0 && totalFound >= targetLimit) break;
+          if (res.hasMore && !seenCursors.add(res.nextCursor)) {
+            throw Exception('TikTok lặp cursor sau $totalFound mục; chưa quét hết.');
+          }
           if (res.nextCursor <= 0 || res.nextCursor == cursor || res.nextCursor == previousCursor) {
             break;
           }
@@ -206,14 +213,16 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                 );
 
           if (res.videos.isEmpty) break;
+          final items = res.videos.where((v) => v.id.isNotEmpty && seenIds.add(v.id))
+              .take(targetLimit > 0 ? targetLimit - totalFound : res.videos.length).toList();
 
           if (_currentHub == 'unlike') {
-            await widget.database.saveLikedVideos(res.videos);
+            await widget.database.saveLikedVideos(items);
           } else {
-            await widget.database.saveReposts(res.videos);
+            await widget.database.saveReposts(items);
           }
 
-          totalFound += res.videos.length;
+          totalFound += items.length;
 
           setState(() {
             _currentScannedCount = totalFound;
@@ -221,6 +230,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
           });
 
           if (targetLimit > 0 && totalFound >= targetLimit) break;
+          if (res.hasMore && !seenCursors.add(res.nextCursor)) {
+            throw Exception('TikTok lặp cursor sau $totalFound mục; chưa quét hết.');
+          }
           if (res.nextCursor <= 0 || res.nextCursor == cursor || res.nextCursor == previousCursor) {
             break;
           }

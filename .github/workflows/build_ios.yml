@@ -38,6 +38,7 @@ jobs:
 
     - name: Build iOS Application (Unsigned Release)
       run: |
+        flutter test test/scan_pagination_test.dart
         flutter build ios --release --no-codesign
 
     - name: Package Payload into IPA

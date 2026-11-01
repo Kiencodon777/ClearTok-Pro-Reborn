@@ -3,6 +3,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../core/remote_payload_config.dart';
 import '../models/tiktok_follow_user.dart';
 import '../models/tiktok_video.dart';
+import 'scan_pagination.dart';
 
 class TikTokUserProfile {
   final String id;
@@ -176,26 +177,8 @@ class TikTokClient {
         .map((item) => TikTokVideo.fromJson(item as Map<String, dynamic>, secUid: secUid))
         .toList();
 
-    // Robust pagination: check cursor, max_cursor, min_cursor and fallback to last video timestamp
-    int nextCursor = int.tryParse(data['cursor']?.toString() ??
-            data['max_cursor']?.toString() ??
-            data['min_cursor']?.toString() ??
-            '') ??
-        0;
-
-    if (nextCursor <= 0 && videos.isNotEmpty) {
-      final lastTime = videos.last.repostTimestamp;
-      if (lastTime > 0) {
-        nextCursor = lastTime > 10000000000 ? lastTime : lastTime * 1000;
-      }
-    }
-
-    final rawHasMore = data['hasMore'] ?? data['has_more'];
-    final bool hasMore = (rawHasMore == true ||
-            rawHasMore == 1 ||
-            rawHasMore == '1' ||
-            rawHasMore == 'true') ||
-        (itemList.length >= 20 && nextCursor > 0);
+    final nextCursor = scanNextCursor(data, cursor);
+    final hasMore = scanHasMore(data, videos.length, nextCursor != cursor && nextCursor > 0);
 
     return ScanResult(videos: videos, nextCursor: nextCursor, hasMore: hasMore);
   }
@@ -246,25 +229,8 @@ class TikTokClient {
         .map((item) => TikTokVideo.fromJson(item as Map<String, dynamic>, secUid: secUid))
         .toList();
 
-    int nextCursor = int.tryParse(data['cursor']?.toString() ??
-            data['max_cursor']?.toString() ??
-            data['min_cursor']?.toString() ??
-            '') ??
-        0;
-
-    if (nextCursor <= 0 && videos.isNotEmpty) {
-      final lastTime = videos.last.repostTimestamp;
-      if (lastTime > 0) {
-        nextCursor = lastTime > 10000000000 ? lastTime : lastTime * 1000;
-      }
-    }
-
-    final rawHasMore = data['hasMore'] ?? data['has_more'];
-    final bool hasMore = (rawHasMore == true ||
-            rawHasMore == 1 ||
-            rawHasMore == '1' ||
-            rawHasMore == 'true') ||
-        (itemList.length >= 20 && nextCursor > 0);
+    final nextCursor = scanNextCursor(data, cursor);
+    final hasMore = scanHasMore(data, videos.length, nextCursor != cursor && nextCursor > 0);
 
     return ScanResult(videos: videos, nextCursor: nextCursor, hasMore: hasMore);
   }
@@ -316,18 +282,8 @@ class TikTokClient {
         .map((u) => TikTokFollowUser.fromJson(u as Map<String, dynamic>))
         .toList();
 
-    int nextCursor = int.tryParse(data['maxCursor']?.toString() ??
-            data['max_cursor']?.toString() ??
-            data['cursor']?.toString() ??
-            '') ??
-        0;
-
-    final rawHasMore = data['hasMore'] ?? data['has_more'];
-    final bool hasMore = (rawHasMore == true ||
-            rawHasMore == 1 ||
-            rawHasMore == '1' ||
-            rawHasMore == 'true') ||
-        (rawHasMore == null && userList.length >= 20 && nextCursor > 0);
+    final nextCursor = scanNextCursor(data, cursor);
+    final hasMore = scanHasMore(data, users.length, nextCursor != cursor && nextCursor > 0);
 
     return FollowingScanResult(users: users, nextCursor: nextCursor, hasMore: hasMore);
   }

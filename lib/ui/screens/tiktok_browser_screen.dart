@@ -28,6 +28,9 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
   TikTokClient? _client;
   double _loadProgress = 0.0;
   bool _isLoading = true;
+  bool _desktopMode = true;
+  bool _showStudioBanner = true;
+  bool _switchingMode = false;
   String _currentUrl = '';
 
   // EXACT desktop macOS User-Agent recovered from ClearTok's webview_transport.dart
@@ -60,9 +63,9 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'TikTok Desktop Web',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                  Text(
+                    _desktopMode ? 'TikTok Desktop Web' : 'TikTok Mobile Web',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   Text(
                     isLogged ? '@${widget.currentUser!.uniqueId} (Mục Repost Đã Sẵn Sàng)' : 'Cần đăng nhập tài khoản',
@@ -78,6 +81,17 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: _desktopMode ? 'Chuyển sang điện thoại' : 'Chuyển sang máy tính',
+            icon: Icon(_desktopMode ? Icons.phone_android : Icons.desktop_mac),
+            onPressed: _switchingMode ? null : _toggleBrowserMode,
+          ),
+          if (isLogged && !_showStudioBanner)
+            IconButton(
+              tooltip: 'Hiện thanh Studio',
+              icon: const Icon(Icons.dashboard),
+              onPressed: () => setState(() => _showStudioBanner = true),
+            ),
           if (isLogged)
             IconButton(
               icon: const Icon(Icons.person, color: Color(0xFF25F4EE)),
@@ -196,7 +210,7 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
           ),
 
           // Bottom Floating VIP Banner when logged in
-          Positioned(
+          if (isLogged && _showStudioBanner) Positioned(
             left: 16,
             right: 16,
             bottom: 16,
@@ -264,6 +278,11 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Ẩn thanh Studio',
+                      icon: const Icon(Icons.close, color: Colors.white70),
+                      onPressed: () => setState(() => _showStudioBanner = false),
+                    ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFFE2C55),
@@ -295,6 +314,30 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
     final profile = await _client!.extractLiveUserProfile();
     if (profile != null && profile.secUid.isNotEmpty) {
       widget.onUserStatusChanged(profile);
+    }
+  }
+
+  Future<void> _toggleBrowserMode() async {
+    final controller = _webViewController;
+    if (controller == null) return;
+    setState(() => _switchingMode = true);
+    final nextDesktop = !_desktopMode;
+    try {
+      final agent = nextDesktop ? desktopUserAgent : await InAppWebViewController.getDefaultUserAgent();
+      await controller.setSettings(settings: InAppWebViewSettings(
+        userAgent: agent,
+        preferredContentMode: nextDesktop ? UserPreferredContentMode.DESKTOP : UserPreferredContentMode.MOBILE,
+        useWideViewPort: nextDesktop,
+        loadWithOverviewMode: nextDesktop,
+      ));
+      if (!mounted) return;
+      setState(() => _desktopMode = nextDesktop);
+      await controller.reload();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không đổi được chế độ trình duyệt: $e')));
+    } finally {
+      if (mounted) setState(() => _switchingMode = false);
     }
   }
 }

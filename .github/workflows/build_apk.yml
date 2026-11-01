@@ -37,7 +37,10 @@ jobs:
       run: flutter pub get
 
     - name: Build Release APK
-      run: flutter build apk --release --no-tree-shake-icons
+      # Pagination regression tests run on the runner's Flutter SDK.
+      run: |
+        flutter test test/scan_pagination_test.dart
+        flutter build apk --release --no-tree-shake-icons
 
     - name: Prepare APK Asset
       run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn-v2.2.2.apk
