@@ -7,6 +7,7 @@ import 'repost_studio_screen.dart';
 import 'tiktok_browser_screen.dart';
 import 'diagnostic_log_screen.dart';
 import '../../services/app_updates.dart';
+import '../widgets/project_credits.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   final LocalDatabase database;
@@ -82,7 +83,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             ),
           ],
         ),
-        child: NavigationBar(
+        child: SafeArea(
+          top: false,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+          MediaQuery.removePadding(context: context, removeBottom: true,
+            child: NavigationBar(
           selectedIndex: _currentIndex,
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -116,7 +121,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             ),
             const NavigationDestination(icon: Icon(Icons.receipt_long), label: 'Log'),
           ],
-        ),
+        )),
+        if (_currentIndex == 1) const ProjectCreditFooter(),
+        ])),
       ),
     );
   }

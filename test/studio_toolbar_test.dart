@@ -26,8 +26,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: RepostStudioScreen(database: db, client: null, currentUser: null, onSwitchToBrowser: () {})));
     expect(find.text('Project Name'), findsNothing);
     expect(find.text('Đợt quét:'), findsNothing);
-    expect(find.text('D&K'), findsOneWidget);
-    expect(find.text('Viết Kiên & Anh Dũng', findRichText: true), findsOneWidget);
+    // Creator text belongs below the app-level tab bar, not in the video area.
+    expect(find.text('Viết Kiên & Anh Dũng', findRichText: true), findsNothing);
     await tester.tap(find.byTooltip('Mở rộng công cụ'));
     await tester.pumpAndSettle();
     expect(find.text('Đợt quét:'), findsOneWidget);

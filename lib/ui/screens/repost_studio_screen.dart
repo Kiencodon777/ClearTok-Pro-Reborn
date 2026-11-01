@@ -7,7 +7,6 @@ import '../../models/tiktok_follow_user.dart';
 import '../../models/tiktok_video.dart';
 import '../../services/export_analytics_service.dart';
 import '../../services/tiktok_deletion_engine.dart';
-import '../widgets/project_credits.dart';
 import '../../services/app_updates.dart';
 
 class RepostStudioScreen extends StatefulWidget {
@@ -1358,23 +1357,10 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                   ? _buildFollowingList()
                   : _buildVideosGrid(),
             ),
-            ProjectCreditFooter(onTap: _showCreatorCredits),
           ],
         ),
       ),
     );
-  }
-
-  void _showCreatorCredits() {
-    showModalBottomSheet<void>(context: context, isScrollControlled: true,
-      backgroundColor: const Color(0xFF101521),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
-      builder: (ctx) => SafeArea(child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Align(alignment: Alignment.topRight, child: IconButton(
-            tooltip: 'Đóng credit', icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx))),
-          const ProjectCredits(expanded: true),
-        ]))));
   }
 
   PopupMenuItem<String> _studioMenuItem(String value, IconData icon, Color color, String title, String description) {
