@@ -98,5 +98,9 @@ class LocalDatabase {
   Future<void> setDeepRestDurationSec(int sec) async => await _settingsBox.put('deep_rest_sec', sec);
 
   String get safetyPreset => _settingsBox.get('safety_preset', defaultValue: 'balanced') as String;
+  bool get studioToolsExpanded => _settingsBox.get('studio_tools_expanded', defaultValue: false) as bool;
+  Future<void> setStudioToolsExpanded(bool value) => _settingsBox.put('studio_tools_expanded', value);
+  int get updateSnoozedUntil => _settingsBox.get('update_snoozed_until', defaultValue: 0) as int;
+  Future<void> snoozeUpdates() => _settingsBox.put('update_snoozed_until', DateTime.now().add(const Duration(days: 1)).millisecondsSinceEpoch);
   Future<void> setSafetyPreset(String preset) async => await _settingsBox.put('safety_preset', preset);
 }

@@ -8,6 +8,7 @@ import '../../models/tiktok_video.dart';
 import '../../services/export_analytics_service.dart';
 import '../../services/tiktok_deletion_engine.dart';
 import '../widgets/project_credits.dart';
+import '../../services/app_updates.dart';
 
 class RepostStudioScreen extends StatefulWidget {
   final LocalDatabase database;
@@ -32,6 +33,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   List<TikTokFollowUser> _followingUsers = [];
   final Set<String> _selectedIds = {};
   bool _isScanning = false;
+  bool _toolsExpanded = false;
   String _searchQuery = '';
   String _selectedFilter = 'all';
   String? _filterAuthor;
@@ -46,6 +48,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   void initState() {
     super.initState();
     _scanBatchLimit = widget.database.scanBatchLimit;
+    _toolsExpanded = widget.database.studioToolsExpanded;
     _loadItems();
   }
 
@@ -1105,26 +1108,43 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.insights_rounded, color: Color(0xFF25F4EE)),
-                    tooltip: 'Thống kê Analytics',
-                    onPressed: _showAnalyticsModal,
+                  TextButton(
+                    onPressed: () => showModalBottomSheet<void>(
+                      context: context, isScrollControlled: true,
+                      builder: (ctx) => SafeArea(child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          Align(alignment: Alignment.topRight, child: IconButton(
+                            tooltip: 'Đóng credit', icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx))),
+                          const ProjectCredits(expanded: true),
+                        ])))),
+                    child: const Text('D&K', style: TextStyle(color: Color(0xFF25F4EE), fontWeight: FontWeight.w900)),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.download_rounded, color: Colors.white70),
-                    tooltip: 'Xuất CSV/JSON',
-                    onPressed: _showExportModal,
+                    tooltip: _toolsExpanded ? 'Thu gọn công cụ' : 'Mở rộng công cụ',
+                    icon: Icon(_toolsExpanded ? Icons.expand_less : Icons.tune, color: const Color(0xFF25F4EE)),
+                    onPressed: () {
+                      setState(() => _toolsExpanded = !_toolsExpanded);
+                      widget.database.setStudioToolsExpanded(_toolsExpanded);
+                    },
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.tune_rounded, color: Colors.white70),
-                    tooltip: 'Cài đặt Anti-Ban',
-                    onPressed: _showSettingsModal,
+                  PopupMenuButton<String>(
+                    tooltip: 'Menu Studio',
+                    onSelected: (value) {
+                      if (value == 'analytics') _showAnalyticsModal();
+                      if (value == 'export') _showExportModal();
+                      if (value == 'settings') _showSettingsModal();
+                      if (value == 'update') AppUpdates.check(context, widget.database, manual: true);
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'analytics', child: Text('Thống kê')),
+                      PopupMenuItem(value: 'export', child: Text('Xuất CSV/JSON')),
+                      PopupMenuItem(value: 'settings', child: Text('Cài đặt')),
+                      PopupMenuItem(value: 'update', child: Text('Kiểm tra cập nhật')),
+                    ],
                   ),
                 ],
               ),
             ),
-
-            const ProjectCredits(),
 
             // Studio Hub Switcher: Reposts | Mass Un-Like | Mass Un-Follow
             Padding(
@@ -1148,6 +1168,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
 
             const SizedBox(height: 6),
 
+            if (_toolsExpanded) ...[
             // Hero Metric Cards
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1199,6 +1220,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
               ),
             ),
 
+            ],
+
             // Quick Actions: Scan & Action
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -1240,6 +1263,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
               ),
             ),
 
+            if (_toolsExpanded) ...[
             // Filter Chips Bar
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -1324,6 +1348,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                 onChanged: (val) => setState(() => _searchQuery = val),
               ),
             ),
+
+            ],
 
             // Main Content Area: Videos Grid or Following Users List
             Expanded(

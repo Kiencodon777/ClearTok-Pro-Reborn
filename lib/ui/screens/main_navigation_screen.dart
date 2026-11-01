@@ -6,6 +6,7 @@ import '../../database/local_database.dart';
 import 'repost_studio_screen.dart';
 import 'tiktok_browser_screen.dart';
 import 'diagnostic_log_screen.dart';
+import '../../services/app_updates.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   final LocalDatabase database;
@@ -18,6 +19,13 @@ class MainNavigationScreen extends StatefulWidget {
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) AppUpdates.check(context, widget.database);
+    });
+  }
   int _currentIndex = 0;
   InAppWebViewController? _webViewController;
   TikTokClient? _client;
