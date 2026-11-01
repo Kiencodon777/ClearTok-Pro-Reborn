@@ -486,21 +486,15 @@ class TikTokClient {
         if (m) csrf = decodeURIComponent(m[1]);
 
         const primaryUrl = 'https://www.tiktok.com/api/commit/item/digg/?aid=' + String(aid);
-        try {
-          const pre = await nativeFetch(primaryUrl, {
-            method: 'GET',
-            credentials: 'include',
-            headers: {
-              'X-Secsdk-Csrf-Request': '1',
-              'X-Secsdk-Csrf-Version': '1.2.8'
-            }
-          });
-          const wareToken = pre.headers.get('x-ware-csrf-token') || pre.headers.get('X-Ware-Csrf-Token');
-          if (wareToken) {
-            const parts = wareToken.split(',');
-            csrf = parts.length > 1 ? parts[1].trim() : parts[0].trim();
-          }
-        } catch (_) {}
+
+
+        // The web commit API uses app-context csrfToken, not the SecSDK token.
+        let contextData = window['__UNIVERSAL_DATA_FOR_REHYDRATION__'] || window['__$UNIVERSAL_DATA$__'];
+        if (!contextData) {
+          try { contextData = JSON.parse(document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__')?.textContent || '{}'); } catch (_) {}
+        }
+        const webCsrf = contextData?.__DEFAULT_SCOPE__?.['webapp.app-context']?.csrfToken;
+        if (webCsrf) csrf = webCsrf;
 
         const buildHeaders = (contentType) => {
           const h = {
@@ -508,8 +502,7 @@ class TikTokClient {
           };
           if (contentType) h['Content-Type'] = contentType;
           if (csrf) {
-            h['x-secsdk-csrf-token'] = csrf;
-            h['x-secsdk-csrf-version'] = '1.2.8';
+            h['tt-csrf-token'] = csrf;
           }
           return h;
         };
@@ -524,11 +517,14 @@ class TikTokClient {
         for (const ep of endpoints) {
           // Attempt A: Form URL-encoded
           try {
-            const resp = await nativeFetch(ep, {
+            const requestUrl = new URL(ep);
+            requestUrl.searchParams.set('aweme_id', String(awemeId));
+            requestUrl.searchParams.set('type', '0');
+            const resp = await nativeFetch(requestUrl.toString(), {
               method: 'POST',
               credentials: 'include',
               headers: buildHeaders('application/x-www-form-urlencoded'),
-              body: 'aweme_id=' + encodeURIComponent(awemeId) + '&type=0&channel=tiktok_web'
+              body: ''
             });
             const raw = await resp.text();
             let parsed = null;
@@ -628,21 +624,14 @@ class TikTokClient {
         if (m) csrf = decodeURIComponent(m[1]);
 
         const primaryUrl = 'https://www.tiktok.com/api/commit/follow/user/?aid=' + String(aid);
-        try {
-          const pre = await nativeFetch(primaryUrl, {
-            method: 'GET',
-            credentials: 'include',
-            headers: {
-              'X-Secsdk-Csrf-Request': '1',
-              'X-Secsdk-Csrf-Version': '1.2.8'
-            }
-          });
-          const wareToken = pre.headers.get('x-ware-csrf-token') || pre.headers.get('X-Ware-Csrf-Token');
-          if (wareToken) {
-            const parts = wareToken.split(',');
-            csrf = parts.length > 1 ? parts[1].trim() : parts[0].trim();
-          }
-        } catch (_) {}
+        // The web commit API uses app-context csrfToken, not the SecSDK token.
+        let contextData = window['__UNIVERSAL_DATA_FOR_REHYDRATION__'] || window['__$UNIVERSAL_DATA$__'];
+        if (!contextData) {
+          try { contextData = JSON.parse(document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__')?.textContent || '{}'); } catch (_) {}
+        }
+        const webCsrf = contextData?.__DEFAULT_SCOPE__?.['webapp.app-context']?.csrfToken;
+        if (webCsrf) csrf = webCsrf;
+
 
         const buildHeaders = (contentType) => {
           const h = {
@@ -650,8 +639,7 @@ class TikTokClient {
           };
           if (contentType) h['Content-Type'] = contentType;
           if (csrf) {
-            h['x-secsdk-csrf-token'] = csrf;
-            h['x-secsdk-csrf-version'] = '1.2.8';
+            h['tt-csrf-token'] = csrf;
           }
           return h;
         };
@@ -670,7 +658,7 @@ class TikTokClient {
               method: 'POST',
               credentials: 'include',
               headers: buildHeaders('application/x-www-form-urlencoded'),
-              body: 'user_id=' + encodeURIComponent(userId) + '&type=0&channel=tiktok_web'
+              body: 'user_id=' + encodeURIComponent(userId) + '&type=0&action_type=0&channel_id=0&from=18&fromWeb=1&from_pre=0'
             });
             const raw = await resp.text();
             let parsed = null;

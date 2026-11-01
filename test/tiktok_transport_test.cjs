@@ -16,13 +16,25 @@ for (const name of ['unlikeVideo', 'unfollowUser']) {
     test(`${name}: ${scenario.name}`, async () => {
       let posts = 0;
       const fetch = async (url, options) => {
-        if (options.method === 'POST') posts++;
+        if (options.method === 'POST') {
+          posts++;
+          assert.equal(options.headers['tt-csrf-token'], 'test-web-token');
+          assert.equal(options.headers['x-secsdk-csrf-token'], undefined);
+          if (name === 'unlikeVideo') {
+            assert.equal(new URL(url).searchParams.get('aweme_id'), '123');
+            assert.equal(new URL(url).searchParams.get('type'), '0');
+            assert.equal(options.body, '');
+          }
+        }
         return { ok: scenario.status === 200, status: scenario.status,
           url, redirected: false, headers: { get: () => null },
           text: async () => scenario.payload };
       };
       const run = new AsyncFunction('window', 'document', 'aid', 'awemeId', 'userId', body);
-      const result = JSON.parse(await run({ fetch }, { cookie: '' }, 1988, '123', '456'));
+      const window = { fetch, __UNIVERSAL_DATA_FOR_REHYDRATION__: {
+        __DEFAULT_SCOPE__: { 'webapp.app-context': { csrfToken: 'test-web-token' } }
+      } };
+      const result = JSON.parse(await run(window, { cookie: '' }, 1988, '123', '456'));
       assert.equal(result.success, scenario.success);
       assert.equal(Number(result.status_code), scenario.code);
       assert.equal(posts, 1);
