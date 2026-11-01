@@ -40,30 +40,30 @@ jobs:
       run: flutter build apk --release --no-tree-shake-icons
 
     - name: Prepare APK Asset
-      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn-v2.1.2.apk
+      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn-v2.2.0.apk
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ClearTok-Pro-Reborn-Release-APK
-        path: ClearTok-Pro-Reborn-v2.1.2.apk
+        path: ClearTok-Pro-Reborn-v2.2.0.apk
 
     - name: Auto Publish to GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v2.1.2
-        name: "ClearTok Pro Reborn v2.1.2 (Fix Wi-Fi Login Freeze & CAPTCHA Handler)"
+        tag_name: v2.2.0
+        name: "ClearTok Pro Reborn v2.2.0 (Mass Un-Like & Mass Un-Follow Fully Live)"
         body: |
-          ### ClearTok Pro Reborn v2.1.2 - Wi-Fi Login & Network Optimization
+          ### ClearTok Pro Reborn v2.2.0 - Complete Multi-Module Release
 
-          - **Khắc phục triệt để lỗi đăng nhập xoay tròn trên Wi-Fi**:
-            - Sửa lỗi treo popup/verification captcha khi đăng nhập trên mạng Wi-Fi bằng cách chuyển `supportMultipleWindows: false` và bổ sung trình chuyển hướng URL `onCreateWindow`.
-            - Tắt `safeBrowsingEnabled` để tránh việc Google Safe Browsing / WebKit chặn DNS và handshake socket của ByteDance trên mạng gia đình.
-            - Kích hoạt `hardwareAcceleration`, `allowsInlineMediaPlayback` giúp giải mã mượt mà puzzle trượt CAPTCHA của TikTok.
-            - Bổ sung `onReceivedServerTrustAuthRequest` vượt qua các chứng chỉ SSL trung gian của nhà mạng Wi-Fi.
-          - **Đợt quét Repost 100 bài**: Chống đơ app, quét mượt mà và dứt khoát.
+          - **Kích hoạt chính thức 2 module Mass Un-Like & Mass Un-Follow**:
+            - **Mass Un-Like**: Quét toàn bộ video đã thích (`/api/favorite/item_list/`) và bỏ thích hàng loạt (`/api/commit/item/digg/`).
+            - **Mass Un-Follow**: Quét danh sách đang follow (`/api/user/list/`) và hủy theo dõi hàng loạt (`/api/commit/follow/user/`).
+            - Chuyển đổi mượt mà 3 chế độ trên thanh Studio Hub (`Reposts` | `Mass Un-Like` | `Mass Un-Follow`).
+          - **Tùy chọn đợt quét 100 bài chống đơ**: Tùy chọn 50, 100, 200 hoặc Tất cả, dừng dứt khoát tránh treo app.
+          - **Khắc phục lỗi đăng nhập trên Wi-Fi**: Loại bỏ treo popup, bỏ qua Safe Browsing và tối ưu SSL handshake.
 
           Unlimited Quota - Safe & Clean Architecture
-        files: ClearTok-Pro-Reborn-v2.1.2.apk
+        files: ClearTok-Pro-Reborn-v2.2.0.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

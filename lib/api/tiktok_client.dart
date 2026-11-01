@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../core/remote_payload_config.dart';
+import '../models/tiktok_follow_user.dart';
 import '../models/tiktok_video.dart';
 
 class TikTokUserProfile {
@@ -112,6 +113,7 @@ class TikTokClient {
     return null;
   }
 
+  // ─── 1. FETCH REPOSTS ─────────────────────────────────────────────────────
   Future<ScanResult> fetchRepostBatch({required int cursor, required String secUid}) async {
     const functionBody = r'''
       try {
@@ -180,7 +182,110 @@ class TikTokClient {
     return ScanResult(videos: videos, nextCursor: nextCursor, hasMore: hasMore);
   }
 
-  /// Complete un-repost implementation matching exact TikTok Web API parameters
+  // ─── 2. FETCH LIKED VIDEOS (FOR MASS UN-LIKE) ─────────────────────────────
+  Future<ScanResult> fetchLikedVideosBatch({required int cursor, required String secUid}) async {
+    const functionBody = r'''
+      try {
+        const endpoint = 'https://www.tiktok.com/api/favorite/item_list/';
+        const params = new URLSearchParams();
+        params.append('aid', String(aid));
+        params.append('count', '30');
+        params.append('cursor', String(cursor));
+        params.append('secUid', String(secUid));
+        params.append('coverFormat', '2');
+
+        const response = await fetch(endpoint + '?' + params.toString(), {
+          method: 'GET',
+          credentials: 'include',
+          headers: { 'Accept': '*/*' }
+        });
+
+        const raw = await response.text();
+        return raw;
+      } catch (e) {
+        return JSON.stringify({status_code: -1, error: e.toString()});
+      }
+    ''';
+
+    final asyncResult = await webViewController.callAsyncJavaScript(
+      functionBody: functionBody,
+      arguments: {
+        'aid': remoteConfig.aid,
+        'cursor': cursor,
+        'secUid': secUid,
+      },
+    );
+
+    if (asyncResult == null || asyncResult.value == null) {
+      return ScanResult(videos: [], nextCursor: 0, hasMore: false);
+    }
+
+    final raw = asyncResult.value.toString();
+    final data = jsonDecode(raw) as Map<String, dynamic>;
+    final itemList = data['itemList'] as List<dynamic>? ?? [];
+    final videos = itemList
+        .map((item) => TikTokVideo.fromJson(item as Map<String, dynamic>, secUid: secUid))
+        .toList();
+
+    final nextCursor = int.tryParse(data['max_cursor']?.toString() ?? data['cursor']?.toString() ?? '0') ?? 0;
+    final hasMore = data['hasMore'] == true;
+
+    return ScanResult(videos: videos, nextCursor: nextCursor, hasMore: hasMore);
+  }
+
+  // ─── 3. FETCH FOLLOWING USERS (FOR MASS UN-FOLLOW) ────────────────────────
+  Future<FollowingScanResult> fetchFollowingUsersBatch({required int cursor, required String secUid}) async {
+    const functionBody = r'''
+      try {
+        const endpoint = 'https://www.tiktok.com/api/user/list/';
+        const params = new URLSearchParams();
+        params.append('aid', String(aid));
+        params.append('count', '30');
+        params.append('minCursor', '0');
+        params.append('maxCursor', String(cursor));
+        params.append('secUid', String(secUid));
+        params.append('scene', '21'); // 21 = following list
+
+        const response = await fetch(endpoint + '?' + params.toString(), {
+          method: 'GET',
+          credentials: 'include',
+          headers: { 'Accept': '*/*' }
+        });
+
+        const raw = await response.text();
+        return raw;
+      } catch (e) {
+        return JSON.stringify({status_code: -1, error: e.toString()});
+      }
+    ''';
+
+    final asyncResult = await webViewController.callAsyncJavaScript(
+      functionBody: functionBody,
+      arguments: {
+        'aid': remoteConfig.aid,
+        'cursor': cursor,
+        'secUid': secUid,
+      },
+    );
+
+    if (asyncResult == null || asyncResult.value == null) {
+      return FollowingScanResult(users: [], nextCursor: 0, hasMore: false);
+    }
+
+    final raw = asyncResult.value.toString();
+    final data = jsonDecode(raw) as Map<String, dynamic>;
+    final userList = data['userList'] as List<dynamic>? ?? [];
+    final users = userList
+        .map((u) => TikTokFollowUser.fromJson(u as Map<String, dynamic>))
+        .toList();
+
+    final nextCursor = int.tryParse(data['maxCursor']?.toString() ?? '0') ?? 0;
+    final hasMore = data['hasMore'] == true;
+
+    return FollowingScanResult(users: users, nextCursor: nextCursor, hasMore: hasMore);
+  }
+
+  // ─── 4. DELETE SINGLE REPOST ──────────────────────────────────────────────
   Future<DeleteResult> deleteSingleRepost({required String itemId}) async {
     const functionBody = r'''
       try {
@@ -321,7 +426,7 @@ class TikTokClient {
     );
   }
 
-  /// Mass Un-Like implementation for TikTok Web
+  // ─── 5. MASS UN-LIKE (BỎ THÍCH VIDEO) ─────────────────────────────────────
   Future<DeleteResult> unlikeVideo({required String awemeId}) async {
     const functionBody = r'''
       try {
@@ -384,7 +489,7 @@ class TikTokClient {
     );
   }
 
-  /// Mass Un-Follow implementation for TikTok Web
+  // ─── 6. MASS UN-FOLLOW (BỎ THEO DÕI USER) ─────────────────────────────────
   Future<DeleteResult> unfollowUser({required String userId}) async {
     const functionBody = r'''
       try {

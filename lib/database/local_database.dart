@@ -1,4 +1,5 @@
 import 'package:hive/hive.dart';
+import '../models/tiktok_follow_user.dart';
 import '../models/tiktok_video.dart';
 
 class LocalDatabase {
@@ -36,17 +37,50 @@ class LocalDatabase {
 
   Future<void> removeRepost(String videoId) async {
     await _repostBox.delete(videoId);
-    await _historyBox.put(videoId, DateTime.now().millisecondsSinceEpoch);
+    await _historyBox.put('repost_$videoId', DateTime.now().millisecondsSinceEpoch);
   }
 
   bool isAlreadyDeleted(String videoId) {
-    return _historyBox.containsKey(videoId);
+    return _historyBox.containsKey('repost_$videoId') || _historyBox.containsKey(videoId);
+  }
+
+  // ─── Likes Management ─────────────────────────────────────────────────────
+  List<TikTokVideo> getAllLikedVideos() {
+    return _likesBox.values
+        .map((e) => TikTokVideo.fromMap(Map<dynamic, dynamic>.from(e as Map)))
+        .toList();
+  }
+
+  Future<void> saveLikedVideos(List<TikTokVideo> videos) async {
+    final map = {for (var v in videos) v.id: v.toMap()};
+    await _likesBox.putAll(map);
+  }
+
+  Future<void> removeLikedVideo(String videoId) async {
+    await _likesBox.delete(videoId);
+    await _historyBox.put('like_$videoId', DateTime.now().millisecondsSinceEpoch);
+  }
+
+  // ─── Follows Management ───────────────────────────────────────────────────
+  List<TikTokFollowUser> getAllFollowing() {
+    return _followsBox.values
+        .map((e) => TikTokFollowUser.fromMap(Map<dynamic, dynamic>.from(e as Map)))
+        .toList();
+  }
+
+  Future<void> saveFollowing(List<TikTokFollowUser> users) async {
+    final map = {for (var u in users) u.id: u.toMap()};
+    await _followsBox.putAll(map);
+  }
+
+  Future<void> removeFollowing(String userId) async {
+    await _followsBox.delete(userId);
+    await _historyBox.put('follow_$userId', DateTime.now().millisecondsSinceEpoch);
   }
 
   int get totalDeletedCount => _historyBox.length;
 
   // ─── Scan Batch Limit Settings ────────────────────────────────────────────
-  // 100 is the recommended default, 0 means unlimited/scan all
   int get scanBatchLimit => _settingsBox.get('scan_batch_limit', defaultValue: 100) as int;
   Future<void> setScanBatchLimit(int limit) async => await _settingsBox.put('scan_batch_limit', limit);
 
