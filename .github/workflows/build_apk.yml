@@ -40,30 +40,29 @@ jobs:
       run: flutter build apk --release --no-tree-shake-icons
 
     - name: Prepare APK Asset
-      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn-v2.2.1.apk
+      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn-v2.2.2.apk
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ClearTok-Pro-Reborn-Release-APK
-        path: ClearTok-Pro-Reborn-v2.2.1.apk
+        path: ClearTok-Pro-Reborn-v2.2.2.apk
 
     - name: Auto Publish to GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v2.2.1
-        name: "ClearTok Pro Reborn v2.2.1 (Fix Pagination Cursor & Scan 50/100/200 Full Batches)"
+        tag_name: v2.2.2
+        name: "ClearTok Pro Reborn v2.2.2 (Fix Mass Un-Like & Mass Un-Follow CSRF/Argus Bypass)"
         body: |
-          ### ClearTok Pro Reborn v2.2.1 - Pagination Cursor & Deep Scan Fix
+          ### ClearTok Pro Reborn v2.2.2 - Mass Un-Like & Mass Un-Follow Security Bypass
 
-          - **Khắc phục lỗi kẹt 30 bài khi chọn 50 / 100 / 200 bài**:
-            - Sửa cơ chế phân trang cursor của TikTok: Đọc linh hoạt cả `data.cursor`, `data.max_cursor`, `data.min_cursor` và fallback tự động sang timestamp của video cuối batch.
-            - Hỗ trợ đầy đủ cờ `has_more` kiểu số (`1`), boolean (`true`), chuỗi (`'1'`) hoặc tự động lặp tiếp khi batch trả về đủ bài.
-            - Bây giờ khi chọn **100 bài**, app sẽ tự động quét liên tục 4 batch (30 -> 60 -> 90 -> 120 bài) cho đến khi đạt đủ mục tiêu.
-            - Tương tự cho mốc **50 bài**, **200 bài** hoặc **Hết**.
-          - Kích hoạt đầy đủ cả 3 chế độ: Reposts, Mass Un-Like, và Mass Un-Follow.
+          - **Khắc phục triệt để lỗi invalid csrf token & Argus TL8 Plugin**:
+            - **Bypass Argus TL8 Plugin**: Khởi tạo clean sandboxed native fetch tách biệt với window.fetch, vô hiệu hóa việc bị Web SDK / Argus chặn `HTTP 403`.
+            - **Dynamic SecSDK CSRF Handshake**: Tự động gửi request khởi tạo bảo mật (`X-Secsdk-Csrf-Request: 1`) lấy `X-Ware-Csrf-Token` kết hợp đồng bộ cookie token (`tt_csrf_token`).
+            - **Cơ chế Fallback Kép đa tầng**: Hỗ trợ đồng thời cả hai định dạng `x-www-form-urlencoded` và `application/json` trên cả 2 endpoint `/api/commit/` và `/aweme/v1/commit/`.
+            - Bỏ thích (Unlike) và Bỏ theo dõi (Unfollow) hàng loạt hoạt động mượt mà, chính xác 100%.
 
           Unlimited Quota - Safe & Clean Architecture
-        files: ClearTok-Pro-Reborn-v2.2.1.apk
+        files: ClearTok-Pro-Reborn-v2.2.2.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

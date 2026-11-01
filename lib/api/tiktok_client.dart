@@ -479,38 +479,109 @@ class TikTokClient {
   Future<DeleteResult> unlikeVideo({required String awemeId}) async {
     const functionBody = r'''
       try {
-        const getCsrf = () => {
-          const m = document.cookie.match(/(?:^|;\s*)(?:tt_csrf_token|csrf_token|passport_csrf_token)=([^;]+)/);
-          return m ? decodeURIComponent(m[1]) : '';
+        const getNativeFetch = () => {
+          try {
+            let f = document.getElementById('__tt_clean_frame__');
+            if (!f) {
+              f = document.createElement('iframe');
+              f.id = '__tt_clean_frame__';
+              f.style.display = 'none';
+              document.body.appendChild(f);
+            }
+            if (f.contentWindow && f.contentWindow.fetch) {
+              return f.contentWindow.fetch.bind(f.contentWindow);
+            }
+          } catch (_) {}
+          return window.fetch.bind(window);
         };
-        const csrf = getCsrf();
-        const headers = {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json, text/plain, */*'
+
+        const nativeFetch = getNativeFetch();
+
+        // 1. Get dynamic CSRF via cookie & handshake
+        let csrf = '';
+        const m = document.cookie.match(/(?:^|;\s*)(?:tt_csrf_token|csrf_token|passport_csrf_token)=([^;]+)/);
+        if (m) csrf = decodeURIComponent(m[1]);
+
+        const primaryUrl = 'https://www.tiktok.com/api/commit/item/digg/?aid=' + String(aid);
+        try {
+          const pre = await nativeFetch(primaryUrl, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'X-Secsdk-Csrf-Request': '1',
+              'X-Secsdk-Csrf-Version': '1.2.8'
+            }
+          });
+          const wareToken = pre.headers.get('x-ware-csrf-token') || pre.headers.get('X-Ware-Csrf-Token');
+          if (wareToken) {
+            const parts = wareToken.split(',');
+            csrf = parts.length > 1 ? parts[1].trim() : parts[0].trim();
+          }
+        } catch (_) {}
+
+        const buildHeaders = (contentType) => {
+          const h = {
+            'Accept': 'application/json, text/plain, */*'
+          };
+          if (contentType) h['Content-Type'] = contentType;
+          if (csrf) {
+            h['x-secsdk-csrf-token'] = csrf;
+            h['x-secsdk-csrf-version'] = '1.2.8';
+            h['x-tt-token'] = csrf;
+          }
+          return h;
         };
-        if (csrf) headers['x-secsdk-csrf-token'] = csrf;
 
-        const url = 'https://www.tiktok.com/api/commit/item/digg/?aid=' + String(aid);
-        const resp = await fetch(url, {
-          method: 'POST',
-          credentials: 'include',
-          headers: headers,
-          body: 'aweme_id=' + encodeURIComponent(awemeId) + '&type=0'
-        });
+        const endpoints = [
+          'https://www.tiktok.com/api/commit/item/digg/?aid=' + String(aid),
+          'https://www.tiktok.com/aweme/v1/commit/item/digg/?aid=' + String(aid)
+        ];
 
-        const raw = await resp.text();
-        let parsed = null;
-        try { parsed = JSON.parse(raw); } catch(_) {}
+        let lastResult = null;
 
-        if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
-          return JSON.stringify({ success: true, status_code: 0, message: 'unliked', raw: raw });
+        for (const ep of endpoints) {
+          // Attempt A: Form URL-encoded
+          try {
+            const resp = await nativeFetch(ep, {
+              method: 'POST',
+              credentials: 'include',
+              headers: buildHeaders('application/x-www-form-urlencoded'),
+              body: 'aweme_id=' + encodeURIComponent(awemeId) + '&type=0&channel=tiktok_web'
+            });
+            const raw = await resp.text();
+            let parsed = null;
+            try { parsed = JSON.parse(raw); } catch(_) {}
+            if (parsed && (parsed.status_code === 0 || parsed.status_code === '0' || parsed.status_code === 200)) {
+              return JSON.stringify({ success: true, status_code: 0, message: 'unliked (form)', raw: raw });
+            }
+            lastResult = { code: parsed ? parsed.status_code : resp.status, msg: parsed ? parsed.status_msg : raw, raw: raw };
+          } catch (e) {
+            lastResult = { code: -1, msg: e.toString(), raw: '' };
+          }
+
+          // Attempt B: JSON payload
+          try {
+            const resp = await nativeFetch(ep, {
+              method: 'POST',
+              credentials: 'include',
+              headers: buildHeaders('application/json'),
+              body: JSON.stringify({ aweme_id: String(awemeId), type: 0, channel: 'tiktok_web' })
+            });
+            const raw = await resp.text();
+            let parsed = null;
+            try { parsed = JSON.parse(raw); } catch(_) {}
+            if (parsed && (parsed.status_code === 0 || parsed.status_code === '0' || parsed.status_code === 200)) {
+              return JSON.stringify({ success: true, status_code: 0, message: 'unliked (json)', raw: raw });
+            }
+            lastResult = { code: parsed ? parsed.status_code : resp.status, msg: parsed ? parsed.status_msg : raw, raw: raw };
+          } catch (_) {}
         }
 
         return JSON.stringify({
           success: false,
-          status_code: parsed ? (parsed.status_code ?? -1) : resp.status,
-          message: parsed ? (parsed.status_msg ?? 'Failed to unlike') : ('HTTP ' + resp.status),
-          raw: raw
+          status_code: lastResult ? lastResult.code : -1,
+          message: lastResult ? lastResult.msg : 'Failed to unlike',
+          raw: lastResult ? lastResult.raw : ''
         });
       } catch (e) {
         return JSON.stringify({ success: false, status_code: -1, message: e.toString(), raw: '' });
@@ -542,38 +613,109 @@ class TikTokClient {
   Future<DeleteResult> unfollowUser({required String userId}) async {
     const functionBody = r'''
       try {
-        const getCsrf = () => {
-          const m = document.cookie.match(/(?:^|;\s*)(?:tt_csrf_token|csrf_token|passport_csrf_token)=([^;]+)/);
-          return m ? decodeURIComponent(m[1]) : '';
+        const getNativeFetch = () => {
+          try {
+            let f = document.getElementById('__tt_clean_frame__');
+            if (!f) {
+              f = document.createElement('iframe');
+              f.id = '__tt_clean_frame__';
+              f.style.display = 'none';
+              document.body.appendChild(f);
+            }
+            if (f.contentWindow && f.contentWindow.fetch) {
+              return f.contentWindow.fetch.bind(f.contentWindow);
+            }
+          } catch (_) {}
+          return window.fetch.bind(window);
         };
-        const csrf = getCsrf();
-        const headers = {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json, text/plain, */*'
+
+        const nativeFetch = getNativeFetch();
+
+        // 1. Get dynamic CSRF via cookie & handshake
+        let csrf = '';
+        const m = document.cookie.match(/(?:^|;\s*)(?:tt_csrf_token|csrf_token|passport_csrf_token)=([^;]+)/);
+        if (m) csrf = decodeURIComponent(m[1]);
+
+        const primaryUrl = 'https://www.tiktok.com/api/commit/follow/user/?aid=' + String(aid);
+        try {
+          const pre = await nativeFetch(primaryUrl, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'X-Secsdk-Csrf-Request': '1',
+              'X-Secsdk-Csrf-Version': '1.2.8'
+            }
+          });
+          const wareToken = pre.headers.get('x-ware-csrf-token') || pre.headers.get('X-Ware-Csrf-Token');
+          if (wareToken) {
+            const parts = wareToken.split(',');
+            csrf = parts.length > 1 ? parts[1].trim() : parts[0].trim();
+          }
+        } catch (_) {}
+
+        const buildHeaders = (contentType) => {
+          const h = {
+            'Accept': 'application/json, text/plain, */*'
+          };
+          if (contentType) h['Content-Type'] = contentType;
+          if (csrf) {
+            h['x-secsdk-csrf-token'] = csrf;
+            h['x-secsdk-csrf-version'] = '1.2.8';
+            h['x-tt-token'] = csrf;
+          }
+          return h;
         };
-        if (csrf) headers['x-secsdk-csrf-token'] = csrf;
 
-        const url = 'https://www.tiktok.com/api/commit/follow/user/?aid=' + String(aid);
-        const resp = await fetch(url, {
-          method: 'POST',
-          credentials: 'include',
-          headers: headers,
-          body: 'user_id=' + encodeURIComponent(userId) + '&type=0'
-        });
+        const endpoints = [
+          'https://www.tiktok.com/api/commit/follow/user/?aid=' + String(aid),
+          'https://www.tiktok.com/aweme/v1/commit/follow/user/?aid=' + String(aid)
+        ];
 
-        const raw = await resp.text();
-        let parsed = null;
-        try { parsed = JSON.parse(raw); } catch(_) {}
+        let lastResult = null;
 
-        if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
-          return JSON.stringify({ success: true, status_code: 0, message: 'unfollowed', raw: raw });
+        for (const ep of endpoints) {
+          // Attempt A: Form URL-encoded
+          try {
+            const resp = await nativeFetch(ep, {
+              method: 'POST',
+              credentials: 'include',
+              headers: buildHeaders('application/x-www-form-urlencoded'),
+              body: 'user_id=' + encodeURIComponent(userId) + '&type=0&channel=tiktok_web'
+            });
+            const raw = await resp.text();
+            let parsed = null;
+            try { parsed = JSON.parse(raw); } catch(_) {}
+            if (parsed && (parsed.status_code === 0 || parsed.status_code === '0' || parsed.status_code === 200)) {
+              return JSON.stringify({ success: true, status_code: 0, message: 'unfollowed (form)', raw: raw });
+            }
+            lastResult = { code: parsed ? parsed.status_code : resp.status, msg: parsed ? parsed.status_msg : raw, raw: raw };
+          } catch (e) {
+            lastResult = { code: -1, msg: e.toString(), raw: '' };
+          }
+
+          // Attempt B: JSON payload
+          try {
+            const resp = await nativeFetch(ep, {
+              method: 'POST',
+              credentials: 'include',
+              headers: buildHeaders('application/json'),
+              body: JSON.stringify({ user_id: String(userId), type: 0, channel: 'tiktok_web' })
+            });
+            const raw = await resp.text();
+            let parsed = null;
+            try { parsed = JSON.parse(raw); } catch(_) {}
+            if (parsed && (parsed.status_code === 0 || parsed.status_code === '0' || parsed.status_code === 200)) {
+              return JSON.stringify({ success: true, status_code: 0, message: 'unfollowed (json)', raw: raw });
+            }
+            lastResult = { code: parsed ? parsed.status_code : resp.status, msg: parsed ? parsed.status_msg : raw, raw: raw };
+          } catch (_) {}
         }
 
         return JSON.stringify({
           success: false,
-          status_code: parsed ? (parsed.status_code ?? -1) : resp.status,
-          message: parsed ? (parsed.status_msg ?? 'Failed to unfollow') : ('HTTP ' + resp.status),
-          raw: raw
+          status_code: lastResult ? lastResult.code : -1,
+          message: lastResult ? lastResult.msg : 'Failed to unfollow',
+          raw: lastResult ? lastResult.raw : ''
         });
       } catch (e) {
         return JSON.stringify({ success: false, status_code: -1, message: e.toString(), raw: '' });
