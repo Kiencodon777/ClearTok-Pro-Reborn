@@ -430,8 +430,8 @@ class TikTokClient {
     );
   }
 
-  Future<DeleteResult> unlikeVideo({required String awemeId}) =>
-      _commitWebAction('/api/commit/item/digg/', {'aweme_id': awemeId, 'type': '0'});
+  Future<DeleteResult> unlikeVideo({required String awemeId, String author = ''}) =>
+      _commitWebAction('/api/commit/item/digg/', {'aweme_id': awemeId, 'type': '0', '_author': author});
 
   Future<DeleteResult> unfollowUser({required String userId, String secUid = ''}) =>
       _commitWebAction('/api/commit/follow/user/', {
@@ -480,7 +480,7 @@ class TikTokClient {
         }
         const url = new URL(path, location.origin);
         for (const [key, value] of Object.entries(params)) {
-          if (value !== '') url.searchParams.set(key, String(value));
+          if (value !== '' && !key.startsWith('_')) url.searchParams.set(key, String(value));
         }
         url.searchParams.set('aid', String(aid));
         url.searchParams.set('app_name', 'tiktok_web');
@@ -518,8 +518,31 @@ class TikTokClient {
           };
           let data;
           try { data = JSON.parse(raw); } catch (_) {
+            // A blank 200 is ambiguous. Read state once; never replay the POST.
+            if (response.ok && !raw.trim() && path.includes('/item/digg/') && params._author) {
+              detail.readback_attempted = true;
+              try {
+                const profileId = user => String(user?.uid || user?.id || '');
+                const expectedUser = profileId(app.user);
+                const page = await window.fetch(location.origin + '/@' + encodeURIComponent(params._author) +
+                  '/video/' + encodeURIComponent(params.aweme_id),
+                  {credentials: 'include', signal: abort.signal, cache: 'no-store'});
+                const html = await page.text();
+                const parsedPage = new DOMParser().parseFromString(html, 'text/html');
+                const hydration = JSON.parse(parsedPage.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__')?.textContent || '{}');
+                const scope = hydration.__DEFAULT_SCOPE__ || {};
+                const video = scope['webapp.video-detail']?.itemInfo?.itemStruct;
+                const sameSession = expectedUser && profileId(scope['webapp.app-context']?.user) === expectedUser;
+                if (page.ok && sameSession && String(video?.id) === String(params.aweme_id) && typeof video.digged === 'boolean') {
+                  detail.readback_confirmed = true;
+                  detail.readback_liked = video.digged;
+                  if (!video.digged) return JSON.stringify({success: true, status_code: 0,
+                    message: 'Đã xác nhận video không còn được thích.', raw: JSON.stringify(detail)});
+                }
+              } catch (_) { detail.readback_confirmed = false; }
+            }
             return failure(response.ok ? -2 : response.status,
-              'TikTok trả HTML/dữ liệu rỗng. Chi tiết HTTP: ' + JSON.stringify(detail), detail);
+              'TikTok chưa xác nhận kết quả. Mở tab Log để xem chi tiết; kiểm tra video trước khi thử lại.', detail);
           }
           if (!response.ok) return failure(response.status, 'TikTok HTTP ' + response.status, detail);
           detail.response_kind = 'json';

@@ -24,7 +24,9 @@ class DiagnosticLogScreen extends StatelessWidget {
           if (entries.isEmpty) return const Center(child: Text('Chưa có log. Thực hiện thao tác trong Studio rồi quay lại đây.'));
           return ListView.builder(itemCount: entries.length, itemBuilder: (context, index) =>
             Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: SelectableText(entries[index].entries.map((e) => '${e.key}: ${e.value}').join('\n'))));
+              child: SelectableText(
+                '${entries[index]['http_status'] == 200 && entries[index]['response_kind'] == 'empty' ? 'PHÁT HIỆN: HTTP 200 rỗng — chưa xác nhận kết quả, không tự thử lại.\n' : ''}'
+                '${entries[index].entries.map((e) => '${e.key}: ${e.value}').join('\n')}')));
         })),
       ]),
     );

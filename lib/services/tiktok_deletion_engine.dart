@@ -160,7 +160,7 @@ class TikTokDeletionEngine {
 
       try {
         final result = isUnlike
-            ? await client.unlikeVideo(awemeId: video.id)
+            ? await client.unlikeVideo(awemeId: video.id, author: video.authorUsername)
             : await client.deleteSingleRepost(itemId: video.id);
 
         if (result.success) {
@@ -200,7 +200,7 @@ class TikTokDeletionEngine {
               deleted: deleted,
               failed: failed,
               status: DeletionStatus.error,
-              message: 'Đã dừng: TikTok yêu cầu kiểm tra phiên đăng nhập hoặc giới hạn thao tác. ${result.message}',
+              message: 'Đã dừng vì chưa xác nhận được kết quả. ${result.message}',
             ));
             _isRunning = false;
             await _notifService.cancelAll();
@@ -360,7 +360,7 @@ class TikTokDeletionEngine {
               deleted: deleted,
               failed: failed,
               status: DeletionStatus.error,
-              message: 'Đã dừng: TikTok yêu cầu kiểm tra phiên đăng nhập hoặc giới hạn thao tác. ${result.message}',
+              message: 'Đã dừng vì chưa xác nhận được kết quả. ${result.message}',
             ));
             _isRunning = false;
             await _notifService.cancelAll();

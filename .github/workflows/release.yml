@@ -55,8 +55,27 @@ jobs:
           name: release-${{ matrix.platform }}
           path: dist/*
           if-no-files-found: error
+  diagnostic-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test test/tiktok_transport_test.cjs
+      - run: node scripts/build_diagnostic_web.cjs
+      - run: node --test test/diagnostic_web_test.cjs
+      - name: Package web companion
+        run: |
+          mkdir -p dist
+          python3 -c "import shutil; shutil.make_archive('dist/ClearTok-Diagnostic-Web-v2.3.${{ github.run_number }}', 'zip', 'build/diagnostic-web')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-web
+          path: dist/*.zip
+          if-no-files-found: error
   release:
-    needs: build
+    needs: [build, diagnostic-web]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -78,3 +97,4 @@ jobs:
           files: |
             dist/*.apk
             dist/*.ipa
+            dist/*.zip

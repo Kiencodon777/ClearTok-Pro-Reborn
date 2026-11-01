@@ -3,6 +3,28 @@ const assert = require('node:assert/strict');
 const source = require('node:fs').readFileSync('lib/api/tiktok_client.dart', 'utf8');
 const body = source.slice(source.indexOf('Future<DeleteResult> _commitWebAction')).match(/const functionBody = r'''([\s\S]*?)''';/)[1];
 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+for (const [liked, sameAccount, expected] of [[false,true,0],[true,true,-2],[false,false,-2]]) {
+  test(`empty response readback liked=${liked} sameAccount=${sameAccount}`, async () => {
+    let posts=0, gets=0;
+    const app={csrfToken:'web-token',user:{id:'account'}};
+    const fetch=async (url, options)=>{
+      const write=options.method==='POST';
+      if(write) posts++; else gets++;
+      return {ok:true,status:200,url,headers:{get:()=>null},text:async()=>write?'':'<html>fixture</html>'};
+    };
+    const scope={'webapp.app-context':{user:{id:sameAccount?'account':'other'}},
+      'webapp.video-detail':{itemInfo:{itemStruct:{id:'123',digged:liked}}}};
+    class Parser { parseFromString(){return {getElementById:()=>({textContent:JSON.stringify({__DEFAULT_SCOPE__:scope})})};} }
+    const run=new AsyncFunction('window','document','location','navigator','path','params','aid','DOMParser',body);
+    const result=JSON.parse(await run({fetch},
+      {getElementById:()=>({textContent:JSON.stringify({__DEFAULT_SCOPE__:{'webapp.app-context':app}})})},
+      {origin:'https://www.tiktok.com'},{language:'vi',platform:'iPhone',userAgent:'test'},
+      '/api/commit/item/digg/',{aweme_id:'123',type:'0',_author:'creator'},1988,Parser));
+    assert.equal(result.status_code,expected);
+    assert.equal(result.success,expected===0);
+    assert.equal(posts,1); assert.equal(gets,1);
+  });
+}
 for (const path of ['/api/commit/item/digg/', '/api/commit/follow/user/']) {
   for (const [raw, status, code, token] of [
     ['{"status_code":0}',200,0,true], ['{"status_code":"0"}',200,0,true],
