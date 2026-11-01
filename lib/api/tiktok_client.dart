@@ -235,11 +235,12 @@ class TikTokClient {
     );
 
     if (asyncResult == null || asyncResult.value == null) {
-      return ScanResult(videos: [], nextCursor: 0, hasMore: false);
+      throw Exception('Không nhận được dữ liệu Likes từ WebView: ${asyncResult?.error ?? "empty response"}');
     }
 
     final raw = asyncResult.value.toString();
     final data = jsonDecode(raw) as Map<String, dynamic>;
+    _checkScanResponse(data);
     final itemList = data['itemList'] as List<dynamic>? ?? [];
     final videos = itemList
         .map((item) => TikTokVideo.fromJson(item as Map<String, dynamic>, secUid: secUid))
@@ -304,11 +305,12 @@ class TikTokClient {
     );
 
     if (asyncResult == null || asyncResult.value == null) {
-      return FollowingScanResult(users: [], nextCursor: 0, hasMore: false);
+      throw Exception('Không nhận được dữ liệu Following từ WebView: ${asyncResult?.error ?? "empty response"}');
     }
 
     final raw = asyncResult.value.toString();
     final data = jsonDecode(raw) as Map<String, dynamic>;
+    _checkScanResponse(data);
     final userList = data['userList'] as List<dynamic>? ?? [];
     final users = userList
         .map((u) => TikTokFollowUser.fromJson(u as Map<String, dynamic>))
@@ -320,16 +322,12 @@ class TikTokClient {
             '') ??
         0;
 
-    if (nextCursor <= 0 && users.isNotEmpty) {
-      nextCursor = cursor + users.length;
-    }
-
     final rawHasMore = data['hasMore'] ?? data['has_more'];
     final bool hasMore = (rawHasMore == true ||
             rawHasMore == 1 ||
             rawHasMore == '1' ||
             rawHasMore == 'true') ||
-        (userList.length >= 20);
+        (rawHasMore == null && userList.length >= 20 && nextCursor > 0);
 
     return FollowingScanResult(users: users, nextCursor: nextCursor, hasMore: hasMore);
   }
@@ -469,7 +467,7 @@ class TikTokClient {
     final data = jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
     return DeleteResult(
       success: data['success'] == true,
-      statusCode: data['status_code'] as int? ?? -1,
+      statusCode: int.tryParse(data['status_code']?.toString() ?? '') ?? -1,
       message: data['message']?.toString() ?? '',
       rawResponse: data['raw']?.toString() ?? '',
     );
@@ -479,23 +477,8 @@ class TikTokClient {
   Future<DeleteResult> unlikeVideo({required String awemeId}) async {
     const functionBody = r'''
       try {
-        const getNativeFetch = () => {
-          try {
-            let f = document.getElementById('__tt_clean_frame__');
-            if (!f) {
-              f = document.createElement('iframe');
-              f.id = '__tt_clean_frame__';
-              f.style.display = 'none';
-              document.body.appendChild(f);
-            }
-            if (f.contentWindow && f.contentWindow.fetch) {
-              return f.contentWindow.fetch.bind(f.contentWindow);
-            }
-          } catch (_) {}
-          return window.fetch.bind(window);
-        };
-
-        const nativeFetch = getNativeFetch();
+        // Keep TikTok's session SDK in the request path.
+        const nativeFetch = window.fetch.bind(window);
 
         // 1. Get dynamic CSRF via cookie & handshake
         let csrf = '';
@@ -527,7 +510,6 @@ class TikTokClient {
           if (csrf) {
             h['x-secsdk-csrf-token'] = csrf;
             h['x-secsdk-csrf-version'] = '1.2.8';
-            h['x-tt-token'] = csrf;
           }
           return h;
         };
@@ -551,10 +533,22 @@ class TikTokClient {
             const raw = await resp.text();
             let parsed = null;
             try { parsed = JSON.parse(raw); } catch(_) {}
-            if (parsed && (parsed.status_code === 0 || parsed.status_code === '0' || parsed.status_code === 200)) {
+            if (resp.ok && parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
               return JSON.stringify({ success: true, status_code: 0, message: 'unliked (form)', raw: raw });
             }
-            lastResult = { code: parsed ? parsed.status_code : resp.status, msg: parsed ? parsed.status_msg : raw, raw: raw };
+            if (!parsed || !resp.ok) {
+              const code = !resp.ok ? resp.status : -2;
+              return JSON.stringify({success: false, status_code: code,
+                message: 'TikTok không trả JSON hợp lệ hoặc từ chối request. Mở TikTok Web để kiểm tra đăng nhập/xác minh.',
+                raw: JSON.stringify({http_status: resp.status, redirected: resp.redirected,
+                  path: new URL(resp.url || ep).pathname,
+                  content_type: resp.headers.get('content-type')})});
+            }
+            lastResult = { code: parsed.status_code, msg: parsed.status_msg || parsed.message || 'TikTok rejected request', raw: raw };
+            if (['10402', '429', '3002226'].includes(String(parsed.status_code))) {
+              return JSON.stringify({success: false, status_code: parsed.status_code,
+                message: lastResult.msg, raw: raw});
+            }
           } catch (e) {
             lastResult = { code: -1, msg: e.toString(), raw: '' };
           }
@@ -570,10 +564,22 @@ class TikTokClient {
             const raw = await resp.text();
             let parsed = null;
             try { parsed = JSON.parse(raw); } catch(_) {}
-            if (parsed && (parsed.status_code === 0 || parsed.status_code === '0' || parsed.status_code === 200)) {
+            if (resp.ok && parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
               return JSON.stringify({ success: true, status_code: 0, message: 'unliked (json)', raw: raw });
             }
-            lastResult = { code: parsed ? parsed.status_code : resp.status, msg: parsed ? parsed.status_msg : raw, raw: raw };
+            if (!parsed || !resp.ok) {
+              const code = !resp.ok ? resp.status : -2;
+              return JSON.stringify({success: false, status_code: code,
+                message: 'TikTok không trả JSON hợp lệ hoặc từ chối request. Mở TikTok Web để kiểm tra đăng nhập/xác minh.',
+                raw: JSON.stringify({http_status: resp.status, redirected: resp.redirected,
+                  path: new URL(resp.url || ep).pathname,
+                  content_type: resp.headers.get('content-type')})});
+            }
+            lastResult = { code: parsed.status_code, msg: parsed.status_msg || parsed.message || 'TikTok rejected request', raw: raw };
+            if (['10402', '429', '3002226'].includes(String(parsed.status_code))) {
+              return JSON.stringify({success: false, status_code: parsed.status_code,
+                message: lastResult.msg, raw: raw});
+            }
           } catch (_) {}
         }
 
@@ -603,7 +609,7 @@ class TikTokClient {
     final data = jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
     return DeleteResult(
       success: data['success'] == true,
-      statusCode: data['status_code'] as int? ?? -1,
+      statusCode: int.tryParse(data['status_code']?.toString() ?? '') ?? -1,
       message: data['message']?.toString() ?? '',
       rawResponse: data['raw']?.toString() ?? '',
     );
@@ -613,23 +619,8 @@ class TikTokClient {
   Future<DeleteResult> unfollowUser({required String userId}) async {
     const functionBody = r'''
       try {
-        const getNativeFetch = () => {
-          try {
-            let f = document.getElementById('__tt_clean_frame__');
-            if (!f) {
-              f = document.createElement('iframe');
-              f.id = '__tt_clean_frame__';
-              f.style.display = 'none';
-              document.body.appendChild(f);
-            }
-            if (f.contentWindow && f.contentWindow.fetch) {
-              return f.contentWindow.fetch.bind(f.contentWindow);
-            }
-          } catch (_) {}
-          return window.fetch.bind(window);
-        };
-
-        const nativeFetch = getNativeFetch();
+        // Keep TikTok's session SDK in the request path.
+        const nativeFetch = window.fetch.bind(window);
 
         // 1. Get dynamic CSRF via cookie & handshake
         let csrf = '';
@@ -661,7 +652,6 @@ class TikTokClient {
           if (csrf) {
             h['x-secsdk-csrf-token'] = csrf;
             h['x-secsdk-csrf-version'] = '1.2.8';
-            h['x-tt-token'] = csrf;
           }
           return h;
         };
@@ -685,10 +675,22 @@ class TikTokClient {
             const raw = await resp.text();
             let parsed = null;
             try { parsed = JSON.parse(raw); } catch(_) {}
-            if (parsed && (parsed.status_code === 0 || parsed.status_code === '0' || parsed.status_code === 200)) {
+            if (resp.ok && parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
               return JSON.stringify({ success: true, status_code: 0, message: 'unfollowed (form)', raw: raw });
             }
-            lastResult = { code: parsed ? parsed.status_code : resp.status, msg: parsed ? parsed.status_msg : raw, raw: raw };
+            if (!parsed || !resp.ok) {
+              const code = !resp.ok ? resp.status : -2;
+              return JSON.stringify({success: false, status_code: code,
+                message: 'TikTok không trả JSON hợp lệ hoặc từ chối request. Mở TikTok Web để kiểm tra đăng nhập/xác minh.',
+                raw: JSON.stringify({http_status: resp.status, redirected: resp.redirected,
+                  path: new URL(resp.url || ep).pathname,
+                  content_type: resp.headers.get('content-type')})});
+            }
+            lastResult = { code: parsed.status_code, msg: parsed.status_msg || parsed.message || 'TikTok rejected request', raw: raw };
+            if (['10402', '429', '3002226'].includes(String(parsed.status_code))) {
+              return JSON.stringify({success: false, status_code: parsed.status_code,
+                message: lastResult.msg, raw: raw});
+            }
           } catch (e) {
             lastResult = { code: -1, msg: e.toString(), raw: '' };
           }
@@ -704,10 +706,22 @@ class TikTokClient {
             const raw = await resp.text();
             let parsed = null;
             try { parsed = JSON.parse(raw); } catch(_) {}
-            if (parsed && (parsed.status_code === 0 || parsed.status_code === '0' || parsed.status_code === 200)) {
+            if (resp.ok && parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
               return JSON.stringify({ success: true, status_code: 0, message: 'unfollowed (json)', raw: raw });
             }
-            lastResult = { code: parsed ? parsed.status_code : resp.status, msg: parsed ? parsed.status_msg : raw, raw: raw };
+            if (!parsed || !resp.ok) {
+              const code = !resp.ok ? resp.status : -2;
+              return JSON.stringify({success: false, status_code: code,
+                message: 'TikTok không trả JSON hợp lệ hoặc từ chối request. Mở TikTok Web để kiểm tra đăng nhập/xác minh.',
+                raw: JSON.stringify({http_status: resp.status, redirected: resp.redirected,
+                  path: new URL(resp.url || ep).pathname,
+                  content_type: resp.headers.get('content-type')})});
+            }
+            lastResult = { code: parsed.status_code, msg: parsed.status_msg || parsed.message || 'TikTok rejected request', raw: raw };
+            if (['10402', '429', '3002226'].includes(String(parsed.status_code))) {
+              return JSON.stringify({success: false, status_code: parsed.status_code,
+                message: lastResult.msg, raw: raw});
+            }
           } catch (_) {}
         }
 
@@ -737,9 +751,17 @@ class TikTokClient {
     final data = jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
     return DeleteResult(
       success: data['success'] == true,
-      statusCode: data['status_code'] as int? ?? -1,
+      statusCode: int.tryParse(data['status_code']?.toString() ?? '') ?? -1,
       message: data['message']?.toString() ?? '',
       rawResponse: data['raw']?.toString() ?? '',
     );
+  }
+
+  static void _checkScanResponse(Map<String, dynamic> data) {
+    final code = int.tryParse(data['status_code']?.toString() ?? '');
+    if (code != 0) {
+      throw Exception('TikTok scan error: ${data['status_code'] ?? "missing status"} - '
+          '${data['status_msg'] ?? data['error'] ?? "Invalid response"}');
+    }
   }
 }

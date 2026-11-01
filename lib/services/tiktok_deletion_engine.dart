@@ -193,17 +193,17 @@ class TikTokDeletionEngine {
             lastErrorDetail: errDetail,
           ));
 
-          if (result.statusCode == 3002226 || result.statusCode == 429) {
+          if ([-2, 401, 403, 10402, 3002226, 429].contains(result.statusCode)) {
             _emit(BatchDeletionProgress(
               total: total,
               deleted: deleted,
               failed: failed,
-              status: DeletionStatus.paused,
-              message: '⏳ Dính Rate-limit TikTok. Tạm dừng 60 giây giải nhiệt...',
+              status: DeletionStatus.error,
+              message: 'Đã dừng: TikTok yêu cầu kiểm tra phiên đăng nhập hoặc giới hạn thao tác. ${result.message}',
             ));
-            await Future.delayed(const Duration(seconds: 60));
-            i--;
-            continue;
+            _isRunning = false;
+            await _notifService.cancelAll();
+            return;
           }
         }
       } catch (e) {
@@ -353,17 +353,17 @@ class TikTokDeletionEngine {
                 : result.rawResponse,
           ));
 
-          if (result.statusCode == 3002226 || result.statusCode == 429) {
+          if ([-2, 401, 403, 10402, 3002226, 429].contains(result.statusCode)) {
             _emit(BatchDeletionProgress(
               total: total,
               deleted: deleted,
               failed: failed,
-              status: DeletionStatus.paused,
-              message: '⏳ Dính Rate-limit TikTok. Tạm dừng 60 giây giải nhiệt...',
+              status: DeletionStatus.error,
+              message: 'Đã dừng: TikTok yêu cầu kiểm tra phiên đăng nhập hoặc giới hạn thao tác. ${result.message}',
             ));
-            await Future.delayed(const Duration(seconds: 60));
-            i--;
-            continue;
+            _isRunning = false;
+            await _notifService.cancelAll();
+            return;
           }
         }
       } catch (e) {

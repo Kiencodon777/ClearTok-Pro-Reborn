@@ -439,7 +439,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                   prog.status == DeletionStatus.deepResting);
           final isDeepResting = prog?.status == DeletionStatus.deepResting;
           final isDone = prog != null &&
-              (prog.status == DeletionStatus.completed || prog.status == DeletionStatus.stopped);
+              (prog.status == DeletionStatus.completed || prog.status == DeletionStatus.stopped || prog.status == DeletionStatus.error);
 
           final titleText = hubMode == 'unfollow'
               ? 'Hủy Follow Hàng Loạt'
