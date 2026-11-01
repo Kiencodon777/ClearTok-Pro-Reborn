@@ -63,6 +63,7 @@ jobs:
         with:
           node-version: '22'
       - run: node --test test/tiktok_transport_test.cjs
+      - run: node --test test/following_request_test.cjs
       - run: node scripts/build_diagnostic_web.cjs
       - run: node --test test/diagnostic_web_test.cjs
       - name: Build full web dashboard and Chrome/Edge extension

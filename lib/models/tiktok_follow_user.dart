@@ -60,7 +60,8 @@ class TikTokFollowUser {
 class FollowingScanResult {
   final List<TikTokFollowUser> users;
   final String nextCursor;
+  final String nextMinCursor;
   final bool hasMore;
 
-  FollowingScanResult({required this.users, required this.nextCursor, required this.hasMore});
+  FollowingScanResult({required this.users, required this.nextCursor, this.nextMinCursor = '0', required this.hasMore});
 }

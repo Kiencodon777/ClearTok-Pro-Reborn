@@ -238,14 +238,14 @@ class TikTokClient {
   }
 
   // ─── 3. FETCH FOLLOWING USERS (FOR MASS UN-FOLLOW) ────────────────────────
-  Future<FollowingScanResult> fetchFollowingUsersBatch({required String cursor, required String secUid}) async {
+  Future<FollowingScanResult> fetchFollowingUsersBatch({required String cursor, String minCursor = '0', required String secUid}) async {
     const functionBody = r'''
       try {
         const endpoint = 'https://www.tiktok.com/api/user/list/';
         const params = new URLSearchParams();
         params.append('aid', String(aid));
         params.append('count', '30');
-        params.append('minCursor', '0');
+        params.append('minCursor', String(minCursor));
         params.append('maxCursor', String(cursor));
         params.append('secUid', String(secUid));
         params.append('scene', '21'); // 21 = following list
@@ -268,6 +268,7 @@ class TikTokClient {
       arguments: {
         'aid': remoteConfig.aid,
         'cursor': cursor,
+        'minCursor': minCursor,
         'secUid': secUid,
       },
     );
@@ -285,14 +286,18 @@ class TikTokClient {
         .toList();
 
     final nextCursor = followingNextCursor(data, cursor);
-    final hasMore = followingHasMore(data, users.length, nextCursor != cursor);
-    DiagnosticLog.instance.record('scan.following', nextCursor == cursor && hasMore ? -2 : 0,
+    final nextMinCursor = followingNextMinCursor(data, minCursor);
+    final changed = nextCursor != cursor || nextMinCursor != minCursor;
+    final hasMore = followingHasMore(data, users.length, changed);
+    DiagnosticLog.instance.record('scan.following', !changed && hasMore ? -2 : 0,
       details: {'scan_count': users.length, 'scan_has_more': hasMore,
-        'scan_cursor_changed': nextCursor != cursor,
+        'scan_cursor_changed': changed,
+        'scan_min_cursor_changed': nextMinCursor != minCursor,
+        'scan_max_cursor_changed': nextCursor != cursor,
         for (final key in ['maxCursor', 'max_cursor', 'minCursor', 'min_cursor', 'nextCursor', 'next_cursor', 'cursor'])
           'scan_has_$key': data[key] != null});
 
-    return FollowingScanResult(users: users, nextCursor: nextCursor, hasMore: hasMore);
+    return FollowingScanResult(users: users, nextCursor: nextCursor, nextMinCursor: nextMinCursor, hasMore: hasMore);
   }
 
   // ─── 4. DELETE SINGLE REPOST ──────────────────────────────────────────────

@@ -13,7 +13,7 @@ class DiagnosticLog extends ChangeNotifier {
     'readback_verification_hint', 'readback_hydration_present',
     'readback_viewer_present', 'readback_same_session', 'readback_video_present',
     'readback_video_matches', 'readback_liked_present', 'readback_exception',
-    'scan_count', 'scan_has_more', 'scan_cursor_changed',
+    'scan_count', 'scan_has_more', 'scan_cursor_changed', 'scan_min_cursor_changed', 'scan_max_cursor_changed',
     'scan_has_maxCursor', 'scan_has_max_cursor', 'scan_has_minCursor',
     'scan_has_min_cursor', 'scan_has_nextCursor', 'scan_has_next_cursor', 'scan_has_cursor'};
 

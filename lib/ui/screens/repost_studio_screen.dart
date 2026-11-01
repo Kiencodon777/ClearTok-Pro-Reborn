@@ -168,11 +168,13 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     try {
       if (_currentHub == 'unfollow') {
         var followingCursor = '0';
-        final followingCursors = <String>{'0'};
+        var followingMinCursor = '0';
+        final followingCursors = <(String, String)>{('0', '0')};
         // Scan following users with multi-batch pagination
         while (hasMore && (targetLimit <= 0 || totalFound < targetLimit)) {
           final res = await widget.client!.fetchFollowingUsersBatch(
             cursor: followingCursor,
+            minCursor: followingMinCursor,
             secUid: widget.currentUser!.secUid,
           );
 
@@ -188,10 +190,11 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
           });
 
           if (targetLimit > 0 && totalFound >= targetLimit) break;
-          if (res.hasMore && !followingCursors.add(res.nextCursor)) {
+          if (res.hasMore && !followingCursors.add((res.nextCursor, res.nextMinCursor))) {
             throw Exception('Đã lưu $totalFound tài khoản. TikTok chưa trả cursor mới; mở Log xem scan.following.');
           }
           followingCursor = res.nextCursor;
+          followingMinCursor = res.nextMinCursor;
           hasMore = res.hasMore;
 
           await Future.delayed(const Duration(milliseconds: 1500));
