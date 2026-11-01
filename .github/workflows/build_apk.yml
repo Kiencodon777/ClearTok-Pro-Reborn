@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -36,15 +39,28 @@ jobs:
     - name: Build Release APK
       run: flutter build apk --release --no-tree-shake-icons
 
-    - name: Rename APK for Release
-      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn.apk
+    - name: Prepare APK Asset
+      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn-v2.0.1.apk
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ClearTok-Pro-Reborn-Release-APK
+        path: ClearTok-Pro-Reborn-v2.0.1.apk
 
     - name: Auto Publish to GitHub Release
       uses: softprops/action-gh-release@v2
-      if: always()
       with:
-        tag_name: v2.0.0
-        name: ClearTok Pro Reborn v2.0.0
-        files: ClearTok-Pro-Reborn.apk
+        tag_name: v2.0.1
+        name: ClearTok Pro Reborn v2.0.1 (UI/UX ProMax)
+        body: |
+          ### ClearTok Pro Reborn v2.0.1 — ProMax UI Edition
+          
+          - **Full UI/UX Overhaul**: Separated into 2 dedicated tabs (TikTok Web + Studio Reposts).
+          - **Android Login Scheme Fix**: Resolved `net::ERR_UNKNOWN_URL_SCHEME` by intercepting `tiktok://` deep links.
+          - **Universal Data Session Extractor**: Direct React hydration reader for instant `secUid` and user profile binding.
+          - **Custom Speed Slider**: Choose between Turbo (300ms), Balanced (700ms), and Ultra Safe (1500ms).
+          - **100% Unlimited**: Zero paywalls, zero quotas.
+        files: ClearTok-Pro-Reborn-v2.0.1.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

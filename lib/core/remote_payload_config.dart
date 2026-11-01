@@ -26,9 +26,9 @@ class RemotePayloadConfig {
     } catch (_) {}
   }
 
-  /// Extracts user profile directly from TikTok React Hydration context
+  /// Extracts user profile directly from TikTok React Hydration context using raw Dart string
   String buildExtractUserScript() {
-    return '''
+    return r'''
       (function() {
         try {
           const userFromUniversalData = (data) => {
@@ -57,7 +57,6 @@ class RemotePayloadConfig {
             } catch (_) {}
           }
 
-          // Fallback: Check SIGI_STATE
           if (globalThis['SIGI_STATE']?.UserModule?.users) {
             const users = globalThis['SIGI_STATE'].UserModule.users;
             const first = Object.values(users)[0];
