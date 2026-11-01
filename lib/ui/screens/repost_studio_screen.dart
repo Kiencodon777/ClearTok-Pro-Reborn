@@ -34,12 +34,15 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   String? _filterAuthor;
   String? _filterYear;
   String _currentHub = 'repost'; // 'repost', 'unlike', 'unfollow'
+  int _scanBatchLimit = 100;
+  int _currentScannedCount = 0;
 
   TikTokDeletionEngine? _engine;
 
   @override
   void initState() {
     super.initState();
+    _scanBatchLimit = widget.database.scanBatchLimit;
     _loadVideos();
   }
 
@@ -120,13 +123,18 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
       return;
     }
 
-    setState(() => _isScanning = true);
+    setState(() {
+      _isScanning = true;
+      _currentScannedCount = 0;
+    });
+
     int cursor = 0;
     bool hasMore = true;
     int totalFound = 0;
+    final int targetLimit = _scanBatchLimit; // 50, 100, 200, or 0 (unlimited)
 
     try {
-      while (hasMore) {
+      while (hasMore && (targetLimit <= 0 || totalFound < targetLimit)) {
         final res = await widget.client!.fetchRepostBatch(
           cursor: cursor,
           secUid: widget.currentUser!.secUid,
@@ -139,14 +147,21 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
         hasMore = res.hasMore;
 
         setState(() {
+          _currentScannedCount = totalFound;
           _loadVideos();
         });
+
+        // Batch limit reached: stop early as requested to prevent freezing
+        if (targetLimit > 0 && totalFound >= targetLimit) {
+          break;
+        }
 
         await Future.delayed(const Duration(milliseconds: 300));
       }
 
       if (totalFound > 0) {
-        _showSnack('Quét hoàn tất! Đã tìm thấy $totalFound video Repost.');
+        final limitDesc = targetLimit > 0 ? '$totalFound / $targetLimit bài' : '$totalFound bài';
+        _showSnack('Quét hoàn tất đợt này: $limitDesc! Anh có thể hủy ngay hoặc quét tiếp.');
       } else {
         _showNoRepostDialog();
       }
@@ -1043,6 +1058,26 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
 
             const SizedBox(height: 8),
 
+            // Scan Batch Limit Selector Bar (Theo yêu cầu: quét 100 bài mỗi đợt)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+              child: Row(
+                children: [
+                  const Icon(Icons.tune_rounded, size: 14, color: Color(0xFF25F4EE)),
+                  const SizedBox(width: 6),
+                  const Text('Đợt quét:', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                  const Spacer(),
+                  _buildScanLimitPill('50', 50),
+                  const SizedBox(width: 6),
+                  _buildScanLimitPill('100 ⭐', 100),
+                  const SizedBox(width: 6),
+                  _buildScanLimitPill('200', 200),
+                  const SizedBox(width: 6),
+                  _buildScanLimitPill('Hết ∞', 0),
+                ],
+              ),
+            ),
+
             // Quick Actions: Scan & Delete
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -1062,7 +1097,16 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                               height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                           : const Icon(Icons.sync_rounded),
-                      label: Text(_isScanning ? 'Đang Quét...' : 'Quét Repost'),
+                      label: Text(
+                        _isScanning
+                            ? (_scanBatchLimit > 0
+                                ? '$_currentScannedCount/$_scanBatchLimit'
+                                : 'Quét: $_currentScannedCount')
+                            : (_scanBatchLimit > 0
+                                ? 'Quét ($_scanBatchLimit bài)'
+                                : 'Quét Tất Cả'),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
                       onPressed: _isScanning ? null : _startScan,
                     ),
                   ),
@@ -1306,6 +1350,34 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                     ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScanLimitPill(String label, int limit) {
+    final isSelected = _scanBatchLimit == limit;
+    return GestureDetector(
+      onTap: () {
+        setState(() => _scanBatchLimit = limit);
+        widget.database.setScanBatchLimit(limit);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFFE2C55) : const Color(0xFF161926),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? const Color(0xFFFE2C55) : Colors.white12,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            color: isSelected ? Colors.white : Colors.white60,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
         ),
       ),
     );

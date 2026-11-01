@@ -45,6 +45,11 @@ class LocalDatabase {
 
   int get totalDeletedCount => _historyBox.length;
 
+  // ─── Scan Batch Limit Settings ────────────────────────────────────────────
+  // 100 is the recommended default, 0 means unlimited/scan all
+  int get scanBatchLimit => _settingsBox.get('scan_batch_limit', defaultValue: 100) as int;
+  Future<void> setScanBatchLimit(int limit) async => await _settingsBox.put('scan_batch_limit', limit);
+
   // ─── Safety & Anti-Ban Settings ───────────────────────────────────────────
   int get customDelayMs => _settingsBox.get('custom_delay_ms', defaultValue: 700) as int;
   Future<void> setCustomDelayMs(int delay) async => await _settingsBox.put('custom_delay_ms', delay);

@@ -40,39 +40,29 @@ jobs:
       run: flutter build apk --release --no-tree-shake-icons
 
     - name: Prepare APK Asset
-      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn-v2.1.0.apk
+      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn-v2.1.1.apk
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ClearTok-Pro-Reborn-Release-APK
-        path: ClearTok-Pro-Reborn-v2.1.0.apk
+        path: ClearTok-Pro-Reborn-v2.1.1.apk
 
     - name: Auto Publish to GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v2.1.0
-        name: "ClearTok Pro Reborn v2.1.0 (Smart Anti-Ban, Analytics & Export)"
+        tag_name: v2.1.1
+        name: "ClearTok Pro Reborn v2.1.1 (Scan Batch Limit 100 & Anti-Freeze)"
         body: |
-          ### ClearTok Pro Reborn v2.1.0 - Major Innovation Release
+          ### ClearTok Pro Reborn v2.1.1 - Scan Batch Limit & Performance Upgrade
 
-          Bản phát hành lớn nâng cấp toàn diện ứng dụng thành Siêu Vũ Khí Quản Trị TikTok:
-
-          1. Smart Anti-Ban & Humanized Pulse Jitter:
-             - Tự động nghỉ sâu 12s-20s sau mỗi 10-20 video để giải nhiệt và né quét bot của TikTok.
-             - 3 Profiles: Turbo (300ms), Can Bang (700ms), Sieu An Toan (1500ms).
-          2. Studio Analytics Dashboard:
-             - Thống kê tổng số video, tổng like, like trung bình, và bảng xếp hạng Top Tác Giả được bạn repost nhiều nhất.
-          3. Export & Backup Engine (CSV & JSON):
-             - 1-click copy toàn bộ danh sách video đã quét dạng CSV hoặc JSON vào bộ nhớ tạm.
-          4. Smart Filters Pro:
-             - Lọc nhanh theo từng tác giả cụ thể (@Creator), nhiều Like, mới nhất, cũ nhất.
-          5. Ecosystem Expansion (Un-Like & Un-Follow API Support):
-             - Mở rộng Web Bridge cho hủy Thích và hủy Theo dõi hàng loạt.
-          6. Background Ongoing Notification Support:
-             - Thông báo tiến độ trực tiếp khi người dùng chuyển ứng dụng.
+          Theo góp ý đóng góp từ bạn của LO:
+          - **Tùy chọn giới hạn đợt quét (Scan Batch Limit)**: Thêm các nút chọn linh hoạt [50], [100 bài ⭐ Khuyên dùng], [200], [Tất cả ∞].
+          - **Chống đơ/treo quét**: Quét dừng dứt khoát ngay khi đủ 100 bài (thay vì cố quét cạn hàng ngàn video gây đứng máy hoặc rate-limit).
+          - **Hiển thị trực quan tiến độ quét**: Nút quét cập nhật realtime số lượng bài đã nạp (`X/100`).
+          - Tích hợp trọn vẹn Smart Anti-Ban, Analytics Dashboard, và sao lưu CSV/JSON.
 
           Unlimited Quota - Safe & Clean Architecture
-        files: ClearTok-Pro-Reborn-v2.1.0.apk
+        files: ClearTok-Pro-Reborn-v2.1.1.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
