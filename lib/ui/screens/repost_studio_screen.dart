@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import '../../api/tiktok_client.dart';
 import '../../database/local_database.dart';
 import '../../models/tiktok_video.dart';
+import '../../services/export_analytics_service.dart';
 import '../../services/tiktok_deletion_engine.dart';
 
 class RepostStudioScreen extends StatefulWidget {
@@ -28,8 +31,10 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   bool _isScanning = false;
   String _searchQuery = '';
   String _selectedFilter = 'all';
+  String? _filterAuthor;
+  String? _filterYear;
+  String _currentHub = 'repost'; // 'repost', 'unlike', 'unfollow'
 
-  // Engine is created fresh per delete session — no stale ref issues
   TikTokDeletionEngine? _engine;
 
   @override
@@ -41,7 +46,6 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   @override
   void didUpdateWidget(covariant RepostStudioScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // If client reference changed, dispose stale engine so next delete creates fresh one
     if (oldWidget.client != widget.client) {
       _engine?.dispose();
       _engine = null;
@@ -62,7 +66,6 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     });
   }
 
-  // Creates a fresh engine with current client — called right before executeBatch
   TikTokDeletionEngine _freshEngine() {
     _engine?.dispose();
     _engine = TikTokDeletionEngine(
@@ -76,10 +79,21 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     List<TikTokVideo> list = List.from(_videos);
 
     if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
       list = list.where((v) {
-        return v.authorUsername.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            v.description.toLowerCase().contains(_searchQuery.toLowerCase());
+        return v.authorUsername.toLowerCase().contains(q) ||
+            v.authorNickname.toLowerCase().contains(q) ||
+            v.description.toLowerCase().contains(q);
       }).toList();
+    }
+
+    if (_filterAuthor != null) {
+      list = list.where((v) => v.authorUsername == _filterAuthor).toList();
+    }
+
+    if (_filterYear != null) {
+      final dfYear = DateFormat('yyyy');
+      list = list.where((v) => dfYear.format(v.repostTimestamp) == _filterYear).toList();
     }
 
     switch (_selectedFilter) {
@@ -243,16 +257,36 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.white12),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.bolt, color: Color(0xFF25F4EE), size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Tốc độ: ${widget.database.customDelayMs}ms / video (Bypass Quota: Vô Hạn)',
-                      style: const TextStyle(color: Color(0xFF25F4EE), fontSize: 12),
-                    ),
+                  Row(
+                    children: [
+                      const Icon(Icons.bolt, color: Color(0xFF25F4EE), size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Tốc độ: ${widget.database.customDelayMs}ms / video (Vô Hạn Quota ∞)',
+                          style: const TextStyle(color: Color(0xFF25F4EE), fontSize: 12),
+                        ),
+                      ),
+                    ],
                   ),
+                  if (widget.database.pulseJitterEnabled) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(Icons.shield_rounded, color: Colors.greenAccent, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Anti-Ban: Nghỉ ${widget.database.deepRestDurationSec}s sau mỗi ${widget.database.deepRestBatchCount} video',
+                            style: const TextStyle(color: Colors.white70, fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -280,12 +314,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     );
   }
 
-  // ─── CORE FIX: StreamBuilder modal + fresh engine before show ───────────────
   void _startLiveDeletionModal(List<TikTokVideo> targets) {
-    // 1) Create fresh engine BEFORE showing modal so stream is ready
     final engine = _freshEngine();
 
-    // 2) Show modal FIRST using StreamBuilder — no StatefulBuilder setState race
     showModalBottomSheet(
       context: context,
       isDismissible: false,
@@ -302,23 +333,24 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
           deleted: 0,
           failed: 0,
           status: DeletionStatus.running,
-          message: 'Đang khởi động tiến trình hủy ${targets.length} repost...',
+          message: 'Khởi động tiến trình hủy ${targets.length} repost...',
         ),
         builder: (ctx, snapshot) {
           final prog = snapshot.data;
           final isRunning = prog != null &&
-              (prog.status == DeletionStatus.running || prog.status == DeletionStatus.paused);
+              (prog.status == DeletionStatus.running ||
+                  prog.status == DeletionStatus.paused ||
+                  prog.status == DeletionStatus.deepResting);
+          final isDeepResting = prog?.status == DeletionStatus.deepResting;
           final isDone = prog != null &&
               (prog.status == DeletionStatus.completed || prog.status == DeletionStatus.stopped);
 
           return SafeArea(
             child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                  24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
+              padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Drag handle
                   Container(
                     width: 40,
                     height: 4,
@@ -328,8 +360,6 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-
-                  // Header
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -338,28 +368,34 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFE2C55).withOpacity(0.2),
+                              color: isDeepResting
+                                  ? Colors.greenAccent.withOpacity(0.2)
+                                  : const Color(0xFFFE2C55).withOpacity(0.2),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(Icons.delete_sweep, color: Color(0xFFFE2C55), size: 24),
+                            child: Icon(
+                              isDeepResting ? Icons.spa_rounded : Icons.delete_sweep,
+                              color: isDeepResting ? Colors.greenAccent : const Color(0xFFFE2C55),
+                              size: 24,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Đang Hủy Repost Hàng Loạt',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16),
+                              Text(
+                                isDeepResting ? 'Anti-Ban: Đang Giải Nhiệt' : 'Đang Hủy Repost Hàng Loạt',
+                                style: const TextStyle(
+                                    color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                               ),
                               Text(
                                 prog != null
                                     ? '${prog.deleted} / ${prog.total} (${prog.failed} lỗi)'
                                     : 'Khởi động...',
-                                style: const TextStyle(
-                                    color: Color(0xFF25F4EE), fontSize: 13),
+                                style: TextStyle(
+                                  color: isDeepResting ? Colors.greenAccent : const Color(0xFF25F4EE),
+                                  fontSize: 13,
+                                ),
                               ),
                             ],
                           ),
@@ -375,51 +411,48 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                         ),
                     ],
                   ),
-
                   const SizedBox(height: 20),
-
-                  // Progress bar
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: LinearProgressIndicator(
-                      value: (prog != null && prog.total > 0)
-                          ? prog.deleted / prog.total
-                          : null,
+                      value: (prog != null && prog.total > 0) ? prog.deleted / prog.total : null,
                       minHeight: 10,
                       backgroundColor: Colors.white12,
-                      valueColor:
-                          const AlwaysStoppedAnimation<Color>(Color(0xFFFE2C55)),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        isDeepResting ? Colors.greenAccent : const Color(0xFFFE2C55),
+                      ),
                     ),
                   ),
-
                   const SizedBox(height: 16),
-
-                  // Status message box
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.black38,
+                      color: isDeepResting ? const Color(0xFF0F241E) : Colors.black38,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white10),
+                      border: Border.all(
+                        color: isDeepResting ? Colors.greenAccent.withOpacity(0.3) : Colors.white10,
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           prog?.message ?? 'Đang kết nối tới TikTok...',
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          style: TextStyle(
+                            color: isDeepResting ? Colors.greenAccent : Colors.white,
+                            fontSize: 13,
+                            fontWeight: isDeepResting ? FontWeight.w600 : FontWeight.normal,
+                          ),
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (prog?.lastErrorDetail != null &&
-                            prog!.lastErrorDetail!.isNotEmpty)
+                        if (prog?.lastErrorDetail != null && prog!.lastErrorDetail!.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 6),
                             child: Text(
                               'Chi tiết: ${prog.lastErrorDetail}',
-                              style: const TextStyle(
-                                  color: Colors.redAccent, fontSize: 11),
+                              style: const TextStyle(color: Colors.redAccent, fontSize: 11),
                               maxLines: 3,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -427,10 +460,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
-                  // Action buttons
                   Row(
                     children: [
                       if (isRunning) ...[
@@ -440,8 +470,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                               foregroundColor: Colors.white,
                               side: const BorderSide(color: Colors.white30),
                               padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             onPressed: () {
                               if (prog?.status == DeletionStatus.paused) {
@@ -450,9 +479,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                                 engine.pause();
                               }
                             },
-                            child: Text(prog?.status == DeletionStatus.paused
-                                ? 'Tiếp Tục'
-                                : 'Tạm Dừng'),
+                            child: Text(prog?.status == DeletionStatus.paused ? 'Tiếp Tục' : 'Tạm Dừng'),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -462,8 +489,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                               backgroundColor: Colors.red.shade900,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             onPressed: () => engine.stop(),
                             child: const Text('Dừng Hẳn'),
@@ -476,8 +502,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                               backgroundColor: const Color(0xFFFE2C55),
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             onPressed: () {
                               Navigator.pop(ctx);
@@ -497,22 +522,270 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
       ),
     );
 
-    // 3) Execute AFTER modal is shown — stream events are now being listened to
     Future.microtask(() => engine.executeBatch(targets));
   }
 
-  void _showSettingsModal() {
-    int currentDelay = widget.database.customDelayMs;
+  // ─── MODAL 1: Smart Filter By Author ─────────────────────────────────────
+  void _showAuthorFilterModal() {
+    final analytics = StudioAnalytics.fromVideos(_videos);
 
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF161926),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Lọc Theo Tác Giả (@Creator)',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                IconButton(icon: const Icon(Icons.close, color: Colors.white54), onPressed: () => Navigator.pop(ctx)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (analytics.topAuthors.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                    child: Text('Chưa có dữ liệu tác giả nào!', style: TextStyle(color: Colors.white54))),
+              )
+            else
+              Expanded(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: analytics.topAuthors.length + 1,
+                  itemBuilder: (ctx, idx) {
+                    if (idx == 0) {
+                      return ListTile(
+                        leading: const Icon(Icons.all_inclusive, color: Color(0xFF25F4EE)),
+                        title: const Text('Tất cả tác giả', style: TextStyle(color: Colors.white)),
+                        trailing: _filterAuthor == null
+                            ? const Icon(Icons.check, color: Color(0xFFFE2C55))
+                            : null,
+                        onTap: () {
+                          setState(() => _filterAuthor = null);
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    }
+                    final a = analytics.topAuthors[idx - 1];
+                    final isSelected = _filterAuthor == a.username;
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFF1E2235),
+                        child: Text(a.username.isNotEmpty ? a.username[0].toUpperCase() : '?',
+                            style: const TextStyle(color: Color(0xFFFE2C55))),
+                      ),
+                      title: Text('@${a.username}',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                      subtitle: Text('${a.count} repost • ❤️ ${a.totalLikes}',
+                          style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                      trailing: isSelected ? const Icon(Icons.check, color: Color(0xFFFE2C55)) : null,
+                      onTap: () {
+                        setState(() => _filterAuthor = a.username);
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
       ),
+    );
+  }
+
+  // ─── MODAL 2: Analytics Dashboard ─────────────────────────────────────────
+  void _showAnalyticsModal() {
+    final analytics = StudioAnalytics.fromVideos(_videos);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF161926),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: const [
+                    Icon(Icons.insights_rounded, color: Color(0xFF25F4EE), size: 24),
+                    SizedBox(width: 10),
+                    Text('Thống Kê Repost Studio',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  ],
+                ),
+                IconButton(icon: const Icon(Icons.close, color: Colors.white54), onPressed: () => Navigator.pop(ctx)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                _buildStatPill('Tổng Video', '${analytics.totalVideos}', const Color(0xFF8A2BE2)),
+                const SizedBox(width: 8),
+                _buildStatPill('Tổng Like ❤️', '${analytics.totalLikes}', const Color(0xFFFE2C55)),
+                const SizedBox(width: 8),
+                _buildStatPill('Like TB/Video', analytics.avgLikes.toStringAsFixed(1), const Color(0xFF00E5FF)),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Text('Top Tác Giả Bạn Repost Nhiều Nhất:',
+                style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 10),
+            if (analytics.topAuthors.isEmpty)
+              const Center(
+                  child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('Chưa có dữ liệu!', style: TextStyle(color: Colors.white38))))
+            else
+              ...analytics.topAuthors.take(5).map(
+                    (a) => Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.black26,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white10),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('@${a.username}',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                          Text('${a.count} video (${a.totalLikes} like)',
+                              style: const TextStyle(color: Color(0xFF25F4EE), fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatPill(String title, String val, Color col) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: col.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: col.withOpacity(0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+            const SizedBox(height: 4),
+            Text(val, style: TextStyle(color: col, fontWeight: FontWeight.bold, fontSize: 15)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── MODAL 3: Export CSV & JSON ───────────────────────────────────────────
+  void _showExportModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF161926),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Sao Lưu & Xuất Dữ Liệu',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                IconButton(icon: const Icon(Icons.close, color: Colors.white54), onPressed: () => Navigator.pop(ctx)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Lưu trữ danh sách video repost về máy trước khi hủy để không bị mất link hoặc tác giả yêu thích.',
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E2235),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: const Icon(Icons.table_chart_rounded, color: Color(0xFF25F4EE)),
+                    label: const Text('Copy CSV'),
+                    onPressed: () {
+                      final csv = ExportAnalyticsService.exportToCsv(_videos);
+                      Clipboard.setData(ClipboardData(text: csv));
+                      Navigator.pop(ctx);
+                      _showSnack('Đã copy toàn bộ ${_videos.length} video dạng CSV vào bộ nhớ tạm!');
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFE2C55),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: const Icon(Icons.data_object_rounded),
+                    label: const Text('Copy JSON'),
+                    onPressed: () {
+                      final jsonStr = ExportAnalyticsService.exportToJson(_videos);
+                      Clipboard.setData(ClipboardData(text: jsonStr));
+                      Navigator.pop(ctx);
+                      _showSnack('Đã copy toàn bộ ${_videos.length} video dạng JSON vào bộ nhớ tạm!');
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── MODAL 4: Safety & Anti-Ban Presets ────────────────────────────────────
+  void _showSettingsModal() {
+    int currentDelay = widget.database.customDelayMs;
+    bool pulseJitter = widget.database.pulseJitterEnabled;
+    int deepBatch = widget.database.deepRestBatchCount;
+    int deepSec = widget.database.deepRestDurationSec;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF161926),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) => Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -520,29 +793,61 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Cấu Hình Tốc Độ & Anti-Bot',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white54),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
+                  const Text('Smart Anti-Ban & Tốc Độ',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  IconButton(icon: const Icon(Icons.close, color: Colors.white54), onPressed: () => Navigator.pop(ctx)),
                 ],
               ),
               const SizedBox(height: 16),
+              // Presets selector
+              Row(
+                children: [
+                  _buildPresetButton('🚀 Turbo', () {
+                    setModalState(() {
+                      currentDelay = 300;
+                      pulseJitter = false;
+                    });
+                    widget.database.setCustomDelayMs(300);
+                    widget.database.setPulseJitterEnabled(false);
+                    setState(() {});
+                  }),
+                  const SizedBox(width: 8),
+                  _buildPresetButton('⚖️ Cân Bằng', () {
+                    setModalState(() {
+                      currentDelay = 700;
+                      pulseJitter = true;
+                      deepBatch = 20;
+                      deepSec = 12;
+                    });
+                    widget.database.setCustomDelayMs(700);
+                    widget.database.setPulseJitterEnabled(true);
+                    widget.database.setDeepRestBatchCount(20);
+                    widget.database.setDeepRestDurationSec(12);
+                    setState(() {});
+                  }),
+                  const SizedBox(width: 8),
+                  _buildPresetButton('🛡️ Siêu An Toàn', () {
+                    setModalState(() {
+                      currentDelay = 1500;
+                      pulseJitter = true;
+                      deepBatch = 10;
+                      deepSec = 20;
+                    });
+                    widget.database.setCustomDelayMs(1500);
+                    widget.database.setPulseJitterEnabled(true);
+                    widget.database.setDeepRestBatchCount(10);
+                    widget.database.setDeepRestDurationSec(20);
+                    setState(() {});
+                  }),
+                ],
+              ),
+              const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Thời gian nghỉ giữa mỗi lần xóa:',
-                      style: TextStyle(color: Colors.white70)),
+                  const Text('Thời gian nghỉ giữa mỗi video:', style: TextStyle(color: Colors.white70)),
                   Text('${currentDelay}ms',
-                      style: const TextStyle(
-                          color: Color(0xFF25F4EE),
-                          fontWeight: FontWeight.bold)),
+                      style: const TextStyle(color: Color(0xFF25F4EE), fontWeight: FontWeight.bold)),
                 ],
               ),
               Slider(
@@ -558,21 +863,44 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                   setState(() => widget.database.setCustomDelayMs(val.toInt()));
                 },
               ),
-              const Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('⚡ Turbo (300ms)',
-                      style: TextStyle(color: Colors.white38, fontSize: 11)),
-                  Text('⚖️ Cân bằng (700ms)',
-                      style: TextStyle(color: Colors.white38, fontSize: 11)),
-                  Text('🛡️ Siêu An toàn (1500ms)',
-                      style: TextStyle(color: Colors.white38, fontSize: 11)),
-                ],
+              const Divider(color: Colors.white10),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                activeColor: Colors.greenAccent,
+                title: const Text('Nhịp thở tự nhiên (Humanized Deep Rest)',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
+                subtitle: const Text('Tự động dừng nghỉ ngơi theo chu kỳ để né tuyệt đối thuật toán quét của TikTok',
+                    style: TextStyle(color: Colors.white54, fontSize: 11)),
+                value: pulseJitter,
+                onChanged: (val) {
+                  setModalState(() => pulseJitter = val);
+                  widget.database.setPulseJitterEnabled(val);
+                  setState(() {});
+                },
               ),
-              const SizedBox(height: 24),
+              if (pulseJitter) ...[
+                const SizedBox(height: 8),
+                Text('Cứ sau $deepBatch video sẽ nghỉ sâu $deepSec giây giải nhiệt.',
+                    style: const TextStyle(color: Color(0xFF25F4EE), fontSize: 12)),
+              ],
+              const SizedBox(height: 16),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildPresetButton(String label, VoidCallback onTap) {
+    return Expanded(
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Colors.white24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+        ),
+        onPressed: onTap,
+        child: Text(label, style: const TextStyle(fontSize: 11, color: Colors.white)),
       ),
     );
   }
@@ -581,8 +909,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor:
-            isError ? const Color(0xFFFE2C55) : const Color(0xFF1E2235),
+        backgroundColor: isError ? const Color(0xFFFE2C55) : const Color(0xFF1E2235),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -598,17 +925,16 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
+            // Top App Bar with Icons
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Row(
                 children: [
                   Container(
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                          colors: [Color(0xFFFE2C55), Color(0xFF25F4EE)]),
+                      gradient: const LinearGradient(colors: [Color(0xFFFE2C55), Color(0xFF25F4EE)]),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.bolt, color: Colors.white, size: 22),
@@ -619,11 +945,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'ClearTok Studio',
-                          style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white),
+                          'ClearTok Studio Pro',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                         Row(
                           children: [
@@ -631,22 +954,16 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                               width: 8,
                               height: 8,
                               decoration: BoxDecoration(
-                                color: user != null
-                                    ? Colors.greenAccent
-                                    : Colors.amberAccent,
+                                color: user != null ? Colors.greenAccent : Colors.amberAccent,
                                 shape: BoxShape.circle,
                               ),
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              user != null
-                                  ? '@${user.uniqueId}'
-                                  : 'Chưa kết nối tài khoản',
+                              user != null ? '@${user.uniqueId}' : 'Chưa kết nối tài khoản',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: user != null
-                                    ? Colors.white70
-                                    : Colors.amberAccent,
+                                color: user != null ? Colors.white70 : Colors.amberAccent,
                               ),
                             ),
                           ],
@@ -655,15 +972,47 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                     ),
                   ),
                   IconButton(
+                    icon: const Icon(Icons.insights_rounded, color: Color(0xFF25F4EE)),
+                    tooltip: 'Thống kê Analytics',
+                    onPressed: _showAnalyticsModal,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.download_rounded, color: Colors.white70),
+                    tooltip: 'Xuất CSV/JSON',
+                    onPressed: _showExportModal,
+                  ),
+                  IconButton(
                     icon: const Icon(Icons.tune_rounded, color: Colors.white70),
-                    tooltip: 'Cài đặt tốc độ',
+                    tooltip: 'Cài đặt Anti-Ban',
                     onPressed: _showSettingsModal,
                   ),
                 ],
               ),
             ),
 
-            // Metric Cards
+            // Studio Hub Switcher (Reposts / Un-Like / Un-Follow)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF161926),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: Row(
+                  children: [
+                    _buildHubTab('Reposts (${_videos.length})', 'repost', Icons.repeat_rounded),
+                    _buildHubTab('Un-Like (Beta)', 'unlike', Icons.favorite_border_rounded),
+                    _buildHubTab('Un-Follow (Beta)', 'unfollow', Icons.person_remove_rounded),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Hero Metric Cards
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
@@ -692,11 +1041,11 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
-            // Action Buttons
+            // Quick Actions: Scan & Delete
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               child: Row(
                 children: [
                   Expanded(
@@ -705,15 +1054,13 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                         backgroundColor: const Color(0xFF1E2235),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
                       icon: _isScanning
                           ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                           : const Icon(Icons.sync_rounded),
                       label: Text(_isScanning ? 'Đang Quét...' : 'Quét Repost'),
                       onPressed: _isScanning ? null : _startScan,
@@ -726,8 +1073,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                         backgroundColor: const Color(0xFFFE2C55),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
                       icon: const Icon(Icons.delete_forever_rounded),
                       label: Text('Hủy Repost (${_selectedIds.length})'),
@@ -738,18 +1084,31 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
               ),
             ),
 
-            // Filter Chips
+            // Smart Filter Chips Bar
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Row(
                 children: [
                   _buildFilterChip('Tất cả (${_videos.length})', 'all'),
-                  _buildFilterChip(
-                      'Đã chọn (${_selectedIds.length})', 'selected'),
+                  _buildFilterChip('Đã chọn (${_selectedIds.length})', 'selected'),
                   _buildFilterChip('Nhiều Like ❤️', 'most_liked'),
                   _buildFilterChip('Mới nhất 🔥', 'newest'),
                   _buildFilterChip('Cũ nhất 🕰', 'oldest'),
+                  // Author filter chip
+                  ActionChip(
+                    avatar: const Icon(Icons.person_search_rounded, size: 16, color: Color(0xFF25F4EE)),
+                    label: Text(
+                      _filterAuthor != null ? '@$_filterAuthor' : 'Theo Tác Giả',
+                      style: TextStyle(
+                        color: _filterAuthor != null ? Colors.white : Colors.white70,
+                        fontSize: 12,
+                        fontWeight: _filterAuthor != null ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    backgroundColor: _filterAuthor != null ? const Color(0xFFFE2C55) : const Color(0xFF161926),
+                    onPressed: _showAuthorFilterModal,
+                  ),
                   const SizedBox(width: 8),
                   TextButton.icon(
                     onPressed: () {
@@ -762,18 +1121,13 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                       });
                     },
                     icon: Icon(
-                      _selectedIds.length == _videos.length
-                          ? Icons.deselect
-                          : Icons.select_all,
+                      _selectedIds.length == _videos.length ? Icons.deselect : Icons.select_all,
                       size: 16,
                       color: const Color(0xFF25F4EE),
                     ),
                     label: Text(
-                      _selectedIds.length == _videos.length
-                          ? 'Bỏ chọn'
-                          : 'Chọn hết',
-                      style: const TextStyle(
-                          color: Color(0xFF25F4EE), fontSize: 12),
+                      _selectedIds.length == _videos.length ? 'Bỏ chọn' : 'Chọn hết',
+                      style: const TextStyle(color: Color(0xFF25F4EE), fontSize: 12),
                     ),
                   ),
                 ],
@@ -782,49 +1136,48 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
 
             // Search Bar
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: TextField(
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: 'Tìm theo tên @tác giả hoặc nội dung...',
-                  hintStyle:
-                      const TextStyle(color: Colors.white38, fontSize: 13),
-                  prefixIcon:
-                      const Icon(Icons.search, color: Colors.white38, size: 20),
+                  hintText: 'Tìm theo tên tác giả hoặc nội dung...',
+                  hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                  prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 20),
+                  suffixIcon: (_searchQuery.isNotEmpty || _filterAuthor != null)
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.white54, size: 18),
+                          onPressed: () => setState(() {
+                            _searchQuery = '';
+                            _filterAuthor = null;
+                          }),
+                        )
+                      : null,
                   filled: true,
                   fillColor: const Color(0xFF161926),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
                 ),
                 onChanged: (val) => setState(() => _searchQuery = val),
               ),
             ),
 
-            // Video Grid
+            // Video Grid List
             Expanded(
               child: _filteredVideos.isEmpty
                   ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.video_collection_outlined,
-                              size: 64,
-                              color: Colors.white.withOpacity(0.1)),
+                          Icon(Icons.video_collection_outlined, size: 64, color: Colors.white.withOpacity(0.1)),
                           const SizedBox(height: 12),
                           Text(
-                            _videos.isEmpty
-                                ? 'Chưa quét được repost nào cơ mà!'
-                                : 'Không có video nào khớp bộ lọc.',
-                            style: const TextStyle(
-                                color: Colors.white54, fontSize: 14),
+                            _videos.isEmpty ? 'Chưa quét được repost nào cơ mà!' : 'Không có video nào khớp bộ lọc.',
+                            style: const TextStyle(color: Colors.white54, fontSize: 14),
                           ),
                           const SizedBox(height: 12),
                           if (_videos.isEmpty)
                             ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF1E2235)),
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E2235)),
                               icon: const Icon(Icons.sync),
                               label: const Text('Bấm Quét Ngay'),
                               onPressed: _startScan,
@@ -834,8 +1187,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                     )
                   : GridView.builder(
                       padding: const EdgeInsets.all(16),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
                         crossAxisSpacing: 12,
                         mainAxisSpacing: 12,
@@ -860,16 +1212,13 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: isSelected
-                                    ? const Color(0xFFFE2C55)
-                                    : Colors.white10,
+                                color: isSelected ? const Color(0xFFFE2C55) : Colors.white10,
                                 width: isSelected ? 2 : 1,
                               ),
                               boxShadow: isSelected
                                   ? [
                                       BoxShadow(
-                                        color: const Color(0xFFFE2C55)
-                                            .withOpacity(0.3),
+                                        color: const Color(0xFFFE2C55).withOpacity(0.3),
                                         blurRadius: 10,
                                         offset: const Offset(0, 4),
                                       ),
@@ -886,8 +1235,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, __, ___) => Container(
                                         color: const Color(0xFF161926),
-                                        child: const Icon(Icons.movie,
-                                            color: Colors.white24, size: 40),
+                                        child: const Icon(Icons.movie, color: Colors.white24, size: 40),
                                       ),
                                     ),
                                   ),
@@ -897,10 +1245,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                                         gradient: LinearGradient(
                                           begin: Alignment.topCenter,
                                           end: Alignment.bottomCenter,
-                                          colors: [
-                                            Colors.transparent,
-                                            Colors.black87
-                                          ],
+                                          colors: [Colors.transparent, Colors.black87],
                                         ),
                                       ),
                                     ),
@@ -911,15 +1256,11 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                                     child: Container(
                                       padding: const EdgeInsets.all(4),
                                       decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? const Color(0xFFFE2C55)
-                                            : Colors.black54,
+                                        color: isSelected ? const Color(0xFFFE2C55) : Colors.black54,
                                         shape: BoxShape.circle,
                                       ),
                                       child: Icon(
-                                        isSelected
-                                            ? Icons.check
-                                            : Icons.circle_outlined,
+                                        isSelected ? Icons.check : Icons.circle_outlined,
                                         size: 16,
                                         color: Colors.white,
                                       ),
@@ -930,8 +1271,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                                     left: 10,
                                     right: 10,
                                     child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           '@${v.authorUsername}',
@@ -946,15 +1286,11 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                                         const SizedBox(height: 2),
                                         Row(
                                           children: [
-                                            const Icon(Icons.favorite,
-                                                color: Color(0xFFFE2C55),
-                                                size: 12),
+                                            const Icon(Icons.favorite, color: Color(0xFFFE2C55), size: 12),
                                             const SizedBox(width: 4),
                                             Text(
                                               '${v.diggCount}',
-                                              style: const TextStyle(
-                                                  color: Colors.white70,
-                                                  fontSize: 11),
+                                              style: const TextStyle(color: Colors.white70, fontSize: 11),
                                             ),
                                           ],
                                         ),
@@ -970,6 +1306,42 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                     ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHubTab(String label, String id, IconData icon) {
+    final isSelected = _currentHub == id;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _currentHub = id);
+          if (id != 'repost') {
+            _showSnack('Tính năng $label đang mở rộng kết nối API TikTok!', isError: false);
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFFFE2C55) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 14, color: isSelected ? Colors.white : Colors.white60),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : Colors.white60,
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -995,17 +1367,14 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(title,
-                    style: const TextStyle(
-                        color: Colors.white54, fontSize: 11)),
+                Text(title, style: const TextStyle(color: Colors.white54, fontSize: 11)),
                 Icon(icon, color: color, size: 16),
               ],
             ),
             const SizedBox(height: 6),
             Text(
               value,
-              style: TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.bold, color: color),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
             ),
           ],
         ),
@@ -1018,10 +1387,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: ChoiceChip(
-        label: Text(label,
-            style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white60,
-                fontSize: 12)),
+        label: Text(label, style: TextStyle(color: isSelected ? Colors.white : Colors.white60, fontSize: 12)),
         selected: isSelected,
         selectedColor: const Color(0xFFFE2C55),
         backgroundColor: const Color(0xFF161926),

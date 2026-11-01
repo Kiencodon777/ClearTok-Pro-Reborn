@@ -184,7 +184,6 @@ class TikTokClient {
   Future<DeleteResult> deleteSingleRepost({required String itemId}) async {
     const functionBody = r'''
       try {
-        // Extract CSRF token from live document cookies
         const getCsrf = () => {
           const m = document.cookie.match(/(?:^|;\s*)(?:tt_csrf_token|csrf_token|passport_csrf_token)=([^;]+)/);
           return m ? decodeURIComponent(m[1]) : '';
@@ -260,7 +259,6 @@ class TikTokClient {
             return JSON.stringify({ success: true, status_code: 0, message: 'ok (query-type1)', raw: raw });
           }
 
-          // If all 3 formats returned a parsed error, return the last error response
           if (parsed) {
             return JSON.stringify({
               success: false,
@@ -312,6 +310,132 @@ class TikTokClient {
 
     if (asyncResult == null || asyncResult.value == null) {
       return DeleteResult(success: false, statusCode: -1, message: 'Null response from WebView', rawResponse: '');
+    }
+
+    final data = jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
+    return DeleteResult(
+      success: data['success'] == true,
+      statusCode: data['status_code'] as int? ?? -1,
+      message: data['message']?.toString() ?? '',
+      rawResponse: data['raw']?.toString() ?? '',
+    );
+  }
+
+  /// Mass Un-Like implementation for TikTok Web
+  Future<DeleteResult> unlikeVideo({required String awemeId}) async {
+    const functionBody = r'''
+      try {
+        const getCsrf = () => {
+          const m = document.cookie.match(/(?:^|;\s*)(?:tt_csrf_token|csrf_token|passport_csrf_token)=([^;]+)/);
+          return m ? decodeURIComponent(m[1]) : '';
+        };
+        const csrf = getCsrf();
+        const headers = {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json, text/plain, */*'
+        };
+        if (csrf) headers['x-secsdk-csrf-token'] = csrf;
+
+        const url = 'https://www.tiktok.com/api/commit/item/digg/?aid=' + String(aid);
+        const resp = await fetch(url, {
+          method: 'POST',
+          credentials: 'include',
+          headers: headers,
+          body: 'aweme_id=' + encodeURIComponent(awemeId) + '&type=0'
+        });
+
+        const raw = await resp.text();
+        let parsed = null;
+        try { parsed = JSON.parse(raw); } catch(_) {}
+
+        if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
+          return JSON.stringify({ success: true, status_code: 0, message: 'unliked', raw: raw });
+        }
+
+        return JSON.stringify({
+          success: false,
+          status_code: parsed ? (parsed.status_code ?? -1) : resp.status,
+          message: parsed ? (parsed.status_msg ?? 'Failed to unlike') : ('HTTP ' + resp.status),
+          raw: raw
+        });
+      } catch (e) {
+        return JSON.stringify({ success: false, status_code: -1, message: e.toString(), raw: '' });
+      }
+    ''';
+
+    final asyncResult = await webViewController.callAsyncJavaScript(
+      functionBody: functionBody,
+      arguments: {
+        'aid': remoteConfig.aid,
+        'awemeId': awemeId,
+      },
+    );
+
+    if (asyncResult == null || asyncResult.value == null) {
+      return DeleteResult(success: false, statusCode: -1, message: 'Null response', rawResponse: '');
+    }
+
+    final data = jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
+    return DeleteResult(
+      success: data['success'] == true,
+      statusCode: data['status_code'] as int? ?? -1,
+      message: data['message']?.toString() ?? '',
+      rawResponse: data['raw']?.toString() ?? '',
+    );
+  }
+
+  /// Mass Un-Follow implementation for TikTok Web
+  Future<DeleteResult> unfollowUser({required String userId}) async {
+    const functionBody = r'''
+      try {
+        const getCsrf = () => {
+          const m = document.cookie.match(/(?:^|;\s*)(?:tt_csrf_token|csrf_token|passport_csrf_token)=([^;]+)/);
+          return m ? decodeURIComponent(m[1]) : '';
+        };
+        const csrf = getCsrf();
+        const headers = {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json, text/plain, */*'
+        };
+        if (csrf) headers['x-secsdk-csrf-token'] = csrf;
+
+        const url = 'https://www.tiktok.com/api/commit/follow/user/?aid=' + String(aid);
+        const resp = await fetch(url, {
+          method: 'POST',
+          credentials: 'include',
+          headers: headers,
+          body: 'user_id=' + encodeURIComponent(userId) + '&type=0'
+        });
+
+        const raw = await resp.text();
+        let parsed = null;
+        try { parsed = JSON.parse(raw); } catch(_) {}
+
+        if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
+          return JSON.stringify({ success: true, status_code: 0, message: 'unfollowed', raw: raw });
+        }
+
+        return JSON.stringify({
+          success: false,
+          status_code: parsed ? (parsed.status_code ?? -1) : resp.status,
+          message: parsed ? (parsed.status_msg ?? 'Failed to unfollow') : ('HTTP ' + resp.status),
+          raw: raw
+        });
+      } catch (e) {
+        return JSON.stringify({ success: false, status_code: -1, message: e.toString(), raw: '' });
+      }
+    ''';
+
+    final asyncResult = await webViewController.callAsyncJavaScript(
+      functionBody: functionBody,
+      arguments: {
+        'aid': remoteConfig.aid,
+        'userId': userId,
+      },
+    );
+
+    if (asyncResult == null || asyncResult.value == null) {
+      return DeleteResult(success: false, statusCode: -1, message: 'Null response', rawResponse: '');
     }
 
     final data = jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
