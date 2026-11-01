@@ -4,6 +4,7 @@ import '../core/remote_payload_config.dart';
 import '../models/tiktok_follow_user.dart';
 import '../models/tiktok_video.dart';
 import 'scan_pagination.dart';
+import '../services/diagnostic_log.dart';
 
 class TikTokUserProfile {
   final String id;
@@ -440,6 +441,23 @@ class TikTokClient {
       });
 
   Future<DeleteResult> _commitWebAction(String path, Map<String, String> params) async {
+    final watch = Stopwatch()..start();
+    final action = path.contains('digg') ? 'unlike' : 'unfollow';
+    DiagnosticLog.instance.record('$action.start', 0);
+    try {
+      final result = await _performWebAction(path, params);
+      Map<String, dynamic> details = {};
+      try { details = Map<String, dynamic>.from(jsonDecode(result.rawResponse) as Map); } catch (_) {}
+      DiagnosticLog.instance.record(action, result.statusCode,
+          details: {...details, 'elapsed_ms': watch.elapsedMilliseconds});
+      return result;
+    } catch (_) {
+      DiagnosticLog.instance.record(action, -1, details: {'elapsed_ms': watch.elapsedMilliseconds});
+      rethrow;
+    }
+  }
+
+  Future<DeleteResult> _performWebAction(String path, Map<String, String> params) async {
     const functionBody = r'''
       const failure = (code, message, detail = {}) =>
         JSON.stringify({success: false, status_code: code, message, raw: JSON.stringify(detail)});
@@ -492,7 +510,11 @@ class TikTokClient {
             http_status: response.status, redirected: response.redirected,
             path: new URL(response.url || url.toString()).pathname,
             content_type: response.headers.get('content-type'),
-            response_length: raw.length
+            response_length: raw.length,
+            csrf_present: Boolean(app.csrfToken),
+            response_kind: raw.trim().length === 0 ? 'empty' : raw.trim().startsWith('<') ? 'html' : 'text',
+            login_redirect: /\/login(?:\/|\?|$)/.test(response.url || ''),
+            verification_hint: /captcha|verifycenter|verify-center/i.test(raw)
           };
           let data;
           try { data = JSON.parse(raw); } catch (_) {
@@ -500,9 +522,10 @@ class TikTokClient {
               'TikTok trả HTML/dữ liệu rỗng. Chi tiết HTTP: ' + JSON.stringify(detail), detail);
           }
           if (!response.ok) return failure(response.status, 'TikTok HTTP ' + response.status, detail);
+          detail.response_kind = 'json';
           const code = data && data.status_code;
           if (code === 0 || code === '0') {
-            return JSON.stringify({success: true, status_code: 0, message: 'ok', raw: ''});
+            return JSON.stringify({success: true, status_code: 0, message: 'ok', raw: JSON.stringify(detail)});
           }
           return failure(Number.isFinite(Number(code)) && code != null ? Number(code) : -2,
             String(data?.status_msg || data?.message || 'Thiếu mã xác nhận từ TikTok'), detail);

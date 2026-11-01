@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../../api/tiktok_client.dart';
 import '../../core/remote_payload_config.dart';
+import '../../services/diagnostic_log.dart';
 
 class TikTokBrowserScreen extends StatefulWidget {
   final RemotePayloadConfig remoteConfig;
@@ -332,6 +333,8 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
       ));
       if (!mounted) return;
       setState(() => _desktopMode = nextDesktop);
+      DiagnosticLog.instance.record('browser.mode', 0,
+          details: {'browser_mode': nextDesktop ? 'desktop' : 'mobile'});
       await controller.reload();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(

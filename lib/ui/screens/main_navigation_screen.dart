@@ -5,6 +5,7 @@ import '../../core/remote_payload_config.dart';
 import '../../database/local_database.dart';
 import 'repost_studio_screen.dart';
 import 'tiktok_browser_screen.dart';
+import 'diagnostic_log_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   final LocalDatabase database;
@@ -58,6 +59,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               setState(() => _currentIndex = 0);
             },
           ),
+          const DiagnosticLogScreen(),
         ],
       ),
       bottomNavigationBar: Container(
@@ -81,6 +83,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             setState(() => _currentIndex = idx);
           },
           destinations: [
+            // Keep tab order in sync with IndexedStack.
             NavigationDestination(
               icon: const Icon(Icons.public_outlined, color: Colors.white54),
               selectedIcon: const Icon(Icons.public, color: Color(0xFFFE2C55)),
@@ -103,6 +106,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               ),
               label: 'Studio Reposts',
             ),
+            const NavigationDestination(icon: Icon(Icons.receipt_long), label: 'Log'),
           ],
         ),
       ),

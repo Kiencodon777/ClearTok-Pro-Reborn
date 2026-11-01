@@ -5,6 +5,7 @@ import '../database/local_database.dart';
 import '../models/tiktok_follow_user.dart';
 import '../models/tiktok_video.dart';
 import 'background_notification_service.dart';
+import 'diagnostic_log.dart';
 
 enum DeletionStatus { idle, running, paused, deepResting, completed, stopped, error }
 
@@ -397,6 +398,9 @@ class TikTokDeletionEngine {
   }
 
   void _emit(BatchDeletionProgress progress) {
+    if ([DeletionStatus.completed, DeletionStatus.stopped, DeletionStatus.error].contains(progress.status)) {
+      DiagnosticLog.instance.record('batch.${progress.status.name}', progress.failed > 0 ? -1 : 0);
+    }
     if (!_progressController.isClosed) {
       _progressController.add(progress);
     }
