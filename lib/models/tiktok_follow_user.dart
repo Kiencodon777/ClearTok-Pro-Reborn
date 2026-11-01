@@ -1,5 +1,6 @@
 class TikTokFollowUser {
   final String id;
+  final String secUid;
   final String uniqueId;
   final String nickname;
   final String avatarThumb;
@@ -8,6 +9,7 @@ class TikTokFollowUser {
 
   TikTokFollowUser({
     required this.id,
+    this.secUid = '',
     required this.uniqueId,
     required this.nickname,
     required this.avatarThumb,
@@ -21,6 +23,7 @@ class TikTokFollowUser {
 
     return TikTokFollowUser(
       id: user['id']?.toString() ?? user['uid']?.toString() ?? '',
+      secUid: user['secUid']?.toString() ?? user['sec_uid']?.toString() ?? '',
       uniqueId: user['uniqueId']?.toString() ?? user['unique_id']?.toString() ?? 'anonymous',
       nickname: user['nickname']?.toString() ?? '',
       avatarThumb: user['avatarThumb']?.toString() ?? user['avatar_thumb']?.toString() ?? '',
@@ -32,6 +35,7 @@ class TikTokFollowUser {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'secUid': secUid,
       'uniqueId': uniqueId,
       'nickname': nickname,
       'avatarThumb': avatarThumb,
@@ -43,6 +47,7 @@ class TikTokFollowUser {
   factory TikTokFollowUser.fromMap(Map<dynamic, dynamic> map) {
     return TikTokFollowUser(
       id: map['id']?.toString() ?? '',
+      secUid: map['secUid']?.toString() ?? '',
       uniqueId: map['uniqueId']?.toString() ?? '',
       nickname: map['nickname']?.toString() ?? '',
       avatarThumb: map['avatarThumb']?.toString() ?? '',

@@ -324,7 +324,7 @@ class TikTokDeletionEngine {
       ));
 
       try {
-        final result = await client.unfollowUser(userId: user.id);
+        final result = await client.unfollowUser(userId: user.id, secUid: user.secUid);
 
         if (result.success) {
           deleted++;

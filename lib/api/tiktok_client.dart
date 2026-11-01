@@ -473,276 +473,108 @@ class TikTokClient {
     );
   }
 
-  // ─── 5. MASS UN-LIKE (BỎ THÍCH VIDEO) ─────────────────────────────────────
-  Future<DeleteResult> unlikeVideo({required String awemeId}) async {
+  Future<DeleteResult> unlikeVideo({required String awemeId}) =>
+      _commitWebAction('/api/commit/item/digg/', {'aweme_id': awemeId, 'type': '0'});
+
+  Future<DeleteResult> unfollowUser({required String userId, String secUid = ''}) =>
+      _commitWebAction('/api/commit/follow/user/', {
+        'user_id': userId, 'sec_user_id': secUid, 'type': '0',
+        'action_type': '0', 'channel_id': '0', 'from': '18',
+        'fromWeb': '1', 'from_pre': '0',
+      });
+
+  Future<DeleteResult> _commitWebAction(String path, Map<String, String> params) async {
     const functionBody = r'''
+      const failure = (code, message, detail = {}) =>
+        JSON.stringify({success: false, status_code: code, message, raw: JSON.stringify(detail)});
       try {
-        // Keep TikTok's session SDK in the request path.
-        const nativeFetch = window.fetch.bind(window);
-
-        // 1. Get dynamic CSRF via cookie & handshake
-        let csrf = '';
-        const m = document.cookie.match(/(?:^|;\s*)(?:tt_csrf_token|csrf_token|passport_csrf_token)=([^;]+)/);
-        if (m) csrf = decodeURIComponent(m[1]);
-
-        const primaryUrl = 'https://www.tiktok.com/api/commit/item/digg/?aid=' + String(aid);
-
-
-        // The web commit API uses app-context csrfToken, not the SecSDK token.
-        let contextData = window['__UNIVERSAL_DATA_FOR_REHYDRATION__'] || window['__$UNIVERSAL_DATA$__'];
-        if (!contextData) {
-          try { contextData = JSON.parse(document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__')?.textContent || '{}'); } catch (_) {}
+        if (location.origin !== 'https://www.tiktok.com') {
+          return failure(401, 'Mở trang TikTok chính thức và đăng nhập trước.');
         }
-        const webCsrf = contextData?.__DEFAULT_SCOPE__?.['webapp.app-context']?.csrfToken;
-        if (webCsrf) csrf = webCsrf;
-
-        const buildHeaders = (contentType) => {
-          const h = {
-            'Accept': 'application/json, text/plain, */*'
-          };
-          if (contentType) h['Content-Type'] = contentType;
-          if (csrf) {
-            h['tt-csrf-token'] = csrf;
-          }
-          return h;
-        };
-
-        const endpoints = [
-          'https://www.tiktok.com/api/commit/item/digg/?aid=' + String(aid),
-          'https://www.tiktok.com/aweme/v1/commit/item/digg/?aid=' + String(aid)
+        // Read current page state; never substitute passport/SecSDK tokens.
+        const candidates = [
+          window['__$UNIVERSAL_DATA$__'],
+          window['__UNIVERSAL_DATA_FOR_REHYDRATION__']
         ];
-
-        let lastResult = null;
-
-        for (const ep of endpoints) {
-          // Attempt A: Form URL-encoded
-          try {
-            const requestUrl = new URL(ep);
-            requestUrl.searchParams.set('aweme_id', String(awemeId));
-            requestUrl.searchParams.set('type', '0');
-            const resp = await nativeFetch(requestUrl.toString(), {
-              method: 'POST',
-              credentials: 'include',
-              headers: buildHeaders('application/x-www-form-urlencoded'),
-              body: ''
-            });
-            const raw = await resp.text();
-            let parsed = null;
-            try { parsed = JSON.parse(raw); } catch(_) {}
-            if (resp.ok && parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
-              return JSON.stringify({ success: true, status_code: 0, message: 'unliked (form)', raw: raw });
-            }
-            if (!parsed || !resp.ok) {
-              const code = !resp.ok ? resp.status : -2;
-              return JSON.stringify({success: false, status_code: code,
-                message: 'TikTok không trả JSON hợp lệ hoặc từ chối request. Mở TikTok Web để kiểm tra đăng nhập/xác minh.',
-                raw: JSON.stringify({http_status: resp.status, redirected: resp.redirected,
-                  path: new URL(resp.url || ep).pathname,
-                  content_type: resp.headers.get('content-type')})});
-            }
-            lastResult = { code: parsed.status_code, msg: parsed.status_msg || parsed.message || 'TikTok rejected request', raw: raw };
-            if (['10402', '429', '3002226'].includes(String(parsed.status_code))) {
-              return JSON.stringify({success: false, status_code: parsed.status_code,
-                message: lastResult.msg, raw: raw});
-            }
-          } catch (e) {
-            lastResult = { code: -1, msg: e.toString(), raw: '' };
-          }
-
-          // Attempt B: JSON payload
-          try {
-            const resp = await nativeFetch(ep, {
-              method: 'POST',
-              credentials: 'include',
-              headers: buildHeaders('application/json'),
-              body: JSON.stringify({ aweme_id: String(awemeId), type: 0, channel: 'tiktok_web' })
-            });
-            const raw = await resp.text();
-            let parsed = null;
-            try { parsed = JSON.parse(raw); } catch(_) {}
-            if (resp.ok && parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
-              return JSON.stringify({ success: true, status_code: 0, message: 'unliked (json)', raw: raw });
-            }
-            if (!parsed || !resp.ok) {
-              const code = !resp.ok ? resp.status : -2;
-              return JSON.stringify({success: false, status_code: code,
-                message: 'TikTok không trả JSON hợp lệ hoặc từ chối request. Mở TikTok Web để kiểm tra đăng nhập/xác minh.',
-                raw: JSON.stringify({http_status: resp.status, redirected: resp.redirected,
-                  path: new URL(resp.url || ep).pathname,
-                  content_type: resp.headers.get('content-type')})});
-            }
-            lastResult = { code: parsed.status_code, msg: parsed.status_msg || parsed.message || 'TikTok rejected request', raw: raw };
-            if (['10402', '429', '3002226'].includes(String(parsed.status_code))) {
-              return JSON.stringify({success: false, status_code: parsed.status_code,
-                message: lastResult.msg, raw: raw});
-            }
-          } catch (_) {}
+        try {
+          candidates.push(JSON.parse(document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__')?.textContent || '{}'));
+        } catch (_) {}
+        const contexts = candidates.map(x => x?.__DEFAULT_SCOPE__?.['webapp.app-context']).filter(Boolean);
+        const app = contexts.find(x => x.csrfToken) || {};
+        if (!app.csrfToken) {
+          return failure(10402, 'Trang hiện tại thiếu CSRF web. Tải lại TikTok Web sau khi đăng nhập.');
         }
-
-        return JSON.stringify({
-          success: false,
-          status_code: lastResult ? lastResult.code : -1,
-          message: lastResult ? lastResult.msg : 'Failed to unlike',
-          raw: lastResult ? lastResult.raw : ''
-        });
+        const url = new URL(path, location.origin);
+        for (const [key, value] of Object.entries(params)) {
+          if (value !== '') url.searchParams.set(key, String(value));
+        }
+        url.searchParams.set('aid', String(aid));
+        url.searchParams.set('app_name', 'tiktok_web');
+        url.searchParams.set('device_platform', 'web_pc');
+        url.searchParams.set('channel', 'tiktok_web');
+        for (const [key, value] of Object.entries({
+          device_id: app.wid, odinId: app.odinId, WebIdLastTime: app.webIdCreatedTime
+        })) {
+          if (value != null && value !== '') url.searchParams.set(key, String(value));
+        }
+        const language = navigator.language || 'en';
+        url.searchParams.set('app_language', language.split('-')[0]);
+        url.searchParams.set('browser_language', language);
+        url.searchParams.set('browser_platform', navigator.platform || '');
+        url.searchParams.set('browser_version', navigator.userAgent || '');
+        // Use the page SDK once; do not replay ambiguous writes on guessed endpoints.
+        const abort = new AbortController();
+        const timer = setTimeout(() => abort.abort(), 20000);
+        try {
+          const response = await window.fetch(url.toString(), {
+            method: 'POST', credentials: 'include', body: '', signal: abort.signal,
+            headers: {'tt-csrf-token': app.csrfToken,
+              'Content-Type': 'application/x-www-form-urlencoded'}
+          });
+          const raw = await response.text();
+          const detail = {
+            http_status: response.status, redirected: response.redirected,
+            path: new URL(response.url || url.toString()).pathname,
+            content_type: response.headers.get('content-type'),
+            response_length: raw.length
+          };
+          let data;
+          try { data = JSON.parse(raw); } catch (_) {
+            return failure(response.ok ? -2 : response.status,
+              'TikTok trả HTML/dữ liệu rỗng. Chi tiết HTTP: ' + JSON.stringify(detail), detail);
+          }
+          if (!response.ok) return failure(response.status, 'TikTok HTTP ' + response.status, detail);
+          const code = data && data.status_code;
+          if (code === 0 || code === '0') {
+            return JSON.stringify({success: true, status_code: 0, message: 'ok', raw: ''});
+          }
+          return failure(Number.isFinite(Number(code)) && code != null ? Number(code) : -2,
+            String(data?.status_msg || data?.message || 'Thiếu mã xác nhận từ TikTok'), detail);
+        } finally { clearTimeout(timer); }
       } catch (e) {
-        return JSON.stringify({ success: false, status_code: -1, message: e.toString(), raw: '' });
+        return failure(-1, e.name === 'AbortError'
+          ? 'Request quá hạn; chưa xác nhận được kết quả. Kiểm tra trên TikTok trước khi thử lại.'
+          : String(e));
       }
     ''';
-
-    final asyncResult = await webViewController.callAsyncJavaScript(
+    final result = await webViewController.callAsyncJavaScript(
       functionBody: functionBody,
-      arguments: {
-        'aid': remoteConfig.aid,
-        'awemeId': awemeId,
-      },
+      arguments: {'path': path, 'params': params, 'aid': remoteConfig.aid},
     );
-
-    if (asyncResult == null || asyncResult.value == null) {
-      return DeleteResult(success: false, statusCode: -1, message: 'Null response', rawResponse: '');
+    if (result == null || result.error != null || result.value == null) {
+      return DeleteResult(success: false, statusCode: -1,
+          message: 'WebView chưa trả kết quả: ${result?.error ?? "empty response"}', rawResponse: '');
     }
-
-    final data = jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
-    return DeleteResult(
-      success: data['success'] == true,
-      statusCode: int.tryParse(data['status_code']?.toString() ?? '') ?? -1,
-      message: data['message']?.toString() ?? '',
-      rawResponse: data['raw']?.toString() ?? '',
-    );
-  }
-
-  // ─── 6. MASS UN-FOLLOW (BỎ THEO DÕI USER) ─────────────────────────────────
-  Future<DeleteResult> unfollowUser({required String userId}) async {
-    const functionBody = r'''
-      try {
-        // Keep TikTok's session SDK in the request path.
-        const nativeFetch = window.fetch.bind(window);
-
-        // 1. Get dynamic CSRF via cookie & handshake
-        let csrf = '';
-        const m = document.cookie.match(/(?:^|;\s*)(?:tt_csrf_token|csrf_token|passport_csrf_token)=([^;]+)/);
-        if (m) csrf = decodeURIComponent(m[1]);
-
-        const primaryUrl = 'https://www.tiktok.com/api/commit/follow/user/?aid=' + String(aid);
-        // The web commit API uses app-context csrfToken, not the SecSDK token.
-        let contextData = window['__UNIVERSAL_DATA_FOR_REHYDRATION__'] || window['__$UNIVERSAL_DATA$__'];
-        if (!contextData) {
-          try { contextData = JSON.parse(document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__')?.textContent || '{}'); } catch (_) {}
-        }
-        const webCsrf = contextData?.__DEFAULT_SCOPE__?.['webapp.app-context']?.csrfToken;
-        if (webCsrf) csrf = webCsrf;
-
-
-        const buildHeaders = (contentType) => {
-          const h = {
-            'Accept': 'application/json, text/plain, */*'
-          };
-          if (contentType) h['Content-Type'] = contentType;
-          if (csrf) {
-            h['tt-csrf-token'] = csrf;
-          }
-          return h;
-        };
-
-        const endpoints = [
-          'https://www.tiktok.com/api/commit/follow/user/?aid=' + String(aid),
-          'https://www.tiktok.com/aweme/v1/commit/follow/user/?aid=' + String(aid)
-        ];
-
-        let lastResult = null;
-
-        for (const ep of endpoints) {
-          // Attempt A: Form URL-encoded
-          try {
-            const resp = await nativeFetch(ep, {
-              method: 'POST',
-              credentials: 'include',
-              headers: buildHeaders('application/x-www-form-urlencoded'),
-              body: 'user_id=' + encodeURIComponent(userId) + '&type=0&action_type=0&channel_id=0&from=18&fromWeb=1&from_pre=0'
-            });
-            const raw = await resp.text();
-            let parsed = null;
-            try { parsed = JSON.parse(raw); } catch(_) {}
-            if (resp.ok && parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
-              return JSON.stringify({ success: true, status_code: 0, message: 'unfollowed (form)', raw: raw });
-            }
-            if (!parsed || !resp.ok) {
-              const code = !resp.ok ? resp.status : -2;
-              return JSON.stringify({success: false, status_code: code,
-                message: 'TikTok không trả JSON hợp lệ hoặc từ chối request. Mở TikTok Web để kiểm tra đăng nhập/xác minh.',
-                raw: JSON.stringify({http_status: resp.status, redirected: resp.redirected,
-                  path: new URL(resp.url || ep).pathname,
-                  content_type: resp.headers.get('content-type')})});
-            }
-            lastResult = { code: parsed.status_code, msg: parsed.status_msg || parsed.message || 'TikTok rejected request', raw: raw };
-            if (['10402', '429', '3002226'].includes(String(parsed.status_code))) {
-              return JSON.stringify({success: false, status_code: parsed.status_code,
-                message: lastResult.msg, raw: raw});
-            }
-          } catch (e) {
-            lastResult = { code: -1, msg: e.toString(), raw: '' };
-          }
-
-          // Attempt B: JSON payload
-          try {
-            const resp = await nativeFetch(ep, {
-              method: 'POST',
-              credentials: 'include',
-              headers: buildHeaders('application/json'),
-              body: JSON.stringify({ user_id: String(userId), type: 0, channel: 'tiktok_web' })
-            });
-            const raw = await resp.text();
-            let parsed = null;
-            try { parsed = JSON.parse(raw); } catch(_) {}
-            if (resp.ok && parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
-              return JSON.stringify({ success: true, status_code: 0, message: 'unfollowed (json)', raw: raw });
-            }
-            if (!parsed || !resp.ok) {
-              const code = !resp.ok ? resp.status : -2;
-              return JSON.stringify({success: false, status_code: code,
-                message: 'TikTok không trả JSON hợp lệ hoặc từ chối request. Mở TikTok Web để kiểm tra đăng nhập/xác minh.',
-                raw: JSON.stringify({http_status: resp.status, redirected: resp.redirected,
-                  path: new URL(resp.url || ep).pathname,
-                  content_type: resp.headers.get('content-type')})});
-            }
-            lastResult = { code: parsed.status_code, msg: parsed.status_msg || parsed.message || 'TikTok rejected request', raw: raw };
-            if (['10402', '429', '3002226'].includes(String(parsed.status_code))) {
-              return JSON.stringify({success: false, status_code: parsed.status_code,
-                message: lastResult.msg, raw: raw});
-            }
-          } catch (_) {}
-        }
-
-        return JSON.stringify({
-          success: false,
-          status_code: lastResult ? lastResult.code : -1,
-          message: lastResult ? lastResult.msg : 'Failed to unfollow',
-          raw: lastResult ? lastResult.raw : ''
-        });
-      } catch (e) {
-        return JSON.stringify({ success: false, status_code: -1, message: e.toString(), raw: '' });
-      }
-    ''';
-
-    final asyncResult = await webViewController.callAsyncJavaScript(
-      functionBody: functionBody,
-      arguments: {
-        'aid': remoteConfig.aid,
-        'userId': userId,
-      },
-    );
-
-    if (asyncResult == null || asyncResult.value == null) {
-      return DeleteResult(success: false, statusCode: -1, message: 'Null response', rawResponse: '');
+    try {
+      final data = jsonDecode(result.value.toString()) as Map<String, dynamic>;
+      return DeleteResult(success: data['success'] == true,
+          statusCode: int.tryParse(data['status_code']?.toString() ?? '') ?? -1,
+          message: data['message']?.toString() ?? '',
+          rawResponse: data['raw']?.toString() ?? '');
+    } catch (_) {
+      return DeleteResult(success: false, statusCode: -2,
+          message: 'WebView trả dữ liệu không hợp lệ.', rawResponse: '');
     }
-
-    final data = jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
-    return DeleteResult(
-      success: data['success'] == true,
-      statusCode: int.tryParse(data['status_code']?.toString() ?? '') ?? -1,
-      message: data['message']?.toString() ?? '',
-      rawResponse: data['raw']?.toString() ?? '',
-    );
   }
 
   static void _checkScanResponse(Map<String, dynamic> data) {

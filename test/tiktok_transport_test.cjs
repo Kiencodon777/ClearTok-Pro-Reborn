@@ -1,43 +1,34 @@
-const { test } = require('node:test');
+const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const source = fs.readFileSync('lib/api/tiktok_client.dart', 'utf8');
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-for (const name of ['unlikeVideo', 'unfollowUser']) {
-  const section = source.slice(source.indexOf(`Future<DeleteResult> ${name}`));
-  const body = section.match(/const functionBody = r'''([\s\S]*?)''';/)[1];
-  for (const scenario of [
-    { name: 'success', status: 200, payload: '{"status_code":0}', success: true, code: 0 },
-    { name: 'HTML with HTTP 200', status: 200, payload: '<!doctype html>', success: false, code: -2 },
-    { name: 'HTTP forbidden', status: 403, payload: '<html>', success: false, code: 403 },
-    { name: 'CSRF rejection', status: 200, payload: '{"status_code":10402}', success: false, code: 10402 },
-    { name: 'rate limit', status: 429, payload: '{}', success: false, code: 429 },
-  ]) {
-    test(`${name}: ${scenario.name}`, async () => {
-      let posts = 0;
-      const fetch = async (url, options) => {
-        if (options.method === 'POST') {
-          posts++;
-          assert.equal(options.headers['tt-csrf-token'], 'test-web-token');
-          assert.equal(options.headers['x-secsdk-csrf-token'], undefined);
-          if (name === 'unlikeVideo') {
-            assert.equal(new URL(url).searchParams.get('aweme_id'), '123');
-            assert.equal(new URL(url).searchParams.get('type'), '0');
-            assert.equal(options.body, '');
-          }
-        }
-        return { ok: scenario.status === 200, status: scenario.status,
-          url, redirected: false, headers: { get: () => null },
-          text: async () => scenario.payload };
-      };
-      const run = new AsyncFunction('window', 'document', 'aid', 'awemeId', 'userId', body);
-      const window = { fetch, __UNIVERSAL_DATA_FOR_REHYDRATION__: {
-        __DEFAULT_SCOPE__: { 'webapp.app-context': { csrfToken: 'test-web-token' } }
-      } };
-      const result = JSON.parse(await run(window, { cookie: '' }, 1988, '123', '456'));
-      assert.equal(result.success, scenario.success);
-      assert.equal(Number(result.status_code), scenario.code);
-      assert.equal(posts, 1);
-    });
-  }
+const source = require('node:fs').readFileSync('lib/api/tiktok_client.dart', 'utf8');
+const body = source.slice(source.indexOf('Future<DeleteResult> _commitWebAction')).match(/const functionBody = r'''([\s\S]*?)''';/)[1];
+const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+for (const path of ['/api/commit/item/digg/', '/api/commit/follow/user/']) {
+  for (const [raw, status, code, token] of [
+    ['{"status_code":0}',200,0,true], ['{"status_code":"0"}',200,0,true],
+    ['<html>',200,-2,true], ['',200,-2,true], ['{}',403,403,true],
+    ['{"status_code":10402}',200,10402,true], ['{}',200,-2,true], ['{}',200,10402,false]
+  ]) test(`${path} ${raw} HTTP ${status} token ${token}`, async () => {
+    let calls = 0;
+    const params = path.includes('digg') ? {aweme_id:'123',type:'0'} : {user_id:'456',sec_user_id:'target',type:'0'};
+    const fetch = async (request, options) => {
+      calls++;
+      const url = new URL(request);
+      assert.equal(url.pathname,path);
+      for (const [k,v] of Object.entries(params)) assert.equal(url.searchParams.get(k),v);
+      assert.equal(url.searchParams.get('device_id'),'device');
+      assert.equal(options.body,'');
+      assert.equal(options.headers['tt-csrf-token'],'web-token');
+      return {ok:status===200,status,url:request,headers:{get:()=>null},text:async()=>raw};
+    };
+    const app = {csrfToken:token?'web-token':'',wid:'device'};
+    const document = {getElementById:()=>({textContent:JSON.stringify({__DEFAULT_SCOPE__:{'webapp.app-context':app}})})};
+    const run = new AsyncFunction('window','document','location','navigator','path','params','aid',body);
+    const result = JSON.parse(await run({fetch,__UNIVERSAL_DATA_FOR_REHYDRATION__:{nodeType:1}},document,
+      {origin:'https://www.tiktok.com'},{language:'vi-VN',platform:'iPhone',userAgent:'browser'},path,params,1988));
+    assert.equal(result.status_code,code);
+    assert.equal(result.success,code===0);
+    assert.equal(calls,token?1:0);
+    assert.ok(!result.raw.includes('web-token'));
+  });
 }
