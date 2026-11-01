@@ -98,7 +98,7 @@ class GlassActionButton extends StatelessWidget {
         surfaceTintColor: Colors.transparent, elevation: 0, minimumSize: const Size(0, 48),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12), shape: const StadiumBorder()),
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        IconTheme(data: const IconThemeData(size: 20), child: icon),
+        IconTheme.merge(data: const IconThemeData(size: 20), child: icon),
         const SizedBox(width: 6),
         Flexible(child: Text(label, textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),

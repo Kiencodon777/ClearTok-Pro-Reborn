@@ -1,4 +1,7 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cleartok_reborn/models/tiktok_follow_user.dart';
 import 'package:cleartok_reborn/ui/screens/repost_studio_screen.dart';
@@ -14,16 +17,25 @@ class PreviewDatabase extends TestDatabase {
 }
 
 void main() {
+  setUpAll(() async {
+    final sdk = Platform.environment['FLUTTER_ROOT'];
+    final font = await File('$sdk/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf').readAsBytes();
+    await (FontLoader('Roboto')..addFont(Future.value(ByteData.sublistView(font)))).load();
+    await (FontLoader('MaterialIcons')..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
+  });
   for (final size in [const Size(320, 568), const Size(390, 844), const Size(844, 390)]) {
     testWidgets('Studio layout and selection at ${size.width}', (tester) async {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(MaterialApp(theme: ThemeData.dark(useMaterial3: true),
+      final theme = ThemeData.dark(useMaterial3: true);
+      await tester.pumpWidget(MaterialApp(theme: theme.copyWith(textTheme: theme.textTheme.apply(fontFamily: 'Roboto')),
         home: RepaintBoundary(key: const ValueKey('preview'), child: AmbientBackground(
           child: RepostStudioScreen(database: PreviewDatabase(), client: null,
             currentUser: null, onSwitchToBrowser: () {})))));
+      await tester.runAsync(() => precacheImage(const AssetImage('assets/brand/app_icon.jpg'),
+        tester.element(find.byType(RepostStudioScreen))));
       await tester.tap(find.text('Mass Un-Follow'));
       await tester.pumpAndSettle();
       expect(find.text('Hủy Follow (8)'), findsOneWidget);
