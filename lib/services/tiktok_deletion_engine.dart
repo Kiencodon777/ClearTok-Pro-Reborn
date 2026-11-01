@@ -29,13 +29,16 @@ class BatchDeletionProgress {
 class TikTokDeletionEngine {
   final TikTokClient client;
   final LocalDatabase database;
-  
+
   bool _isCancelled = false;
   bool _isPaused = false;
+  bool _isRunning = false;
   final _random = Random();
 
-  final _progressController = StreamController<BatchDeletionProgress>.broadcast();
-  Stream<BatchDeletionProgress> get progressStream => _progressController.stream;
+  final _progressController =
+      StreamController<BatchDeletionProgress>.broadcast();
+  Stream<BatchDeletionProgress> get progressStream =>
+      _progressController.stream;
 
   TikTokDeletionEngine({required this.client, required this.database});
 
@@ -44,14 +47,16 @@ class TikTokDeletionEngine {
   void resume() => _isPaused = false;
 
   Future<void> executeBatch(List<TikTokVideo> videos) async {
+    if (_isRunning) return; // Guard against double-fire
+    _isRunning = true;
     _isCancelled = false;
     _isPaused = false;
 
-    int total = videos.length;
+    final int total = videos.length;
     int deleted = 0;
     int failed = 0;
 
-    _progressController.add(BatchDeletionProgress(
+    _emit(BatchDeletionProgress(
       total: total,
       deleted: deleted,
       failed: failed,
@@ -61,23 +66,27 @@ class TikTokDeletionEngine {
 
     for (int i = 0; i < total; i++) {
       if (_isCancelled) {
-        _progressController.add(BatchDeletionProgress(
+        _emit(BatchDeletionProgress(
           total: total,
           deleted: deleted,
           failed: failed,
           status: DeletionStatus.stopped,
           message: 'Người dùng đã dừng tiến trình.',
         ));
+        _isRunning = false;
         return;
       }
 
       while (_isPaused) {
-        await Future.delayed(const Duration(milliseconds: 500));
-        if (_isCancelled) return;
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (_isCancelled) {
+          _isRunning = false;
+          return;
+        }
       }
 
       final video = videos[i];
-      _progressController.add(BatchDeletionProgress(
+      _emit(BatchDeletionProgress(
         total: total,
         deleted: deleted,
         failed: failed,
@@ -92,68 +101,81 @@ class TikTokDeletionEngine {
         if (result.success) {
           deleted++;
           await database.removeRepost(video.id);
-          _progressController.add(BatchDeletionProgress(
+          _emit(BatchDeletionProgress(
             total: total,
             deleted: deleted,
             failed: failed,
             currentVideo: video,
             status: DeletionStatus.running,
-            message: 'Đã hủy thành công: @${video.authorUsername}',
+            message: '✅ Đã hủy thành công: @${video.authorUsername}',
           ));
         } else {
           failed++;
-          _progressController.add(BatchDeletionProgress(
+          final errDetail =
+              'status_code=${result.statusCode} | msg=${result.message} | raw=${result.rawResponse.length > 200 ? result.rawResponse.substring(0, 200) : result.rawResponse}';
+          _emit(BatchDeletionProgress(
             total: total,
             deleted: deleted,
             failed: failed,
             currentVideo: video,
             status: DeletionStatus.running,
-            message: 'Lỗi TikTok: ${result.message}',
-            lastErrorDetail: result.rawResponse.isNotEmpty ? result.rawResponse : result.message,
+            message: '❌ Lỗi TikTok: ${result.message}',
+            lastErrorDetail: errDetail,
           ));
 
+          // Rate-limit backoff
           if (result.statusCode == 3002226 || result.statusCode == 429) {
-            _progressController.add(BatchDeletionProgress(
+            _emit(BatchDeletionProgress(
               total: total,
               deleted: deleted,
               failed: failed,
               status: DeletionStatus.paused,
-              message: 'Dính Rate-limit TikTok. Tạm dừng 60 giây giải nhiệt...',
+              message:
+                  '⏳ Đánh Rate-limit TikTok. Tạm dừng 60 giây giải nhiệt...',
             ));
             await Future.delayed(const Duration(seconds: 60));
-            i--; // Thử lại video này
+            i--; // Retry this video
             continue;
           }
         }
       } catch (e) {
         failed++;
-        _progressController.add(BatchDeletionProgress(
+        _emit(BatchDeletionProgress(
           total: total,
           deleted: deleted,
           failed: failed,
           currentVideo: video,
           status: DeletionStatus.running,
-          message: 'Lỗi ngoại lệ: $e',
+          message: '💥 Lỗi ngoại lệ: $e',
           lastErrorDetail: e.toString(),
         ));
       }
 
-      // Jitter delay (base delay + random 0..300ms) to ensure human-like cadence
+      // Human-like jitter delay
       final baseDelay = database.customDelayMs;
       final jitter = _random.nextInt(300);
       await Future.delayed(Duration(milliseconds: baseDelay + jitter));
     }
 
-    _progressController.add(BatchDeletionProgress(
+    _emit(BatchDeletionProgress(
       total: total,
       deleted: deleted,
       failed: failed,
       status: DeletionStatus.completed,
-      message: 'Đã hoàn tất dọn dẹp! Thành công: $deleted, Thất bại: $failed.',
+      message:
+          '🎉 Đã hoàn tất dọn dẹp! Thành công: $deleted, Thất bại: $failed.',
     ));
+    _isRunning = false;
+  }
+
+  void _emit(BatchDeletionProgress progress) {
+    if (!_progressController.isClosed) {
+      _progressController.add(progress);
+    }
   }
 
   void dispose() {
+    _isCancelled = true;
     _progressController.close();
   }
 }

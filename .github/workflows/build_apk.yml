@@ -40,27 +40,26 @@ jobs:
       run: flutter build apk --release --no-tree-shake-icons
 
     - name: Prepare APK Asset
-      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn-v2.0.4.apk
+      run: cp build/app/outputs/flutter-apk/app-release.apk ClearTok-Pro-Reborn-v2.0.5.apk
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ClearTok-Pro-Reborn-Release-APK
-        path: ClearTok-Pro-Reborn-v2.0.4.apk
+        path: ClearTok-Pro-Reborn-v2.0.5.apk
 
     - name: Auto Publish to GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v2.0.4
-        name: ClearTok Pro Reborn v2.0.4 (UI/UX ProMax)
+        tag_name: v2.0.5
+        name: ClearTok Pro Reborn v2.0.5 (Live Deletion Engine Fix)
         body: |
-          ### ClearTok Pro Reborn v2.0.4 — ProMax UI Edition
+          ### ClearTok Pro Reborn v2.0.5
           
-          - **Full UI/UX Overhaul**: Separated into 2 dedicated tabs (TikTok Web + Studio Reposts).
-          - **Android Login Scheme Fix**: Resolved `net::ERR_UNKNOWN_URL_SCHEME` by intercepting `tiktok://` deep links.
-          - **Universal Data Session Extractor**: Direct React hydration reader for instant `secUid` and user profile binding.
-          - **Custom Speed Slider**: Choose between Turbo (300ms), Balanced (700ms), and Ultra Safe (1500ms).
-          - **100% Unlimited**: Zero paywalls, zero quotas.
-        files: ClearTok-Pro-Reborn-v2.0.4.apk
+          - **Fix Deletion Modal Freeze**: Fixed race condition in batch deletion stream by converting to `StreamBuilder` and instantiating fresh engine per deletion session.
+          - **Real-Time Live Ticker & Error Reporting**: Modal displays actual live feedback and error codes from TikTok's API.
+          - **Auto-Sync Local Database**: Cleanly removes unreposted videos and updates metrics instantly.
+          - **Full UI/UX ProMax Polish**: Modern Dark theme with Cyber Obsidian and Crimson accents.
+        files: ClearTok-Pro-Reborn-v2.0.5.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
