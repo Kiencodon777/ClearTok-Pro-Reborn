@@ -25,6 +25,14 @@ class TikTokVideo {
     this.isPinned = false,
   });
 
+  DateTime get repostDateTime {
+    if (repostTimestamp <= 0) return DateTime.now();
+    // Handles both 10-digit (seconds) and 13-digit (milliseconds) Unix timestamps
+    return repostTimestamp > 10000000000
+        ? DateTime.fromMillisecondsSinceEpoch(repostTimestamp)
+        : DateTime.fromMillisecondsSinceEpoch(repostTimestamp * 1000);
+  }
+
   factory TikTokVideo.fromJson(Map<String, dynamic> json, {String secUid = ''}) {
     final author = json['author'] as Map<String, dynamic>? ?? {};
     final video = json['video'] as Map<String, dynamic>? ?? {};

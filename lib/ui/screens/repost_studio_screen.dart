@@ -93,7 +93,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
 
     if (_filterYear != null) {
       final dfYear = DateFormat('yyyy');
-      list = list.where((v) => dfYear.format(v.repostTimestamp) == _filterYear).toList();
+      list = list.where((v) => dfYear.format(v.repostDateTime) == _filterYear).toList();
     }
 
     switch (_selectedFilter) {

@@ -50,7 +50,7 @@ class StudioAnalytics {
       authorCounts[author] = (authorCounts[author] ?? 0) + 1;
       authorLikes[author] = (authorLikes[author] ?? 0) + v.diggCount;
 
-      final year = dfYear.format(v.repostTimestamp);
+      final year = dfYear.format(v.repostDateTime);
       years[year] = (years[year] ?? 0) + 1;
     }
 
@@ -83,7 +83,7 @@ class ExportAnalyticsService {
     for (final v in videos) {
       final safeDesc = '"${v.description.replaceAll('"', '""').replaceAll('\n', ' ')}"';
       final safeNick = '"${v.authorNickname.replaceAll('"', '""')}"';
-      final timeStr = df.format(v.repostTimestamp);
+      final timeStr = df.format(v.repostDateTime);
 
       buffer.writeln('${v.id},${v.authorUsername},$safeNick,${v.diggCount},$timeStr,${v.coverUrl},$safeDesc');
     }
@@ -97,7 +97,7 @@ class ExportAnalyticsService {
       'authorUsername': v.authorUsername,
       'authorNickname': v.authorNickname,
       'diggCount': v.diggCount,
-      'repostTimestamp': v.repostTimestamp.toIso8601String(),
+      'repostTimestamp': v.repostDateTime.toIso8601String(),
       'coverUrl': v.coverUrl,
       'description': v.description,
     }).toList();
