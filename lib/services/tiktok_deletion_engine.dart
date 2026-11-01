@@ -13,6 +13,7 @@ class BatchDeletionProgress {
   final TikTokVideo? currentVideo;
   final DeletionStatus status;
   final String? message;
+  final String? lastErrorDetail;
 
   BatchDeletionProgress({
     required this.total,
@@ -21,6 +22,7 @@ class BatchDeletionProgress {
     this.currentVideo,
     required this.status,
     this.message,
+    this.lastErrorDetail,
   });
 }
 
@@ -48,7 +50,14 @@ class TikTokDeletionEngine {
     int total = videos.length;
     int deleted = 0;
     int failed = 0;
-    final csrfToken = await client.extractCsrfToken();
+
+    _progressController.add(BatchDeletionProgress(
+      total: total,
+      deleted: deleted,
+      failed: failed,
+      status: DeletionStatus.running,
+      message: 'Khởi động tiến trình hủy $total repost...',
+    ));
 
     for (int i = 0; i < total; i++) {
       if (_isCancelled) {
@@ -57,7 +66,7 @@ class TikTokDeletionEngine {
           deleted: deleted,
           failed: failed,
           status: DeletionStatus.stopped,
-          message: 'Operation stopped by user.',
+          message: 'Người dùng đã dừng tiến trình.',
         ));
         return;
       }
@@ -74,31 +83,59 @@ class TikTokDeletionEngine {
         failed: failed,
         currentVideo: video,
         status: DeletionStatus.running,
+        message: 'Đang hủy: @${video.authorUsername} (${i + 1}/$total)',
       ));
 
       try {
-        final success = await client.deleteSingleRepost(itemId: video.id, csrfToken: csrfToken);
-        if (success) {
+        final result = await client.deleteSingleRepost(itemId: video.id);
+
+        if (result.success) {
           deleted++;
           await database.removeRepost(video.id);
-        } else {
-          failed++;
-        }
-      } catch (e) {
-        if (e.toString().contains('RATE_LIMITED')) {
           _progressController.add(BatchDeletionProgress(
             total: total,
             deleted: deleted,
             failed: failed,
-            status: DeletionStatus.paused,
-            message: 'TikTok rate limit hit. Pausing for 60s cooldown...',
+            currentVideo: video,
+            status: DeletionStatus.running,
+            message: 'Đã hủy thành công: @${video.authorUsername}',
           ));
-          await Future.delayed(const Duration(seconds: 60));
-          i--; // Retry this video
-          continue;
         } else {
           failed++;
+          _progressController.add(BatchDeletionProgress(
+            total: total,
+            deleted: deleted,
+            failed: failed,
+            currentVideo: video,
+            status: DeletionStatus.running,
+            message: 'Lỗi TikTok: ${result.message}',
+            lastErrorDetail: result.rawResponse.isNotEmpty ? result.rawResponse : result.message,
+          ));
+
+          if (result.statusCode == 3002226 || result.statusCode == 429) {
+            _progressController.add(BatchDeletionProgress(
+              total: total,
+              deleted: deleted,
+              failed: failed,
+              status: DeletionStatus.paused,
+              message: 'Dính Rate-limit TikTok. Tạm dừng 60 giây giải nhiệt...',
+            ));
+            await Future.delayed(const Duration(seconds: 60));
+            i--; // Thử lại video này
+            continue;
+          }
         }
+      } catch (e) {
+        failed++;
+        _progressController.add(BatchDeletionProgress(
+          total: total,
+          deleted: deleted,
+          failed: failed,
+          currentVideo: video,
+          status: DeletionStatus.running,
+          message: 'Lỗi ngoại lệ: $e',
+          lastErrorDetail: e.toString(),
+        ));
       }
 
       // Jitter delay (base delay + random 0..300ms) to ensure human-like cadence
@@ -112,7 +149,7 @@ class TikTokDeletionEngine {
       deleted: deleted,
       failed: failed,
       status: DeletionStatus.completed,
-      message: 'Batch complete! Successfully deleted $deleted reposts.',
+      message: 'Đã hoàn tất dọn dẹp! Thành công: $deleted, Thất bại: $failed.',
     ));
   }
 

@@ -36,12 +36,15 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   void initState() {
     super.initState();
     _loadVideos();
+    if (widget.client != null) {
+      _initEngine();
+    }
   }
 
   @override
   void didUpdateWidget(covariant RepostStudioScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.client != null && _engine == null) {
+    if (widget.client != null && (_engine == null || oldWidget.client != widget.client)) {
       _initEngine();
     }
   }
@@ -199,6 +202,11 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   }
 
   void _triggerBatchDelete() {
+    if (widget.client == null) {
+      _showSnack('Chưa kết nối WebView TikTok, vui lòng mở tab TikTok Web trước!', isError: true);
+      return;
+    }
+
     if (_engine == null) _initEngine();
     final targets = _videos.where((v) => _selectedIds.contains(v.id)).toList();
 
@@ -264,11 +272,170 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
             ),
             onPressed: () {
               Navigator.pop(ctx);
-              _engine?.executeBatch(targets);
+              _startLiveDeletionModal(targets);
             },
             child: const Text('Bắt Đầu Xóa', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
+      ),
+    );
+  }
+
+  void _startLiveDeletionModal(List<TikTokVideo> targets) {
+    if (_engine == null) _initEngine();
+    _engine?.executeBatch(targets);
+
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: const Color(0xFF161926),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final prog = _deletionProgress;
+          final isRunning = prog != null && (prog.status == DeletionStatus.running || prog.status == DeletionStatus.paused);
+          final isDone = prog != null && (prog.status == DeletionStatus.completed || prog.status == DeletionStatus.stopped);
+
+          return Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFE2C55).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.delete_sweep, color: Color(0xFFFE2C55), size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Đang Hủy Repost Hàng Loạt',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            Text(
+                              prog != null ? '${prog.deleted} / ${prog.total} (${prog.failed} lỗi)' : 'Khởi động...',
+                              style: const TextStyle(color: Color(0xFF25F4EE), fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    if (isDone)
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: (prog != null && prog.total > 0) ? prog.deleted / prog.total : 0,
+                    minHeight: 10,
+                    backgroundColor: Colors.white12,
+                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFE2C55)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.black38,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        prog?.message ?? 'Đang kết nối tới TikTok...',
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (prog?.lastErrorDetail != null && prog!.lastErrorDetail!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            'Chi tiết: ${prog.lastErrorDetail}',
+                            style: const TextStyle(color: Colors.redAccent, fontSize: 11),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    if (isRunning) ...[
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white30),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () {
+                            if (prog.status == DeletionStatus.paused) {
+                              _engine?.resume();
+                            } else {
+                              _engine?.pause();
+                            }
+                          },
+                          child: Text(prog.status == DeletionStatus.paused ? 'Tiếp Tục' : 'Tạm Dừng'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red.shade900,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () => _engine?.stop(),
+                          child: const Text('Dừng Hẳn'),
+                        ),
+                      ),
+                    ] else ...[
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFE2C55),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('Đóng'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -353,7 +520,6 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   @override
   Widget build(BuildContext context) {
     final user = widget.currentUser;
-    final isDeleting = _deletionProgress != null && _deletionProgress!.status == DeletionStatus.running;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0B0E14),
@@ -446,48 +612,6 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
 
             const SizedBox(height: 12),
 
-            // Deletion Live Progress Banner (if active)
-            if (isDeleting)
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF2C1320), Color(0xFF161926)]),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFFE2C55).withOpacity(0.4)),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Đang xóa: ${_deletionProgress!.deleted} / ${_deletionProgress!.total}',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.stop_circle, color: Color(0xFFFE2C55)),
-                          onPressed: () => _engine?.stop(),
-                          tooltip: 'Dừng lại',
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: _deletionProgress!.total > 0
-                            ? _deletionProgress!.deleted / _deletionProgress!.total
-                            : 0,
-                        backgroundColor: Colors.white10,
-                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFE2C55)),
-                        minHeight: 6,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
             // Quick Actions: Scan & Delete
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -519,7 +643,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                       ),
                       icon: const Icon(Icons.delete_forever_rounded),
                       label: Text('Hủy Repost (${_selectedIds.length})'),
-                      onPressed: isDeleting ? null : _triggerBatchDelete,
+                      onPressed: _triggerBatchDelete,
                     ),
                   ),
                 ],

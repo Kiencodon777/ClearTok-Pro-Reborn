@@ -37,6 +37,20 @@ class ScanResult {
   ScanResult({required this.videos, required this.nextCursor, required this.hasMore});
 }
 
+class DeleteResult {
+  final bool success;
+  final int statusCode;
+  final String message;
+  final String rawResponse;
+
+  DeleteResult({
+    required this.success,
+    required this.statusCode,
+    required this.message,
+    required this.rawResponse,
+  });
+}
+
 class TikTokClient {
   final InAppWebViewController webViewController;
   final RemotePayloadConfig remoteConfig;
@@ -96,38 +110,6 @@ class TikTokClient {
       }
     } catch (_) {}
     return null;
-  }
-
-  Future<String?> getCookie(String name) async {
-    final cookieManager = CookieManager.instance();
-    final cookies = await cookieManager.getCookies(url: WebUri('https://www.tiktok.com'));
-    for (var c in cookies) {
-      if (c.name == name) return c.value;
-    }
-    return null;
-  }
-
-  Future<String> extractCsrfToken() async {
-    try {
-      const functionBody = r'''
-        try {
-          const match = document.cookie.match(/s_v_web_id=([^;]+)/);
-          if (match) return match[1];
-          const ttwid = document.cookie.match(/ttwid=([^;]+)/);
-          if (ttwid) return ttwid[1];
-          return '';
-        } catch(_) {
-          return '';
-        }
-      ''';
-      final asyncResult = await webViewController.callAsyncJavaScript(functionBody: functionBody);
-      if (asyncResult != null && asyncResult.value != null && asyncResult.value.toString().isNotEmpty) {
-        return asyncResult.value.toString();
-      }
-    } catch (_) {}
-
-    final token = await getCookie('s_v_web_id') ?? await getCookie('ttwid') ?? '';
-    return token;
   }
 
   Future<ScanResult> fetchRepostBatch({required int cursor, required String secUid}) async {
@@ -198,23 +180,75 @@ class TikTokClient {
     return ScanResult(videos: videos, nextCursor: nextCursor, hasMore: hasMore);
   }
 
-  Future<bool> deleteSingleRepost({required String itemId, required String csrfToken}) async {
+  /// Robust un-repost implementation supporting query param, form, and json fallbacks
+  Future<DeleteResult> deleteSingleRepost({required String itemId}) async {
     const functionBody = r'''
       try {
-        const resp = await fetch(deleteEndpoint, {
+        // Fallback 1: Query param URL as discovered in libapp.so (POST https://www.tiktok.com/tiktok/v1/upvote/delete?item_id=... with same-origin)
+        const urlWithQuery = deleteEndpoint + '?item_id=' + encodeURIComponent(itemId);
+        let resp = await fetch(urlWithQuery, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Accept': '*/*' }
+        });
+
+        let raw = await resp.text();
+        let parsed = null;
+        try { parsed = JSON.parse(raw); } catch(_) {}
+
+        if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
+          return JSON.stringify({ success: true, status_code: 0, message: 'ok', raw: raw });
+        }
+
+        // Fallback 2: Form URL Encoded Body
+        resp = await fetch(deleteEndpoint, {
           method: 'POST',
           credentials: 'same-origin',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'x-secsdk-csrf-token': csrfToken,
             'Accept': '*/*'
           },
           body: 'item_id=' + encodeURIComponent(itemId)
         });
-        const text = await resp.text();
-        return text;
+
+        raw = await resp.text();
+        parsed = null;
+        try { parsed = JSON.parse(raw); } catch(_) {}
+
+        if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
+          return JSON.stringify({ success: true, status_code: 0, message: 'ok (form-body)', raw: raw });
+        }
+
+        // Fallback 3: JSON payload
+        resp = await fetch(deleteEndpoint, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': '*/*'
+          },
+          body: JSON.stringify({ item_id: itemId })
+        });
+
+        raw = await resp.text();
+        parsed = null;
+        try { parsed = JSON.parse(raw); } catch(_) {}
+
+        if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
+          return JSON.stringify({ success: true, status_code: 0, message: 'ok (json-body)', raw: raw });
+        }
+
+        const errCode = parsed ? (parsed.status_code ?? -1) : resp.status;
+        const errMsg = parsed ? (parsed.status_msg ?? parsed.error ?? 'Unknown error') : ('HTTP ' + resp.status);
+
+        return JSON.stringify({
+          success: false,
+          status_code: errCode,
+          message: errMsg,
+          raw: raw
+        });
       } catch (e) {
-        return JSON.stringify({status_code: -1, error: e.toString()});
+        return JSON.stringify({ success: false, status_code: -1, message: e.toString(), raw: '' });
       }
     ''';
 
@@ -223,19 +257,19 @@ class TikTokClient {
       arguments: {
         'deleteEndpoint': remoteConfig.deleteEndpoint,
         'itemId': itemId,
-        'csrfToken': csrfToken,
       },
     );
 
-    if (asyncResult == null || asyncResult.value == null) return false;
-    final data = jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
-
-    if (data['status_code'] == 0) {
-      return true;
-    } else if (data['status_code'] == 3002226 || data['status_code'] == 429) {
-      throw Exception('RATE_LIMITED');
-    } else {
-      return false;
+    if (asyncResult == null || asyncResult.value == null) {
+      return DeleteResult(success: false, statusCode: -1, message: 'Null response from WebView', rawResponse: '');
     }
+
+    final data = jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
+    return DeleteResult(
+      success: data['success'] == true,
+      statusCode: data['status_code'] as int? ?? -1,
+      message: data['message']?.toString() ?? '',
+      rawResponse: data['raw']?.toString() ?? '',
+    );
   }
 }
