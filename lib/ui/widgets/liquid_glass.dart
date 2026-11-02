@@ -548,10 +548,9 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
                           final pillW = itemWidth * (1.0 + stretch);
                           final pillH = 52.0 * (1.0 - stretch * 0.08);
                           final centerX = (pos + 0.5) * itemWidth;
-                          final left = (centerX - pillW / 2).clamp(
-                            0.0,
-                            math.max(0.0, trackWidth - pillW),
-                          );
+                          final left = (centerX - pillW / 2)
+                              .clamp(0.0, math.max(0.0, trackWidth - pillW))
+                              .toDouble();
 
                           return Stack(
                             alignment: Alignment.centerLeft,
@@ -607,8 +606,9 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
                               Row(
                                 children: List.generate(count, (idx) {
                                   final item = widget.items[idx];
-                                  final proximity =
-                                      (1.0 - (pos - idx).abs()).clamp(0.0, 1.0);
+                                  final proximity = (1.0 - (pos - idx).abs())
+                                      .clamp(0.0, 1.0)
+                                      .toDouble();
                                   final isSelected = proximity > 0.55;
                                   final scale = 1.0 + (0.08 * proximity);
                                   final iconColor = Color.lerp(
@@ -839,10 +839,9 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
                       final pillW = itemWidth * (1.0 + stretch);
                       final pillH = 40.0 * (1.0 - stretch * 0.06);
                       final centerX = (pos + 0.5) * itemWidth;
-                      final left = (centerX - pillW / 2).clamp(
-                        0.0,
-                        math.max(0.0, trackWidth - pillW),
-                      );
+                      final left = (centerX - pillW / 2)
+                          .clamp(0.0, math.max(0.0, trackWidth - pillW))
+                          .toDouble();
 
                       return Stack(
                         alignment: Alignment.centerLeft,
@@ -883,10 +882,9 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
                           Row(
                             children: List.generate(count, (idx) {
                               final seg = widget.segments[idx];
-                              final proximity = (1.0 - (pos - idx).abs()).clamp(
-                                0.0,
-                                1.0,
-                              );
+                              final proximity = (1.0 - (pos - idx).abs())
+                                  .clamp(0.0, 1.0)
+                                  .toDouble();
                               final active = proximity > 0.55;
                               final scale = 1.0 + (0.05 * proximity);
                               return Expanded(
