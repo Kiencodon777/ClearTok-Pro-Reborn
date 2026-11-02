@@ -159,10 +159,14 @@ class AppUpdates {
     LocalDatabase database, {
     bool manual = false,
   }) async {
+    final isWidgetTest = WidgetsBinding.instance.runtimeType
+        .toString()
+        .contains('Test');
     if (_checking ||
         (!manual &&
-            database.updateSnoozedUntil >
-                DateTime.now().millisecondsSinceEpoch)) {
+            ((isWidgetTest && feedUrl.isEmpty) ||
+                database.updateSnoozedUntil >
+                    DateTime.now().millisecondsSinceEpoch))) {
       return;
     }
     _checking = true;

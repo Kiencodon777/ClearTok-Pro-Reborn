@@ -127,14 +127,14 @@ class ExportAnalyticsService {
   static String exportFollowingToCsv(List<TikTokFollowUser> users) {
     final buffer = StringBuffer();
     buffer.writeln(
-      'User ID,Username,Nickname,Followers,Following,TikTok Profile URL,Bio',
+      'User ID,Username,Nickname,Followers,SecUID,TikTok Profile URL,Bio',
     );
     for (final u in users) {
       final safeNick = '"${u.nickname.replaceAll('"', '""')}"';
       final safeBio = '"${u.bio.replaceAll('"', '""').replaceAll('\n', ' ')}"';
       final profileUrl = 'https://www.tiktok.com/@${u.uniqueId}';
       buffer.writeln(
-        '${u.id},${u.uniqueId},$safeNick,${u.followerCount},${u.followingCount},$profileUrl,$safeBio',
+        '${u.id},${u.uniqueId},$safeNick,${u.followerCount},${u.secUid},$profileUrl,$safeBio',
       );
     }
     return buffer.toString();
@@ -148,7 +148,7 @@ class ExportAnalyticsService {
             'uniqueId': u.uniqueId,
             'nickname': u.nickname,
             'followerCount': u.followerCount,
-            'followingCount': u.followingCount,
+            'secUid': u.secUid,
             'profileUrl': 'https://www.tiktok.com/@${u.uniqueId}',
             'bio': u.bio,
           },
