@@ -49,18 +49,23 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         flexibleSpace: const LiquidGlassContainer(
-            borderRadius: 0, child: SizedBox.expand()),
+          borderRadius: 0,
+          child: SizedBox.expand(),
+        ),
         elevation: 0,
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: ClearTokColors.pink.withOpacity(0.15),
+                color: ClearTokColors.pink.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.desktop_mac,
-                  color: ClearTokColors.cyan, size: 20),
+              child: const Icon(
+                Icons.desktop_mac,
+                color: ClearTokColors.cyan,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -72,9 +77,10 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white),
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                   Text(
                     isLogged
@@ -82,8 +88,9 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
                         : 'Cần đăng nhập tài khoản',
                     style: TextStyle(
                       fontSize: 11,
-                      color:
-                          isLogged ? ClearTokColors.cyan : ClearTokColors.muted,
+                      color: isLogged
+                          ? ClearTokColors.cyan
+                          : ClearTokColors.muted,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -117,9 +124,12 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
             onSelected: (value) {
               if (value == 'profile') {
                 _webViewController?.loadUrl(
-                    urlRequest: URLRequest(
-                        url: WebUri(
-                            'https://www.tiktok.com/@${widget.currentUser!.uniqueId}')));
+                  urlRequest: URLRequest(
+                    url: WebUri(
+                      'https://www.tiktok.com/@${widget.currentUser!.uniqueId}',
+                    ),
+                  ),
+                );
                 return;
               }
               _webViewController?.loadUrl(
@@ -129,15 +139,19 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
             itemBuilder: (_) => [
               if (isLogged)
                 const PopupMenuItem(
-                    value: 'profile',
-                    child: ListTile(
-                        leading: Icon(Icons.person_outline),
-                        title: Text('Mở trang cá nhân'))),
-              const PopupMenuItem(
-                  value: 'login',
+                  value: 'profile',
                   child: ListTile(
-                      leading: Icon(Icons.lock_reset),
-                      title: Text('Về trang đăng nhập')))
+                    leading: Icon(Icons.person_outline),
+                    title: Text('Mở trang cá nhân'),
+                  ),
+                ),
+              const PopupMenuItem(
+                value: 'login',
+                child: ListTile(
+                  leading: Icon(Icons.lock_reset),
+                  title: Text('Về trang đăng nhập'),
+                ),
+              ),
             ],
           ),
         ],
@@ -147,8 +161,9 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
                 child: LinearProgressIndicator(
                   value: _loadProgress,
                   backgroundColor: Colors.transparent,
-                  valueColor:
-                      const AlwaysStoppedAnimation<Color>(ClearTokColors.pink),
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    ClearTokColors.pink,
+                  ),
                 ),
               )
             : null,
@@ -186,7 +201,8 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
             },
             onReceivedServerTrustAuthRequest: (controller, challenge) async {
               return ServerTrustAuthResponse(
-                  action: ServerTrustAuthResponseAction.PROCEED);
+                action: ServerTrustAuthResponseAction.PROCEED,
+              );
             },
             onWebViewCreated: (controller) {
               _webViewController = controller;
@@ -222,7 +238,8 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
                 final targetUrl = uri.queryParameters['url'];
                 if (targetUrl != null && targetUrl.isNotEmpty) {
                   controller.loadUrl(
-                      urlRequest: URLRequest(url: WebUri(targetUrl)));
+                    urlRequest: URLRequest(url: WebUri(targetUrl)),
+                  );
                 }
                 return NavigationActionPolicy.CANCEL;
               }
@@ -257,23 +274,28 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
           ? desktopUserAgent
           : await InAppWebViewController.getDefaultUserAgent();
       await controller.setSettings(
-          settings: InAppWebViewSettings(
-        userAgent: agent,
-        preferredContentMode: nextDesktop
-            ? UserPreferredContentMode.DESKTOP
-            : UserPreferredContentMode.MOBILE,
-        useWideViewPort: nextDesktop,
-        loadWithOverviewMode: nextDesktop,
-      ));
+        settings: InAppWebViewSettings(
+          userAgent: agent,
+          preferredContentMode: nextDesktop
+              ? UserPreferredContentMode.DESKTOP
+              : UserPreferredContentMode.MOBILE,
+          useWideViewPort: nextDesktop,
+          loadWithOverviewMode: nextDesktop,
+        ),
+      );
       if (!mounted) return;
       setState(() => _desktopMode = nextDesktop);
-      DiagnosticLog.instance.record('browser.mode', 0,
-          details: {'browser_mode': nextDesktop ? 'desktop' : 'mobile'});
+      DiagnosticLog.instance.record(
+        'browser.mode',
+        0,
+        details: {'browser_mode': nextDesktop ? 'desktop' : 'mobile'},
+      );
       await controller.reload();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Không đổi được chế độ trình duyệt: $e')));
+          SnackBar(content: Text('Không đổi được chế độ trình duyệt: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _switchingMode = false);

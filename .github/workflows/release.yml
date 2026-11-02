@@ -28,7 +28,7 @@ jobs:
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.x'
+          flutter-version: '3.41.9'
           channel: stable
           cache: true
       - name: Create platform scaffolding
@@ -38,6 +38,18 @@ jobs:
             rm -f test/widget_test.dart
           fi
       - run: flutter pub get
+      - name: Set iOS deployment target required by Liquid Glass
+        if: matrix.platform == 'ios'
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          project = Path('ios/Runner.xcodeproj/project.pbxproj')
+          project.write_text(re.sub(r'IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;', 'IPHONEOS_DEPLOYMENT_TARGET = 15.0;', project.read_text()))
+          podfile = Path('ios/Podfile')
+          if podfile.exists():
+              podfile.write_text(re.sub(r"(?m)^#?\s*platform :ios, '[0-9.]+'", "platform :ios, '15.0'", podfile.read_text()))
+          PY
       - name: Generate app launcher icons
         run: dart run flutter_launcher_icons -f launcher_icons_${{ matrix.platform }}.yaml
       - name: Report legacy project diagnostics
@@ -46,7 +58,7 @@ jobs:
       - name: Analyze active application and tests
         run: flutter analyze lib/main.dart lib/ui/widgets lib/ui/screens/main_navigation_screen.dart lib/ui/screens/tiktok_browser_screen.dart lib/ui/screens/repost_studio_screen.dart lib/ui/screens/diagnostic_log_screen.dart test
       - name: Check UI formatting
-        run: dart format --output=none --set-exit-if-changed lib/main.dart lib/ui test/liquid_glass_test.dart test/studio_toolbar_test.dart test/studio_visual_test.dart test/diagnostic_log_screen_test.dart test/main_navigation_test.dart test/studio_actions_test.dart
+        run: dart format --output=none --set-exit-if-changed lib/main.dart lib/ui test/liquid_glass_test.dart test/studio_toolbar_test.dart test/studio_visual_test.dart test/diagnostic_log_screen_test.dart test/main_navigation_test.dart test/studio_actions_test.dart test/flutter_test_config.dart test/liquid_glass_optics_test.dart
       - name: Test pagination and IPA packaging
         run: |
           flutter test --update-goldens $(git ls-files 'test/*_test.dart')

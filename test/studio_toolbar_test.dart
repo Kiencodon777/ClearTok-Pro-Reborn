@@ -36,19 +36,24 @@ class TestDatabase extends LocalDatabase {
 }
 
 void main() {
-  testWidgets('glass menu sheets fit a compact phone and close normally',
-      (tester) async {
+  testWidgets('glass menu sheets fit a compact phone and close normally', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(320, 568);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         theme: clearTokTheme(),
         home: RepostStudioScreen(
-            database: TestDatabase(),
-            client: null,
-            currentUser: null,
-            onSwitchToBrowser: () {})));
+          database: TestDatabase(),
+          client: null,
+          currentUser: null,
+          onSwitchToBrowser: () {},
+        ),
+      ),
+    );
     for (final label in ['Thống kê', 'Xuất CSV/JSON', 'Cài đặt']) {
       await tester.tap(find.byTooltip('Menu Studio'));
       await tester.pumpAndSettle();
@@ -61,40 +66,48 @@ void main() {
     }
   });
   testWidgets(
-      'toolbar starts compact, expands, then collapses without a credit banner',
-      (tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final db = TestDatabase();
-    await tester.pumpWidget(MaterialApp(
-        theme: clearTokTheme(),
-        home: RepostStudioScreen(
+    'toolbar starts compact, expands, then collapses without a credit banner',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final db = TestDatabase();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: clearTokTheme(),
+          home: RepostStudioScreen(
             database: db,
             client: null,
             currentUser: null,
-            onSwitchToBrowser: () {})));
-    expect(find.text('Project Name'), findsNothing);
-    expect(find.text('Đợt quét:'), findsNothing);
-    // Creator text belongs below the app-level tab bar, not in the video area.
-    expect(find.text('Viết Kiên & Anh Dũng', findRichText: true), findsNothing);
-    await tester.tap(find.byTooltip('Mở rộng công cụ'));
-    await tester.pumpAndSettle();
-    expect(find.text('Đợt quét:'), findsOneWidget);
-    expect(db.expanded, true);
-    expect(tester.takeException(), isNull);
-    await tester.ensureVisible(find.byTooltip('Thu gọn công cụ'));
-    await tester.tap(find.byTooltip('Thu gọn công cụ'));
-    await tester.pumpAndSettle();
-    expect(find.text('Đợt quét:'), findsNothing);
-    expect(db.expanded, false);
-    await tester.tap(find.byTooltip('Menu Studio'));
-    await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.insights_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.file_download_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.system_update_rounded), findsOneWidget);
-    expect(find.text('Tổng quan tương tác của bạn'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+            onSwitchToBrowser: () {},
+          ),
+        ),
+      );
+      expect(find.text('Project Name'), findsNothing);
+      expect(find.text('Đợt quét:'), findsNothing);
+      // Creator text belongs below the app-level tab bar, not in the video area.
+      expect(
+        find.text('Viết Kiên & Anh Dũng', findRichText: true),
+        findsNothing,
+      );
+      await tester.tap(find.byTooltip('Mở rộng công cụ'));
+      await tester.pumpAndSettle();
+      expect(find.text('Đợt quét:'), findsOneWidget);
+      expect(db.expanded, true);
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.byTooltip('Thu gọn công cụ'));
+      await tester.tap(find.byTooltip('Thu gọn công cụ'));
+      await tester.pumpAndSettle();
+      expect(find.text('Đợt quét:'), findsNothing);
+      expect(db.expanded, false);
+      await tester.tap(find.byTooltip('Menu Studio'));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.insights_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.file_download_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.system_update_rounded), findsOneWidget);
+      expect(find.text('Tổng quan tương tác của bạn'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

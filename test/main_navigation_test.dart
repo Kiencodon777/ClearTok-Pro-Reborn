@@ -1,3 +1,4 @@
+import 'package:cleartok_reborn/ui/widgets/project_credits.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -10,7 +11,8 @@ class TestWebViewPlatform extends InAppWebViewPlatform {
   int creations = 0;
   @override
   PlatformInAppWebViewWidget createPlatformInAppWebViewWidget(
-      PlatformInAppWebViewWidgetCreationParams params) {
+    PlatformInAppWebViewWidgetCreationParams params,
+  ) {
     creations++;
     return TestWebView(params);
   }
@@ -29,8 +31,9 @@ class TestWebView extends PlatformInAppWebViewWidget {
 }
 
 void main() {
-  testWidgets('tab changes preserve the WebView and its available size',
-      (tester) async {
+  testWidgets('tab changes preserve the WebView and its available size', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -41,24 +44,43 @@ void main() {
     addTearDown(() {
       if (old != null) InAppWebViewPlatform.instance = old;
     });
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         theme: clearTokTheme(),
         home: MainNavigationScreen(
-            database: TestDatabase(), remoteConfig: RemotePayloadConfig())));
+          database: TestDatabase(),
+          remoteConfig: RemotePayloadConfig(),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     final webViewState = tester.state(find.byType(InAppWebView));
     final size = tester.getSize(find.byKey(const ValueKey('webview-surface')));
     expect(find.byType(IndexedStack), findsOneWidget);
-    await tester.tap(find.text('Studio Reposts'));
+    await tester.tap(find.text('Studio Reposts').hitTestable().first);
     await tester.pumpAndSettle();
     expect(find.text('ClearTok Studio Pro'), findsOneWidget);
-    await tester.tap(find.text('Log'));
+    expect(
+      find.ancestor(
+        of: find.byType(ProjectCreditFooter),
+        matching: find.byKey(const ValueKey('creator-dock')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester.getBottomRight(find.byKey(const ValueKey('creator-dock'))).dy,
+      844,
+    );
+
+    await tester.tap(find.text('Log').hitTestable().first);
     await tester.pumpAndSettle();
     expect(find.text('Log chẩn đoán'), findsOneWidget);
-    await tester.tap(find.text('TikTok Web'));
+    await tester.tap(find.text('TikTok Web').hitTestable().first);
     await tester.pumpAndSettle();
-    expect(identical(tester.state(find.byType(InAppWebView)), webViewState),
-        isTrue);
+    expect(
+      identical(tester.state(find.byType(InAppWebView)), webViewState),
+      isTrue,
+    );
     expect(tester.getSize(find.byKey(const ValueKey('webview-surface'))), size);
     expect(tester.takeException(), isNull);
   });

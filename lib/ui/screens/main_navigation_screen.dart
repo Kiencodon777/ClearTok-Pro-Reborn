@@ -1,3 +1,4 @@
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' as glass;
 import 'package:flutter/material.dart';
 import '../../api/tiktok_client.dart';
 import '../../core/remote_payload_config.dart';
@@ -13,8 +14,11 @@ class MainNavigationScreen extends StatefulWidget {
   final LocalDatabase database;
   final RemotePayloadConfig remoteConfig;
 
-  const MainNavigationScreen(
-      {super.key, required this.database, required this.remoteConfig});
+  const MainNavigationScreen({
+    super.key,
+    required this.database,
+    required this.remoteConfig,
+  });
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
@@ -37,100 +41,116 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          // Tab 0: Fullscreen TikTok Web Browser
-          TikTokBrowserScreen(
-            remoteConfig: widget.remoteConfig,
-            currentUser: _currentUser,
-            onClientReady: (controller, client) {
-              setState(() {
-                _client = client;
-              });
-            },
-            onUserStatusChanged: (user) {
-              setState(() {
-                _currentUser = user;
-              });
-            },
-            onNavigateToStudio: () {
-              setState(() => _currentIndex = 1);
-            },
-          ),
+      extendBody: _currentIndex == 1,
+      body: MediaQuery.removePadding(
+        context: context,
+        removeBottom: _currentIndex == 1,
+        child: IndexedStack(
+          index: _currentIndex,
+          children: [
+            // Tab 0: Fullscreen TikTok Web Browser
+            TikTokBrowserScreen(
+              remoteConfig: widget.remoteConfig,
+              currentUser: _currentUser,
+              onClientReady: (controller, client) {
+                setState(() {
+                  _client = client;
+                });
+              },
+              onUserStatusChanged: (user) {
+                setState(() {
+                  _currentUser = user;
+                });
+              },
+              onNavigateToStudio: () {
+                setState(() => _currentIndex = 1);
+              },
+            ),
 
-          // Tab 1: ClearTok Studio / Reposts Manager
-          RepostStudioScreen(
-            database: widget.database,
-            client: _client,
-            currentUser: _currentUser,
-            onSwitchToBrowser: () {
-              setState(() => _currentIndex = 0);
-            },
-          ),
-          const DiagnosticLogScreen(),
-        ],
+            // Tab 1: ClearTok Studio / Reposts Manager
+            RepostStudioScreen(
+              database: widget.database,
+              client: _client,
+              currentUser: _currentUser,
+              onSwitchToBrowser: () {
+                setState(() => _currentIndex = 0);
+              },
+            ),
+            const DiagnosticLogScreen(),
+          ],
+        ),
       ),
-      bottomNavigationBar: SafeArea(
+      bottomNavigationBar: LiquidGlassContainer(
+        key: const ValueKey('creator-dock'),
+        margin: const EdgeInsets.fromLTRB(8, 0, 8, 0),
+        borderRadius: 28,
+        child: SafeArea(
           top: false,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            LiquidGlassContainer(
-                margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-                borderRadius: 28,
-                child: MediaQuery.removePadding(
-                    context: context,
-                    removeBottom: true,
-                    child: NavigationBar(
-                      height: 68,
-                      animationDuration:
-                          MediaQuery.of(context).disableAnimations
-                              ? Duration.zero
-                              : const Duration(milliseconds: 180),
-                      selectedIndex: _currentIndex,
-                      backgroundColor: Colors.transparent,
-                      elevation: 0,
-                      indicatorColor: ClearTokColors.pink.withOpacity(0.2),
-                      onDestinationSelected: (idx) {
-                        setState(() => _currentIndex = idx);
-                      },
-                      destinations: [
-                        // Keep tab order in sync with IndexedStack.
-                        const NavigationDestination(
-                          icon: Icon(Icons.public_outlined,
-                              color: ClearTokColors.muted),
-                          selectedIcon:
-                              Icon(Icons.public, color: ClearTokColors.pink),
-                          label: 'TikTok Web',
-                        ),
-                        NavigationDestination(
-                          icon: Badge(
-                            isLabelVisible:
-                                widget.database.getAllReposts().isNotEmpty,
-                            label: Text(
-                                '${widget.database.getAllReposts().length}'),
-                            backgroundColor: ClearTokColors.cyan,
-                            textColor: Colors.black,
-                            child: const Icon(Icons.dashboard_outlined,
-                                color: ClearTokColors.muted),
-                          ),
-                          selectedIcon: Badge(
-                            isLabelVisible:
-                                widget.database.getAllReposts().isNotEmpty,
-                            label: Text(
-                                '${widget.database.getAllReposts().length}'),
-                            backgroundColor: ClearTokColors.cyan,
-                            textColor: Colors.black,
-                            child: const Icon(Icons.dashboard_rounded,
-                                color: ClearTokColors.cyan),
-                          ),
-                          label: 'Studio Reposts',
-                        ),
-                        const NavigationDestination(
-                            icon: Icon(Icons.receipt_long), label: 'Log'),
-                      ],
-                    ))),
-            if (_currentIndex == 1) const ProjectCreditFooter(),
-          ])),
+          minimum: const EdgeInsets.only(bottom: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              glass.GlassTabBar.bottom(
+                selectedIndex: _currentIndex,
+                onTabSelected: (idx) => setState(() => _currentIndex = idx),
+                horizontalPadding: 4,
+                verticalPadding: 0,
+                barHeight: 64,
+                barBorderRadius: 24,
+                glowOpacity: .08,
+                glowBlurRadius: 8,
+                quality: glass.GlassQuality.premium,
+                backgroundQuality: glass.GlassQuality.minimal,
+                settings: glass.LiquidGlassSettings.ios27Dark.copyWith(
+                  glassColor: Colors.transparent,
+                  blur: 0,
+                  thickness: 0,
+                ),
+                indicatorSettings: glass.LiquidGlassSettings.ios27Dark,
+                indicatorColor: ClearTokColors.pink.withValues(alpha: .20),
+                selectedIconColor: ClearTokColors.cyan,
+                selectedLabelColor: Colors.white,
+                unselectedIconColor: ClearTokColors.secondary,
+                unselectedLabelColor: ClearTokColors.secondary,
+                tabs: [
+                  const glass.GlassTab(
+                    icon: Icon(Icons.public_outlined),
+                    activeIcon: Icon(Icons.public),
+                    label: 'TikTok Web',
+                  ),
+                  glass.GlassTab(
+                    icon: Badge(
+                      isLabelVisible: widget.database
+                          .getAllReposts()
+                          .isNotEmpty,
+                      label: Text('${widget.database.getAllReposts().length}'),
+                      backgroundColor: ClearTokColors.cyan,
+                      textColor: Colors.black,
+                      child: const Icon(Icons.dashboard_outlined),
+                    ),
+                    activeIcon: Badge(
+                      isLabelVisible: widget.database
+                          .getAllReposts()
+                          .isNotEmpty,
+                      label: Text('${widget.database.getAllReposts().length}'),
+                      backgroundColor: ClearTokColors.cyan,
+                      textColor: Colors.black,
+                      child: const Icon(Icons.dashboard_rounded),
+                    ),
+                    label: 'Studio Reposts',
+                  ),
+                  const glass.GlassTab(
+                    icon: Icon(Icons.receipt_long_outlined),
+                    activeIcon: Icon(Icons.receipt_long),
+                    label: 'Log',
+                  ),
+                ],
+              ),
+              if (_currentIndex == 1) const ProjectCreditFooter(),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

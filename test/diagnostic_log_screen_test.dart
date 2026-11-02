@@ -11,20 +11,25 @@ void main() {
     log.clear();
     log.record('ui.test', 0);
     String? copied;
-    tester.binding.defaultBinaryMessenger
-        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-      if (call.method == 'Clipboard.setData') {
-        copied = (call.arguments as Map)['text'] as String;
-      }
-      return null;
-    });
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
     addTearDown(() {
       log.clear();
-      tester.binding.defaultBinaryMessenger
-          .setMockMethodCallHandler(SystemChannels.platform, null);
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
     });
     await tester.pumpWidget(
-        MaterialApp(theme: clearTokTheme(), home: const DiagnosticLogScreen()));
+      MaterialApp(theme: clearTokTheme(), home: const DiagnosticLogScreen()),
+    );
     expect(find.byType(SelectableText), findsOneWidget);
     await tester.tap(find.byTooltip('Sao chép log'));
     await tester.pump();
