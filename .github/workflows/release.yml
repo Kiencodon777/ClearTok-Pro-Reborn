@@ -38,6 +38,20 @@ jobs:
             rm -f test/widget_test.dart
           fi
       - run: flutter pub get
+      - name: Enable Android desugaring required by notifications
+        if: matrix.platform == 'android'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          gradle = Path('android/app/build.gradle.kts')
+          content = gradle.read_text()
+          if 'isCoreLibraryDesugaringEnabled' not in content:
+              assert 'compileOptions {' in content
+              content = content.replace('compileOptions {', 'compileOptions {\n        isCoreLibraryDesugaringEnabled = true', 1)
+          if 'desugar_jdk_libs' not in content:
+              content += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
+          gradle.write_text(content)
+          PY
       - name: Set iOS deployment target required by Liquid Glass
         if: matrix.platform == 'ios'
         run: |
