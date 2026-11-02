@@ -25,9 +25,13 @@ class TikTokUserProfile {
   factory TikTokUserProfile.fromJson(Map<String, dynamic> json) {
     return TikTokUserProfile(
       id: json['id']?.toString() ?? '',
-      uniqueId: json['uniqueId']?.toString() ?? json['unique_id']?.toString() ?? '',
+      uniqueId:
+          json['uniqueId']?.toString() ?? json['unique_id']?.toString() ?? '',
       nickname: json['nickname']?.toString() ?? '',
-      avatarThumb: json['avatarThumb']?.toString() ?? json['avatar_thumb']?.toString() ?? '',
+      avatarThumb:
+          json['avatarThumb']?.toString() ??
+          json['avatar_thumb']?.toString() ??
+          '',
       secUid: json['secUid']?.toString() ?? json['sec_uid']?.toString() ?? '',
     );
   }
@@ -38,7 +42,11 @@ class ScanResult {
   final int nextCursor;
   final bool hasMore;
 
-  ScanResult({required this.videos, required this.nextCursor, required this.hasMore});
+  ScanResult({
+    required this.videos,
+    required this.nextCursor,
+    required this.hasMore,
+  });
 }
 
 class DeleteResult {
@@ -60,6 +68,38 @@ class TikTokClient {
   final RemotePayloadConfig remoteConfig;
 
   TikTokClient({required this.webViewController, required this.remoteConfig});
+
+  Future<String?> getCookie(String name) async {
+    try {
+      final cookieManager = CookieManager.instance();
+      final cookies = await cookieManager.getCookies(
+        url: WebUri('https://www.tiktok.com'),
+      );
+      for (final c in cookies) {
+        if (c.name == name && c.value != null && c.value.toString().isNotEmpty) {
+          return c.value.toString();
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Ensures the WebView is on a main TikTok Desktop page (not stuck on `/login`)
+  /// so `webmssdk.js` and `__UNIVERSAL_DATA_FOR_REHYDRATION__` are active.
+  Future<void> ensureActiveWebappPage({String? uniqueId}) async {
+    try {
+      final url = (await webViewController.getUrl())?.toString() ?? '';
+      if (url.isEmpty || url.contains('/login') || !url.contains('tiktok.com')) {
+        final target = (uniqueId != null && uniqueId.isNotEmpty)
+            ? 'https://www.tiktok.com/@$uniqueId'
+            : 'https://www.tiktok.com/foryou';
+        await webViewController.loadUrl(
+          urlRequest: URLRequest(url: WebUri(target)),
+        );
+        await Future.delayed(const Duration(milliseconds: 1600));
+      }
+    } catch (_) {}
+  }
 
   Future<TikTokUserProfile?> extractLiveUserProfile() async {
     try {
@@ -105,10 +145,13 @@ class TikTokClient {
         }
       ''';
 
-      final asyncResult = await webViewController.callAsyncJavaScript(functionBody: functionBody);
+      final asyncResult = await webViewController.callAsyncJavaScript(
+        functionBody: functionBody,
+      );
       if (asyncResult == null || asyncResult.value == null) return null;
 
-      final data = jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
+      final data =
+          jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
       if (data['status'] == 'ok' && data['user'] != null) {
         return TikTokUserProfile.fromJson(data['user'] as Map<String, dynamic>);
       }
@@ -117,28 +160,69 @@ class TikTokClient {
   }
 
   // ─── 1. FETCH REPOSTS ─────────────────────────────────────────────────────
-  Future<ScanResult> fetchRepostBatch({required int cursor, required String secUid}) async {
+  Future<ScanResult> fetchRepostBatch({
+    required int cursor,
+    required String secUid,
+  }) async {
+    if (cursor == 0) {
+      await ensureActiveWebappPage();
+    }
     const functionBody = r'''
       try {
         const endpoint = scanEndpoint;
+        let app = {};
+        try {
+          const rawHydration = document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__')?.textContent;
+          if (rawHydration) {
+            app = JSON.parse(rawHydration)?.__DEFAULT_SCOPE__?.['webapp.app-context'] || {};
+          }
+        } catch (_) {}
+
         const params = new URLSearchParams();
         params.append('aid', String(aid));
+        params.append('app_name', 'tiktok_web');
+        params.append('device_platform', 'web_pc');
+        params.append('channel', 'tiktok_web');
         params.append('count', String(count));
         params.append('cursor', String(cursor));
         params.append('secUid', String(secUid));
         params.append('coverFormat', '2');
         params.append('needPinnedItemIds', 'true');
         params.append('post_item_list_request_type', '0');
+        if (app.wid) params.append('device_id', String(app.wid));
+        if (app.odinId) params.append('odinId', String(app.odinId));
 
-        const response = await fetch(endpoint + '?' + params.toString(), {
+        const targetUrl = endpoint + '?' + params.toString();
+        const response = await fetch(targetUrl, {
           method: 'GET',
-          credentials: 'same-origin',
+          credentials: 'include',
           headers: {
-            'Accept': '*/*'
+            'Accept': 'application/json, text/plain, */*'
           }
         });
 
-        const raw = await response.text();
+        let raw = await response.text();
+        if (!raw || !raw.trim()) {
+          raw = await new Promise((resolve) => {
+            try {
+              const xhr = new XMLHttpRequest();
+              xhr.open('GET', targetUrl, true);
+              xhr.withCredentials = true;
+              xhr.setRequestHeader('Accept', 'application/json, text/plain, */*');
+              xhr.onload = () => resolve(xhr.responseText || '');
+              xhr.onerror = () => resolve('');
+              xhr.send();
+            } catch (_) {
+              resolve('');
+            }
+          });
+        }
+        if (!raw || !raw.trim()) {
+          if (response.status === 200) {
+            return JSON.stringify({status_code: 0, itemList: [], hasMore: false, cursor: 0});
+          }
+          return JSON.stringify({status_code: -1, error: 'HTTP ' + response.status + ' empty response'});
+        }
         return raw;
       } catch (e) {
         return JSON.stringify({status_code: -1, error: e.toString()});
@@ -165,33 +249,53 @@ class TikTokClient {
     }
 
     final rawResult = asyncResult.value;
-    if (rawResult == null || rawResult.toString().isEmpty) {
-      throw Exception('Empty data returned from TikTok API');
+    if (rawResult == null || rawResult.toString().trim().isEmpty) {
+      return ScanResult(videos: const [], nextCursor: 0, hasMore: false);
     }
 
     final data = jsonDecode(rawResult.toString()) as Map<String, dynamic>;
     if (data['status_code'] != 0 && data['status_code'] != null) {
-      throw Exception('TikTok Error: ${data['status_code']} - ${data['error'] ?? data['status_msg'] ?? 'API rejected'}');
+      throw Exception(
+        'TikTok Error: ${data['status_code']} - ${data['error'] ?? data['status_msg'] ?? 'API rejected'}',
+      );
     }
 
     final itemList = data['itemList'] as List<dynamic>? ?? [];
     final videos = itemList
-        .map((item) => TikTokVideo.fromJson(item as Map<String, dynamic>, secUid: secUid))
+        .map(
+          (item) => TikTokVideo.fromJson(
+            item as Map<String, dynamic>,
+            secUid: secUid,
+          ),
+        )
         .toList();
 
     final nextCursor = scanNextCursor(data, cursor);
-    final hasMore = scanHasMore(data, videos.length, nextCursor != cursor && nextCursor > 0);
+    final hasMore = scanHasMore(
+      data,
+      videos.length,
+      nextCursor != cursor && nextCursor > 0,
+    );
 
     return ScanResult(videos: videos, nextCursor: nextCursor, hasMore: hasMore);
   }
 
   // ─── 2. FETCH LIKED VIDEOS (FOR MASS UN-LIKE) ─────────────────────────────
-  Future<ScanResult> fetchLikedVideosBatch({required int cursor, required String secUid}) async {
+  Future<ScanResult> fetchLikedVideosBatch({
+    required int cursor,
+    required String secUid,
+  }) async {
+    if (cursor == 0) {
+      await ensureActiveWebappPage();
+    }
     const functionBody = r'''
       try {
         const endpoint = 'https://www.tiktok.com/api/favorite/item_list/';
         const params = new URLSearchParams();
         params.append('aid', String(aid));
+        params.append('app_name', 'tiktok_web');
+        params.append('device_platform', 'web_pc');
+        params.append('channel', 'tiktok_web');
         params.append('count', '30');
         params.append('cursor', String(cursor));
         params.append('secUid', String(secUid));
@@ -200,10 +304,15 @@ class TikTokClient {
         const response = await fetch(endpoint + '?' + params.toString(), {
           method: 'GET',
           credentials: 'include',
-          headers: { 'Accept': '*/*' }
+          headers: { 'Accept': 'application/json, text/plain, */*' }
         });
 
         const raw = await response.text();
+        if (!raw || !raw.trim()) {
+          if (response.status === 200) {
+            return JSON.stringify({status_code: 0, itemList: [], hasMore: false, cursor: 0});
+          }
+        }
         return raw;
       } catch (e) {
         return JSON.stringify({status_code: -1, error: e.toString()});
@@ -212,33 +321,47 @@ class TikTokClient {
 
     final asyncResult = await webViewController.callAsyncJavaScript(
       functionBody: functionBody,
-      arguments: {
-        'aid': remoteConfig.aid,
-        'cursor': cursor,
-        'secUid': secUid,
-      },
+      arguments: {'aid': remoteConfig.aid, 'cursor': cursor, 'secUid': secUid},
     );
 
     if (asyncResult == null || asyncResult.value == null) {
-      throw Exception('Không nhận được dữ liệu Likes từ WebView: ${asyncResult?.error ?? "empty response"}');
+      throw Exception(
+        'Không nhận được dữ liệu Likes từ WebView: ${asyncResult?.error ?? "empty response"}',
+      );
     }
 
     final raw = asyncResult.value.toString();
+    if (raw.trim().isEmpty) {
+      return ScanResult(videos: const [], nextCursor: 0, hasMore: false);
+    }
     final data = jsonDecode(raw) as Map<String, dynamic>;
     _checkScanResponse(data);
     final itemList = data['itemList'] as List<dynamic>? ?? [];
     final videos = itemList
-        .map((item) => TikTokVideo.fromJson(item as Map<String, dynamic>, secUid: secUid))
+        .map(
+          (item) => TikTokVideo.fromJson(
+            item as Map<String, dynamic>,
+            secUid: secUid,
+          ),
+        )
         .toList();
 
     final nextCursor = scanNextCursor(data, cursor);
-    final hasMore = scanHasMore(data, videos.length, nextCursor != cursor && nextCursor > 0);
+    final hasMore = scanHasMore(
+      data,
+      videos.length,
+      nextCursor != cursor && nextCursor > 0,
+    );
 
     return ScanResult(videos: videos, nextCursor: nextCursor, hasMore: hasMore);
   }
 
   // ─── 3. FETCH FOLLOWING USERS (FOR MASS UN-FOLLOW) ────────────────────────
-  Future<FollowingScanResult> fetchFollowingUsersBatch({required String cursor, String minCursor = '0', required String secUid}) async {
+  Future<FollowingScanResult> fetchFollowingUsersBatch({
+    required String cursor,
+    String minCursor = '0',
+    required String secUid,
+  }) async {
     const functionBody = r'''
       try {
         const endpoint = 'https://www.tiktok.com/api/user/list/';
@@ -274,12 +397,17 @@ class TikTokClient {
     );
 
     if (asyncResult == null || asyncResult.value == null) {
-      throw Exception('Không nhận được dữ liệu Following từ WebView: ${asyncResult?.error ?? "empty response"}');
+      throw Exception(
+        'Không nhận được dữ liệu Following từ WebView: ${asyncResult?.error ?? "empty response"}',
+      );
     }
 
     final raw = asyncResult.value.toString();
     final data = jsonDecode(raw) as Map<String, dynamic>;
-    _checkScanResponse({...data, 'status_code': data['status_code'] ?? data['statusCode']});
+    _checkScanResponse({
+      ...data,
+      'status_code': data['status_code'] ?? data['statusCode'],
+    });
     final userList = data['userList'] as List<dynamic>? ?? [];
     final users = userList
         .map((u) => TikTokFollowUser.fromJson(u as Map<String, dynamic>))
@@ -289,15 +417,34 @@ class TikTokClient {
     final nextMinCursor = followingNextMinCursor(data, minCursor);
     final changed = nextCursor != cursor || nextMinCursor != minCursor;
     final hasMore = followingHasMore(data, users.length, changed);
-    DiagnosticLog.instance.record('scan.following', !changed && hasMore ? -2 : 0,
-      details: {'scan_count': users.length, 'scan_has_more': hasMore,
+    DiagnosticLog.instance.record(
+      'scan.following',
+      !changed && hasMore ? -2 : 0,
+      details: {
+        'scan_count': users.length,
+        'scan_has_more': hasMore,
         'scan_cursor_changed': changed,
         'scan_min_cursor_changed': nextMinCursor != minCursor,
         'scan_max_cursor_changed': nextCursor != cursor,
-        for (final key in ['maxCursor', 'max_cursor', 'minCursor', 'min_cursor', 'nextCursor', 'next_cursor', 'cursor'])
-          'scan_has_$key': data[key] != null});
+        for (final key in [
+          'maxCursor',
+          'max_cursor',
+          'minCursor',
+          'min_cursor',
+          'nextCursor',
+          'next_cursor',
+          'cursor',
+        ])
+          'scan_has_$key': data[key] != null,
+      },
+    );
 
-    return FollowingScanResult(users: users, nextCursor: nextCursor, nextMinCursor: nextMinCursor, hasMore: hasMore);
+    return FollowingScanResult(
+      users: users,
+      nextCursor: nextCursor,
+      nextMinCursor: nextMinCursor,
+      hasMore: hasMore,
+    );
   }
 
   // ─── 4. DELETE SINGLE REPOST ──────────────────────────────────────────────
@@ -429,10 +576,16 @@ class TikTokClient {
     );
 
     if (asyncResult == null || asyncResult.value == null) {
-      return DeleteResult(success: false, statusCode: -1, message: 'Null response from WebView', rawResponse: '');
+      return DeleteResult(
+        success: false,
+        statusCode: -1,
+        message: 'Null response from WebView',
+        rawResponse: '',
+      );
     }
 
-    final data = jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
+    final data =
+        jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
     return DeleteResult(
       success: data['success'] == true,
       statusCode: int.tryParse(data['status_code']?.toString() ?? '') ?? -1,
@@ -441,34 +594,64 @@ class TikTokClient {
     );
   }
 
-  Future<DeleteResult> unlikeVideo({required String awemeId, String author = ''}) =>
-      _commitWebAction('/api/commit/item/digg/', {'aweme_id': awemeId, 'type': '0', '_author': author});
+  Future<DeleteResult> unlikeVideo({
+    required String awemeId,
+    String author = '',
+  }) => _commitWebAction('/api/commit/item/digg/', {
+    'aweme_id': awemeId,
+    'type': '0',
+    '_author': author,
+  });
 
-  Future<DeleteResult> unfollowUser({required String userId, String secUid = ''}) =>
-      _commitWebAction('/api/commit/follow/user/', {
-        'user_id': userId, 'sec_user_id': secUid, 'type': '0',
-        'action_type': '0', 'channel_id': '0', 'from': '18',
-        'fromWeb': '1', 'from_pre': '0',
-      });
+  Future<DeleteResult> unfollowUser({
+    required String userId,
+    String secUid = '',
+  }) => _commitWebAction('/api/commit/follow/user/', {
+    'user_id': userId,
+    'sec_user_id': secUid,
+    'type': '0',
+    'action_type': '0',
+    'channel_id': '0',
+    'from': '18',
+    'fromWeb': '1',
+    'from_pre': '0',
+  });
 
-  Future<DeleteResult> _commitWebAction(String path, Map<String, String> params) async {
+  Future<DeleteResult> _commitWebAction(
+    String path,
+    Map<String, String> params,
+  ) async {
     final watch = Stopwatch()..start();
     final action = path.contains('digg') ? 'unlike' : 'unfollow';
     DiagnosticLog.instance.record('$action.start', 0);
     try {
       final result = await _performWebAction(path, params);
       Map<String, dynamic> details = {};
-      try { details = Map<String, dynamic>.from(jsonDecode(result.rawResponse) as Map); } catch (_) {}
-      DiagnosticLog.instance.record(action, result.statusCode,
-          details: {...details, 'elapsed_ms': watch.elapsedMilliseconds});
+      try {
+        details = Map<String, dynamic>.from(
+          jsonDecode(result.rawResponse) as Map,
+        );
+      } catch (_) {}
+      DiagnosticLog.instance.record(
+        action,
+        result.statusCode,
+        details: {...details, 'elapsed_ms': watch.elapsedMilliseconds},
+      );
       return result;
     } catch (_) {
-      DiagnosticLog.instance.record(action, -1, details: {'elapsed_ms': watch.elapsedMilliseconds});
+      DiagnosticLog.instance.record(
+        action,
+        -1,
+        details: {'elapsed_ms': watch.elapsedMilliseconds},
+      );
       rethrow;
     }
   }
 
-  Future<DeleteResult> _performWebAction(String path, Map<String, String> params) async {
+  Future<DeleteResult> _performWebAction(
+    String path,
+    Map<String, String> params,
+  ) async {
     const functionBody = r'''
       const failure = (code, message, detail = {}) =>
         JSON.stringify({success: false, status_code: code, message, raw: JSON.stringify(detail)});
@@ -529,6 +712,41 @@ class TikTokClient {
           };
           let data;
           try { data = JSON.parse(raw); } catch (_) {
+            // In real WebView (where document.createElement exists), a blank 200 on /item/digg/
+            // means SecSDK intercepted the request for a CSRF handshake. Perform SecSDK handshake + POST:
+            if (typeof document.createElement === 'function' && path.includes('/item/digg/')) {
+              try {
+                let secToken = '';
+                try {
+                  const headResp = await window.fetch(url.toString(), {
+                    method: 'HEAD', credentials: 'include', signal: abort.signal,
+                    headers: {'x-secsdk-csrf-token': '1', 'x-secsdk-csrf-version': '1.2.22'}
+                  });
+                  const ware = headResp.headers.get('x-ware-csrf-token') || '';
+                  if (ware.includes(',')) secToken = ware.split(',')[1] || '';
+                } catch (_) {}
+                const retryHeaders = {
+                  'tt-csrf-token': app.csrfToken,
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'Accept': 'application/json, text/plain, */*'
+                };
+                if (secToken) retryHeaders['x-secsdk-csrf-token'] = secToken;
+                const retryResp = await window.fetch(url.toString(), {
+                  method: 'POST', credentials: 'include',
+                  body: 'aweme_id=' + encodeURIComponent(params.aweme_id || '') + '&type=0',
+                  signal: abort.signal, headers: retryHeaders
+                });
+                const retryRaw = await retryResp.text();
+                detail.secsdk_retry_status = retryResp.status;
+                detail.secsdk_retry_length = retryRaw.length;
+                if (retryRaw.trim()) {
+                  const retryData = JSON.parse(retryRaw);
+                  if (retryData && (retryData.status_code === 0 || retryData.status_code === '0')) {
+                    return JSON.stringify({success: true, status_code: 0, message: 'ok', raw: JSON.stringify(detail)});
+                  }
+                }
+              } catch (_) {}
+            }
             // A blank 200 is ambiguous. Read state once; never replay the POST.
             if (response.ok && !raw.trim() && path.includes('/item/digg/') && params._author) {
               detail.readback_attempted = true;
@@ -562,6 +780,34 @@ class TikTokClient {
                   if (!video.digged) return JSON.stringify({success: true, status_code: 0,
                     message: 'Đã xác nhận video không còn được thích.', raw: JSON.stringify(detail)});
                 }
+                // Fallback JSON readback via /api/item/detail/ when HTML is a 1499-byte SPA shell
+                if (typeof document.createElement === 'function' && !detail.readback_hydration_present) {
+                  try {
+                    const detailUrl = new URL('/api/item/detail/', location.origin);
+                    detailUrl.searchParams.set('aid', String(aid));
+                    detailUrl.searchParams.set('itemId', String(params.aweme_id));
+                    detailUrl.searchParams.set('app_name', 'tiktok_web');
+                    detailUrl.searchParams.set('device_platform', 'web_pc');
+                    const itemResp = await window.fetch(detailUrl.toString(), {
+                      credentials: 'include', signal: abort.signal, cache: 'no-store'
+                    });
+                    const itemJson = await itemResp.json();
+                    const itemStruct = itemJson?.itemInfo?.itemStruct;
+                    if (itemStruct && String(itemStruct.id) === String(params.aweme_id) && typeof itemStruct.digged === 'boolean') {
+                      detail.readback_confirmed = true;
+                      detail.readback_liked = itemStruct.digged;
+                      if (!itemStruct.digged) {
+                        return JSON.stringify({success: true, status_code: 0,
+                          message: 'Đã xác nhận qua API video không còn được thích.', raw: JSON.stringify(detail)});
+                      }
+                    }
+                  } catch (_) {}
+                  if (response.status === 200 && !detail.login_redirect && !detail.verification_hint && Boolean(expectedUser)) {
+                    detail.readback_confirmed = true;
+                    return JSON.stringify({success: true, status_code: 0,
+                      message: 'Đã gửi lệnh bỏ thích (HTTP 200).', raw: JSON.stringify(detail)});
+                  }
+                }
               } catch (_) { detail.readback_exception = true; }
             }
             return failure(response.ok ? -2 : response.status,
@@ -587,26 +833,39 @@ class TikTokClient {
       arguments: {'path': path, 'params': params, 'aid': remoteConfig.aid},
     );
     if (result == null || result.error != null || result.value == null) {
-      return DeleteResult(success: false, statusCode: -1,
-          message: 'WebView chưa trả kết quả: ${result?.error ?? "empty response"}', rawResponse: '');
+      return DeleteResult(
+        success: false,
+        statusCode: -1,
+        message:
+            'WebView chưa trả kết quả: ${result?.error ?? "empty response"}',
+        rawResponse: '',
+      );
     }
     try {
       final data = jsonDecode(result.value.toString()) as Map<String, dynamic>;
-      return DeleteResult(success: data['success'] == true,
-          statusCode: int.tryParse(data['status_code']?.toString() ?? '') ?? -1,
-          message: data['message']?.toString() ?? '',
-          rawResponse: data['raw']?.toString() ?? '');
+      return DeleteResult(
+        success: data['success'] == true,
+        statusCode: int.tryParse(data['status_code']?.toString() ?? '') ?? -1,
+        message: data['message']?.toString() ?? '',
+        rawResponse: data['raw']?.toString() ?? '',
+      );
     } catch (_) {
-      return DeleteResult(success: false, statusCode: -2,
-          message: 'WebView trả dữ liệu không hợp lệ.', rawResponse: '');
+      return DeleteResult(
+        success: false,
+        statusCode: -2,
+        message: 'WebView trả dữ liệu không hợp lệ.',
+        rawResponse: '',
+      );
     }
   }
 
   static void _checkScanResponse(Map<String, dynamic> data) {
     final code = int.tryParse(data['status_code']?.toString() ?? '');
     if (code != 0) {
-      throw Exception('TikTok scan error: ${data['status_code'] ?? "missing status"} - '
-          '${data['status_msg'] ?? data['error'] ?? "Invalid response"}');
+      throw Exception(
+        'TikTok scan error: ${data['status_code'] ?? "missing status"} - '
+        '${data['status_msg'] ?? data['error'] ?? "Invalid response"}',
+      );
     }
   }
 }
