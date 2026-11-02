@@ -93,6 +93,7 @@ ThemeData clearTokTheme() {
         surfaceTintColor: Colors.transparent,
         shape: shape),
     chipTheme: ChipThemeData(
+      checkmarkColor: ClearTokColors.cyan,
       backgroundColor: ClearTokColors.surface.withOpacity(.8),
       selectedColor: ClearTokColors.pink.withOpacity(.18),
       side: const BorderSide(color: ClearTokColors.border),
