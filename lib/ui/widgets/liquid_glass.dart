@@ -1029,9 +1029,8 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
                                     ),
                                   ),
                                 ),
-                              ),
-                            );
-                          }),
+                              );
+                            }),
                           ),
                         ),
                       ],
@@ -1390,9 +1389,9 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
                                     ),
                                   ),
                                 ),
-                              );
-                            }),
-                          ),
+                              ),
+                            );
+                          }),
                         ),
                       ),
                     ],
