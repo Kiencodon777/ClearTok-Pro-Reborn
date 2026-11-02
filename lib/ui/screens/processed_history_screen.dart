@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../database/local_database.dart';
+import '../../services/export_analytics_service.dart';
 import '../widgets/liquid_glass.dart';
 
 class ProcessedHistoryScreen extends StatefulWidget {
@@ -23,17 +24,89 @@ class ProcessedHistoryScreen extends StatefulWidget {
 class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
   String _selectedType = 'repost'; // 'repost', 'unlike', 'unfollow'
   String _searchQuery = '';
+  String _timeFilter = 'all'; // 'all', 'today', '7d', '30d'
+  String _sortBy = 'recent'; // 'recent', 'likes', 'author'
+  bool _multiSelectMode = false;
+  final Set<String> _selectedKeys = <String>{};
 
   List<ProcessedHistoryItem> get _items {
     final all = widget.database.getProcessedHistory(type: _selectedType);
-    if (_searchQuery.trim().isEmpty) return all;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    int minTimestamp = 0;
+    if (_timeFilter == 'today') {
+      minTimestamp = nowMs - const Duration(hours: 24).inMilliseconds;
+    } else if (_timeFilter == '7d') {
+      minTimestamp = nowMs - const Duration(days: 7).inMilliseconds;
+    } else if (_timeFilter == '30d') {
+      minTimestamp = nowMs - const Duration(days: 30).inMilliseconds;
+    }
+
     final q = _searchQuery.trim().toLowerCase();
-    return all.where((item) {
+    final filtered = all.where((item) {
+      if (minTimestamp > 0 && item.processedAt < minTimestamp) {
+        return false;
+      }
+      if (q.isEmpty) return true;
       return item.authorUsername.toLowerCase().contains(q) ||
           item.authorNickname.toLowerCase().contains(q) ||
           item.description.toLowerCase().contains(q) ||
           item.id.toLowerCase().contains(q);
     }).toList();
+
+    if (_sortBy == 'likes') {
+      filtered.sort((a, b) => b.diggCount.compareTo(a.diggCount));
+    } else if (_sortBy == 'author') {
+      filtered.sort(
+        (a, b) => a.authorUsername.toLowerCase().compareTo(
+          b.authorUsername.toLowerCase(),
+        ),
+      );
+    } else {
+      filtered.sort((a, b) => b.processedAt.compareTo(a.processedAt));
+    }
+    return filtered;
+  }
+
+  void _toggleSelection(String key) {
+    LiquidSoundHaptics.tick();
+    setState(() {
+      if (_selectedKeys.contains(key)) {
+        _selectedKeys.remove(key);
+      } else {
+        _selectedKeys.add(key);
+      }
+    });
+  }
+
+  Future<void> _bulkRemoveSelected() async {
+    if (_selectedKeys.isEmpty) return;
+    final count = _selectedKeys.length;
+    await widget.database.removeProcessedHistoryEntries(_selectedKeys.toList());
+    if (!mounted) return;
+    setState(() {
+      _selectedKeys.clear();
+      _multiSelectMode = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Đã khôi phục / bỏ $count mục khỏi lịch sử (có thể quét lại trên Studio)!',
+        ),
+      ),
+    );
+  }
+
+  void _backupHistoryItems(List<ProcessedHistoryItem> targetItems) {
+    if (targetItems.isEmpty) return;
+    final jsonStr = ExportAnalyticsService.exportHistoryToJson(targetItems);
+    Clipboard.setData(ClipboardData(text: jsonStr));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Đã sao lưu ${targetItems.length} mục lịch sử (JSON kèm link TikTok) vào bộ nhớ tạm!',
+        ),
+      ),
+    );
   }
 
   String _formatTime(int millis) {
@@ -310,7 +383,42 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
                         ],
                       ),
                     ),
-                    if (list.isNotEmpty)
+                    if (list.isNotEmpty) ...[
+                      BouncyTapWrapper(
+                        pressedScale: 0.88,
+                        onTap: () {},
+                        child: IconButton(
+                          tooltip: _multiSelectMode
+                              ? 'Thoát chọn nhiều'
+                              : 'Chọn nhiều để khôi phục/xóa hàng loạt',
+                          icon: Icon(
+                            _multiSelectMode
+                                ? Icons.checklist_rtl_rounded
+                                : Icons.fact_check_outlined,
+                            color: _multiSelectMode
+                                ? ClearTokColors.neonCyan
+                                : ClearTokColors.secondary,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _multiSelectMode = !_multiSelectMode;
+                              if (!_multiSelectMode) _selectedKeys.clear();
+                            });
+                          },
+                        ),
+                      ),
+                      BouncyTapWrapper(
+                        pressedScale: 0.88,
+                        onTap: () {},
+                        child: IconButton(
+                          tooltip: 'Sao lưu mục đang xem (JSON)',
+                          icon: const Icon(
+                            Icons.ios_share_rounded,
+                            color: ClearTokColors.cyan,
+                          ),
+                          onPressed: () => _backupHistoryItems(list),
+                        ),
+                      ),
                       BouncyTapWrapper(
                         pressedScale: 0.88,
                         onTap: () {},
@@ -323,6 +431,7 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
                           onPressed: _confirmClearCurrentHistory,
                         ),
                       ),
+                    ],
                   ],
                 ),
               ),
@@ -338,7 +447,10 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
                     count: repostDone,
                     color: ClearTokColors.cyan,
                     active: _selectedType == 'repost',
-                    onTap: () => setState(() => _selectedType = 'repost'),
+                    onTap: () => setState(() {
+                      _selectedType = 'repost';
+                      _selectedKeys.clear();
+                    }),
                   ),
                   const SizedBox(width: 8),
                   _buildCounterBadge(
@@ -346,7 +458,10 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
                     count: likeDone,
                     color: ClearTokColors.pink,
                     active: _selectedType == 'unlike',
-                    onTap: () => setState(() => _selectedType = 'unlike'),
+                    onTap: () => setState(() {
+                      _selectedType = 'unlike';
+                      _selectedKeys.clear();
+                    }),
                   ),
                   const SizedBox(width: 8),
                   _buildCounterBadge(
@@ -354,7 +469,10 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
                     count: followDone,
                     color: ClearTokColors.success,
                     active: _selectedType == 'unfollow',
-                    onTap: () => setState(() => _selectedType = 'unfollow'),
+                    onTap: () => setState(() {
+                      _selectedType = 'unfollow';
+                      _selectedKeys.clear();
+                    }),
                   ),
                 ],
               ),
@@ -383,6 +501,7 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
                 onSegmentSelected: (idx) {
                   setState(() {
                     _selectedType = const ['repost', 'unlike', 'unfollow'][idx];
+                    _selectedKeys.clear();
                   });
                 },
               ),
@@ -415,6 +534,151 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
                 onChanged: (v) => setState(() => _searchQuery = v),
               ),
             ),
+
+            // Deep Filter Chips: Time Range + Sort Order
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  _buildFilterChip(
+                    label: 'Tất cả',
+                    active: _timeFilter == 'all',
+                    onTap: () => setState(() => _timeFilter = 'all'),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildFilterChip(
+                    label: 'Hôm nay',
+                    active: _timeFilter == 'today',
+                    onTap: () => setState(() => _timeFilter = 'today'),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildFilterChip(
+                    label: '7 ngày qua',
+                    active: _timeFilter == '7d',
+                    onTap: () => setState(() => _timeFilter = '7d'),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildFilterChip(
+                    label: 'Tháng này',
+                    active: _timeFilter == '30d',
+                    onTap: () => setState(() => _timeFilter = '30d'),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(width: 1, height: 18, color: Colors.white12),
+                  const SizedBox(width: 10),
+                  _buildFilterChip(
+                    label: 'Mới xử lý',
+                    icon: Icons.schedule_rounded,
+                    active: _sortBy == 'recent',
+                    onTap: () => setState(() => _sortBy = 'recent'),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildFilterChip(
+                    label: _selectedType == 'unfollow'
+                        ? 'Nhiều Follow'
+                        : 'Nhiều Like',
+                    icon: Icons.favorite_border_rounded,
+                    active: _sortBy == 'likes',
+                    onTap: () => setState(() => _sortBy = 'likes'),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildFilterChip(
+                    label: 'Theo Kênh',
+                    icon: Icons.alternate_email_rounded,
+                    active: _sortBy == 'author',
+                    onTap: () => setState(() => _sortBy = 'author'),
+                  ),
+                ],
+              ),
+            ),
+
+            // Multi-select Bulk Restore / Remove Bar
+            if (_multiSelectMode && list.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+                child: LiquidGlassContainer(
+                  blur: false,
+                  borderRadius: 18,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(0, 36),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        icon: Icon(
+                          _selectedKeys.length == list.length
+                              ? Icons.deselect_rounded
+                              : Icons.select_all_rounded,
+                          size: 17,
+                          color: ClearTokColors.cyan,
+                        ),
+                        label: Text(
+                          _selectedKeys.length == list.length
+                              ? 'Bỏ chọn'
+                              : 'Chọn hết (${list.length})',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onPressed: () {
+                          LiquidSoundHaptics.tick();
+                          setState(() {
+                            if (_selectedKeys.length == list.length) {
+                              _selectedKeys.clear();
+                            } else {
+                              _selectedKeys
+                                ..clear()
+                                ..addAll(list.map((e) => e.key));
+                            }
+                          });
+                        },
+                      ),
+                      const Spacer(),
+                      if (_selectedKeys.isNotEmpty) ...[
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 36),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                          ),
+                          icon: const Icon(Icons.copy_all_rounded, size: 15),
+                          label: const Text(
+                            'Sao lưu',
+                            style: TextStyle(fontSize: 11.5),
+                          ),
+                          onPressed: () {
+                            final selectedItems = list
+                                .where((e) => _selectedKeys.contains(e.key))
+                                .toList();
+                            _backupHistoryItems(selectedItems);
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(0, 36),
+                            backgroundColor: ClearTokColors.pink,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                          ),
+                          icon: const Icon(Icons.restore_rounded, size: 16),
+                          label: Text(
+                            'Khôi phục (${_selectedKeys.length})',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          onPressed: _bulkRemoveSelected,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
 
             // Content Area
             Expanded(
@@ -475,6 +739,56 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
     );
   }
 
+  Widget _buildFilterChip({
+    required String label,
+    IconData? icon,
+    required bool active,
+    required VoidCallback onTap,
+  }) {
+    return BouncyTapWrapper(
+      pressedScale: 0.91,
+      onTap: onTap,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          decoration: BoxDecoration(
+            color: active
+                ? ClearTokColors.cyan.withValues(alpha: 0.22)
+                : ClearTokColors.surface.withValues(alpha: 0.78),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: active
+                  ? ClearTokColors.cyan.withValues(alpha: 0.65)
+                  : Colors.white.withValues(alpha: 0.14),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(
+                  icon,
+                  size: 13,
+                  color: active ? ClearTokColors.cyan : ClearTokColors.muted,
+                ),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  color: active ? Colors.white : ClearTokColors.secondary,
+                  fontSize: 11.5,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
     final label = _selectedType == 'repost'
         ? 'Chưa có video Repost nào bị hủy.'
@@ -526,13 +840,21 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
       itemCount: items.length,
       itemBuilder: (ctx, idx) {
         final item = items[idx];
+        final isSelected = _selectedKeys.contains(item.key);
         return LiquidGlassContainer(
           key: ValueKey(item.key),
           blur: false,
+          isSelected: isSelected,
           margin: const EdgeInsets.only(bottom: 10),
           borderRadius: 18,
           child: ListTile(
-            onTap: () => _openItemActionsSheet(item),
+            onTap: () {
+              if (_multiSelectMode) {
+                _toggleSelection(item.key);
+              } else {
+                _openItemActionsSheet(item);
+              }
+            },
             onLongPress: () => _openItemActionsSheet(item),
             leading: CircleAvatar(
               backgroundImage: item.coverUrl.isNotEmpty
@@ -566,15 +888,24 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
                 fontSize: 11.5,
               ),
             ),
-            trailing: IconButton(
-              tooltip: 'Mở lại kênh trên TikTok',
-              icon: const Icon(
-                Icons.open_in_new_rounded,
-                color: ClearTokColors.cyan,
-                size: 20,
-              ),
-              onPressed: () => _openItemActionsSheet(item),
-            ),
+            trailing: _multiSelectMode
+                ? Icon(
+                    isSelected
+                        ? Icons.check_circle_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    color: isSelected
+                        ? ClearTokColors.cyan
+                        : ClearTokColors.muted,
+                  )
+                : IconButton(
+                    tooltip: 'Mở lại kênh trên TikTok',
+                    icon: const Icon(
+                      Icons.open_in_new_rounded,
+                      color: ClearTokColors.cyan,
+                      size: 20,
+                    ),
+                    onPressed: () => _openItemActionsSheet(item),
+                  ),
           ),
         );
       },
@@ -599,17 +930,26 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
       itemCount: items.length,
       itemBuilder: (ctx, idx) {
         final item = items[idx];
+        final isSelected = _selectedKeys.contains(item.key);
         return GestureDetector(
           key: ValueKey(item.key),
-          onTap: () => _openItemActionsSheet(item),
+          onTap: () {
+            if (_multiSelectMode) {
+              _toggleSelection(item.key);
+            } else {
+              _openItemActionsSheet(item);
+            }
+          },
           onLongPress: () => _openItemActionsSheet(item),
           child: Container(
             decoration: ShapeDecoration(
               shape: gboxSquircleShape(
                 ClearTokTokens.radius,
                 side: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.16),
-                  width: 1,
+                  color: isSelected
+                      ? ClearTokColors.cyan
+                      : Colors.white.withValues(alpha: 0.16),
+                  width: isSelected ? 1.8 : 1.0,
                 ),
               ),
             ),
@@ -657,6 +997,27 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
                       ),
                     ),
                   ),
+                  if (_multiSelectMode)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? ClearTokColors.cyan
+                              : Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isSelected
+                              ? Icons.check_rounded
+                              : Icons.circle_outlined,
+                          size: 15,
+                          color: isSelected ? Colors.black : Colors.white70,
+                        ),
+                      ),
+                    ),
                   Positioned(
                     top: 8,
                     right: 8,

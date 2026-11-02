@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:intl/intl.dart';
+import '../database/local_database.dart';
+import '../models/tiktok_follow_user.dart';
 import '../models/tiktok_video.dart';
 
 class AuthorStat {
@@ -76,33 +78,124 @@ class StudioAnalytics {
 class ExportAnalyticsService {
   static String exportToCsv(List<TikTokVideo> videos) {
     final buffer = StringBuffer();
-    buffer.writeln('Video ID,Author Username,Author Nickname,Likes,Repost Timestamp,Cover URL,Description');
+    buffer.writeln(
+      'Video ID,Author Username,Author Nickname,Likes,Repost Timestamp,TikTok URL,Cover URL,Description',
+    );
 
     final df = DateFormat('yyyy-MM-dd HH:mm:ss');
 
     for (final v in videos) {
-      final safeDesc = '"${v.description.replaceAll('"', '""').replaceAll('\n', ' ')}"';
+      final safeDesc =
+          '"${v.description.replaceAll('"', '""').replaceAll('\n', ' ')}"';
       final safeNick = '"${v.authorNickname.replaceAll('"', '""')}"';
       final timeStr = df.format(v.repostDateTime);
+      final cleanAuthor = v.authorUsername.replaceFirst(RegExp(r'^@'), '');
+      final tiktokUrl = cleanAuthor.isNotEmpty
+          ? 'https://www.tiktok.com/@$cleanAuthor/video/${v.id}'
+          : 'https://www.tiktok.com/video/${v.id}';
 
-      buffer.writeln('${v.id},${v.authorUsername},$safeNick,${v.diggCount},$timeStr,${v.coverUrl},$safeDesc');
+      buffer.writeln(
+        '${v.id},${v.authorUsername},$safeNick,${v.diggCount},$timeStr,$tiktokUrl,${v.coverUrl},$safeDesc',
+      );
     }
 
     return buffer.toString();
   }
 
   static String exportToJson(List<TikTokVideo> videos) {
-    final list = videos.map((v) => {
-      'id': v.id,
-      'authorUsername': v.authorUsername,
-      'authorNickname': v.authorNickname,
-      'diggCount': v.diggCount,
-      'repostTimestamp': v.repostDateTime.toIso8601String(),
-      'coverUrl': v.coverUrl,
-      'description': v.description,
+    final list = videos.map((v) {
+      final cleanAuthor = v.authorUsername.replaceFirst(RegExp(r'^@'), '');
+      final tiktokUrl = cleanAuthor.isNotEmpty
+          ? 'https://www.tiktok.com/@$cleanAuthor/video/${v.id}'
+          : 'https://www.tiktok.com/video/${v.id}';
+      return {
+        'id': v.id,
+        'authorUsername': v.authorUsername,
+        'authorNickname': v.authorNickname,
+        'diggCount': v.diggCount,
+        'repostTimestamp': v.repostDateTime.toIso8601String(),
+        'tiktokUrl': tiktokUrl,
+        'coverUrl': v.coverUrl,
+        'description': v.description,
+      };
     }).toList();
 
     const encoder = JsonEncoder.withIndent('  ');
     return encoder.convert(list);
+  }
+
+  static String exportFollowingToCsv(List<TikTokFollowUser> users) {
+    final buffer = StringBuffer();
+    buffer.writeln(
+      'User ID,Username,Nickname,Followers,Following,TikTok Profile URL,Bio',
+    );
+    for (final u in users) {
+      final safeNick = '"${u.nickname.replaceAll('"', '""')}"';
+      final safeBio = '"${u.bio.replaceAll('"', '""').replaceAll('\n', ' ')}"';
+      final profileUrl = 'https://www.tiktok.com/@${u.uniqueId}';
+      buffer.writeln(
+        '${u.id},${u.uniqueId},$safeNick,${u.followerCount},${u.followingCount},$profileUrl,$safeBio',
+      );
+    }
+    return buffer.toString();
+  }
+
+  static String exportFollowingToJson(List<TikTokFollowUser> users) {
+    final list = users
+        .map(
+          (u) => {
+            'id': u.id,
+            'uniqueId': u.uniqueId,
+            'nickname': u.nickname,
+            'followerCount': u.followerCount,
+            'followingCount': u.followingCount,
+            'profileUrl': 'https://www.tiktok.com/@${u.uniqueId}',
+            'bio': u.bio,
+          },
+        )
+        .toList();
+    return const JsonEncoder.withIndent('  ').convert(list);
+  }
+
+  static String exportHistoryToCsv(List<ProcessedHistoryItem> items) {
+    final buffer = StringBuffer();
+    buffer.writeln(
+      'Type,ID,Author Username,Author Nickname,Likes/Followers,Processed Time,TikTok URL,Description',
+    );
+    final df = DateFormat('yyyy-MM-dd HH:mm:ss');
+    for (final item in items) {
+      final safeNick = '"${item.authorNickname.replaceAll('"', '""')}"';
+      final safeDesc =
+          '"${item.description.replaceAll('"', '""').replaceAll('\n', ' ')}"';
+      final timeStr = item.processedAt > 0
+          ? df.format(DateTime.fromMillisecondsSinceEpoch(item.processedAt))
+          : '';
+      buffer.writeln(
+        '${item.type},${item.id},${item.authorUsername},$safeNick,${item.diggCount},$timeStr,${item.tiktokUrl},$safeDesc',
+      );
+    }
+    return buffer.toString();
+  }
+
+  static String exportHistoryToJson(List<ProcessedHistoryItem> items) {
+    final list = items
+        .map(
+          (item) => {
+            'type': item.type,
+            'id': item.id,
+            'authorUsername': item.authorUsername,
+            'authorNickname': item.authorNickname,
+            'diggCount': item.diggCount,
+            'processedAt': item.processedAt > 0
+                ? DateTime.fromMillisecondsSinceEpoch(
+                    item.processedAt,
+                  ).toIso8601String()
+                : null,
+            'tiktokUrl': item.tiktokUrl,
+            'description': item.description,
+          },
+        )
+        .toList();
+    return const JsonEncoder.withIndent('  ').convert(list);
   }
 }

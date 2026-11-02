@@ -11,6 +11,7 @@ void main() async {
   await Hive.initFlutter();
   final database = LocalDatabase();
   await database.init();
+  LiquidSoundHaptics.enabled = database.soundEffectsEnabled;
 
   final remoteConfig = RemotePayloadConfig();
   await remoteConfig.syncConfig();

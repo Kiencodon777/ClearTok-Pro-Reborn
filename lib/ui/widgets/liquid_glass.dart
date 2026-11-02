@@ -228,7 +228,51 @@ class AmbientBackground extends StatelessWidget {
   );
 }
 
-/// Reusable iOS Spring Bounce wrapper for pills, chips, and action buttons.
+/// Native iOS Audio + Haptic Water-Droplet Click Feedback Engine
+class LiquidSoundHaptics {
+  static bool enabled = true;
+  static int _lastClickMs = 0;
+
+  /// Subtle water-droplet tick when sliding across dock tabs or segment boundaries
+  static void tick() {
+    HapticFeedback.selectionClick();
+    if (!enabled) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastClickMs < 48) return;
+    _lastClickMs = now;
+    SystemSound.play(SystemSoundType.click);
+  }
+
+  /// Crisp tactile pop when pressing or releasing a liquid glass pill/button
+  static void tapPop() {
+    HapticFeedback.lightImpact();
+    if (!enabled) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastClickMs < 55) return;
+    _lastClickMs = now;
+    SystemSound.play(SystemSoundType.click);
+  }
+}
+
+/// 2D Constant-Volume Jelly Physics (inspired by sdegenaar/liquid_glass_widgets `glass_spring.dart`).
+/// Preserves 2D area (`scaleX * scaleY ≈ 1`) so pressing or flinging a glass element
+/// squashes one axis while bulging the perpendicular axis like real elastic jelly.
+class JellyPhysics {
+  /// Converts a 1D spring scale `s` (where `< 1.0` is compressed, `> 1.0` is stretched)
+  /// into a constant-volume 2D `(scaleX, scaleY)` pair.
+  static (double, double) constantVolumeScale(
+    double primaryScale, {
+    double elasticity = 0.52,
+  }) {
+    final clamped = primaryScale.clamp(0.78, 1.22).toDouble();
+    final delta = clamped - 1.0;
+    final scaleY = (1.0 + delta).clamp(0.80, 1.20).toDouble();
+    final scaleX = (1.0 - delta * elasticity).clamp(0.84, 1.18).toDouble();
+    return (scaleX, scaleY);
+  }
+}
+
+/// Reusable iOS 26/27 Jelly Spring Bounce wrapper for pills, chips, and action buttons.
 class BouncyTapWrapper extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
@@ -249,10 +293,11 @@ class _BouncyTapWrapperState extends State<BouncyTapWrapper>
     with SingleTickerProviderStateMixin {
   late final AnimationController _scaleController;
 
+  // Underdamped jelly spring (matches sdegenaar/liquid_glass_widgets organic jelly feel)
   static const _releaseSpring = SpringDescription(
     mass: 1.0,
-    stiffness: 420.0,
-    damping: 18.0,
+    stiffness: 440.0,
+    damping: 14.5,
   );
 
   @override
@@ -268,22 +313,22 @@ class _BouncyTapWrapperState extends State<BouncyTapWrapper>
     if (widget.onTap == null) return;
     _scaleController.animateTo(
       widget.pressedScale,
-      duration: const Duration(milliseconds: 85),
-      curve: Curves.easeOutQuad,
+      duration: const Duration(milliseconds: 80),
+      curve: Curves.easeOutCubic,
     );
   }
 
   void _onRelease({bool triggered = false}) {
     if (widget.onTap == null) return;
     if (triggered) {
-      HapticFeedback.lightImpact();
+      LiquidSoundHaptics.tapPop();
     }
     final sim = SpringSimulation(
       _releaseSpring,
       _scaleController.value,
       1.0,
-      triggered ? 2.2 : 1.0,
-      tolerance: const Tolerance(distance: 0.002, velocity: 0.01),
+      triggered ? 2.65 : 1.1,
+      tolerance: const Tolerance(distance: 0.0015, velocity: 0.008),
     );
     _scaleController.animateWith(sim);
   }
@@ -302,10 +347,18 @@ class _BouncyTapWrapperState extends State<BouncyTapWrapper>
       onPointerCancel: (_) => _onRelease(triggered: false),
       child: AnimatedBuilder(
         animation: _scaleController,
-        builder: (context, child) => Transform.scale(
-          scale: _scaleController.value.clamp(0.84, 1.12).toDouble(),
-          child: child,
-        ),
+        builder: (context, child) {
+          final (scaleX, scaleY) = JellyPhysics.constantVolumeScale(
+            _scaleController.value,
+            elasticity: 0.46,
+          );
+          return Transform.scale(
+            scaleX: scaleX,
+            scaleY: scaleY,
+            alignment: Alignment.center,
+            child: child,
+          );
+        },
         child: widget.child,
       ),
     );
@@ -502,7 +555,8 @@ class _WaterDropletPillPainter extends CustomPainter {
 
     final rawPos = position.value;
     final swell = lensSwell.value.clamp(0.0, 1.45).toDouble();
-    final vel = getSmoothedVelocity().abs().clamp(0.0, 1.5).toDouble();
+    final signedVel = getSmoothedVelocity().clamp(-1.5, 1.5).toDouble();
+    final vel = signedVel.abs();
 
     // Elastic edge overshoot at Left (< 0) and Right (> maxIdx)
     double edgeOvershoot = 0.0;
@@ -520,19 +574,23 @@ class _WaterDropletPillPainter extends CustomPainter {
         .clamp(0.0, 1.0)
         .toDouble();
 
-    // GBox magnifying water droplet expansion:
-    // When active, the pill swells wider AND taller than the dock itself!
+    // 2D Constant-Volume Jelly Physics + GBox Magnifying Water Droplet Expansion:
+    // - In horizontal flight (`vel > 0`): stretches horizontally (`+vel * 0.24`) while slightly
+    //   streamlining vertically (`-vel * 0.08`) like a flying liquid droplet!
+    // - On edge impact (`edgeOvershoot > 0`): squashes horizontally (`-edgeOvershoot * 0.24`)
+    //   and bulges vertically (`+edgeOvershoot * 7.5px`)!
     final widthStretch =
-        (swell * 0.16) + (vel * 0.18) - (edgeOvershoot * 0.18);
+        (swell * 0.16) + (vel * 0.24) - (edgeOvershoot * 0.24);
     final pillW = (itemWidth * (1.0 + widthStretch))
-        .clamp(itemWidth * 0.80, size.width * 0.94)
+        .clamp(itemWidth * 0.78, size.width * 0.94)
         .toDouble();
 
     final targetExpandedH =
         lerpDouble(baseHeight, maxExpandedHeight, opticalEnergy)! +
-        (edgeOvershoot * 6.0);
+        (edgeOvershoot * 7.5) -
+        (vel * 3.2);
     final pillH = targetExpandedH
-        .clamp(baseHeight * 0.88, maxExpandedHeight + 4.0)
+        .clamp(baseHeight * 0.86, maxExpandedHeight + 5.0)
         .toDouble();
 
     final centerX = (displayPos + 0.5) * itemWidth;
@@ -543,6 +601,17 @@ class _WaterDropletPillPainter extends CustomPainter {
 
     final rect = Rect.fromLTWH(left, top, pillW, pillH);
     final rrect = RRect.fromRectAndRadius(rect, Radius.circular(pillH / 2));
+
+    // Apply subtle 2D Jelly Velocity Skew around the droplet's center
+    final jellySkewX = (signedVel * 0.045).clamp(-0.06, 0.06).toDouble();
+    canvas.save();
+    if (jellySkewX.abs() > 0.001) {
+      final cx = rect.center.dx;
+      final cy = rect.center.dy;
+      canvas.translate(cx, cy);
+      canvas.skew(jellySkewX, 0.0);
+      canvas.translate(-cx, -cy);
+    }
 
     // 1. Deep optical drop shadow under the protruding water lens
     final shadowPaint = Paint()
@@ -651,6 +720,7 @@ class _WaterDropletPillPainter extends CustomPainter {
         ],
       ).createShader(rect);
     canvas.drawRRect(rrect.deflate(0.5), borderPaint);
+    canvas.restore();
   }
 
   @override
@@ -824,7 +894,7 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
     _controller.stop();
     _dockRecoilController.stop();
     _smoothedVelocity = 0.0;
-    HapticFeedback.selectionClick();
+    LiquidSoundHaptics.tick();
     _swellUp();
   }
 
@@ -833,6 +903,7 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
     final delta = details.primaryDelta ?? 0.0;
     final step = delta / itemWidth;
     final maxIdx = (widget.items.length - 1).toDouble();
+    final prevSlot = _controller.value.round();
 
     _smoothedVelocity = (_smoothedVelocity * 0.78 + (step * 8.0) * 0.22)
         .clamp(-1.2, 1.2)
@@ -847,6 +918,10 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
           .toDouble();
     }
     _controller.value = next;
+    final nextSlot = next.round().clamp(0, widget.items.length - 1);
+    if (nextSlot != prevSlot) {
+      LiquidSoundHaptics.tick();
+    }
 
     // Coupled horizontal sway & elastic stretch of the entire dock while dragging!
     final nextRecoil = (_dockRecoilController.value * 0.82 + step * 1.35)
@@ -866,7 +941,7 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
       nextIndex = (vx > 0 ? _controller.value.ceil() : _controller.value.floor())
           .clamp(0, maxIdx);
     }
-    HapticFeedback.lightImpact();
+    LiquidSoundHaptics.tapPop();
     _animateToIndex(
       nextIndex,
       dragVelocity: vx.clamp(-5.5, 5.5).toDouble(),
@@ -1232,13 +1307,14 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
                   _controller.stop();
                   _barRecoilController.stop();
                   _smoothedVelocity = 0.0;
-                  HapticFeedback.selectionClick();
+                  LiquidSoundHaptics.tick();
                   _swellUp();
                 },
                 onHorizontalDragUpdate: (d) {
                   if (itemWidth <= 0) return;
                   final step = (d.primaryDelta ?? 0.0) / itemWidth;
                   final maxIdx = (count - 1).toDouble();
+                  final prevSlot = _controller.value.round();
                   _smoothedVelocity =
                       (_smoothedVelocity * 0.78 + (step * 8.0) * 0.22)
                           .clamp(-1.2, 1.2)
@@ -1254,6 +1330,10 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
                         .toDouble();
                   }
                   _controller.value = next;
+                  final nextSlot = next.round().clamp(0, count - 1);
+                  if (nextSlot != prevSlot) {
+                    LiquidSoundHaptics.tick();
+                  }
                   _barRecoilController.value =
                       (_barRecoilController.value * 0.82 + step * 1.2)
                           .clamp(-0.55, 0.55)
@@ -1272,7 +1352,7 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
                             : _controller.value.floor())
                         .clamp(0, maxIdx);
                   }
-                  HapticFeedback.lightImpact();
+                  LiquidSoundHaptics.tapPop();
                   _animateToIndex(
                     nextIdx,
                     dragVelocity: vx.clamp(-5.0, 5.0).toDouble(),

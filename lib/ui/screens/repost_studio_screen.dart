@@ -457,6 +457,63 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: ClearTokColors.cyan,
+                  side: BorderSide(
+                    color: ClearTokColors.cyan.withValues(alpha: 0.45),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.backup_rounded, size: 17),
+                label: Text(
+                  _currentHub == 'unfollow'
+                      ? 'Sao lưu $selectedCount kênh này (JSON) trước khi hủy'
+                      : (_currentHub == 'unlike'
+                            ? 'Sao lưu $selectedCount video đã thích trước khi bỏ thích'
+                            : 'Sao lưu $selectedCount video Repost trước khi xóa'),
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onPressed: () {
+                  if (_currentHub == 'unfollow') {
+                    final selectedUsers = _followingUsers
+                        .where((u) => _selectedIds.contains(u.id))
+                        .toList();
+                    final jsonStr =
+                        ExportAnalyticsService.exportFollowingToJson(
+                          selectedUsers,
+                        );
+                    Clipboard.setData(ClipboardData(text: jsonStr));
+                    _showSnack(
+                      'Đã sao lưu ${selectedUsers.length} kênh vào bộ nhớ tạm (JSON kèm link TikTok)!',
+                    );
+                  } else {
+                    final selectedVideos = _videos
+                        .where((v) => _selectedIds.contains(v.id))
+                        .toList();
+                    final jsonStr = ExportAnalyticsService.exportToJson(
+                      selectedVideos,
+                    );
+                    Clipboard.setData(ClipboardData(text: jsonStr));
+                    _showSnack(
+                      'Đã sao lưu ${selectedVideos.length} video kỷ niệm vào bộ nhớ tạm (JSON kèm link TikTok)!',
+                    );
+                  }
+                },
+              ),
+            ),
           ],
         ),
         actions: [
@@ -1029,6 +1086,14 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   }
 
   void _showExportModal() {
+    final isFollow = _currentHub == 'unfollow';
+    final totalCount = isFollow ? _followingUsers.length : _videos.length;
+    final hubTitle = _currentHub == 'unfollow'
+        ? 'danh sách đang Follow'
+        : (_currentHub == 'unlike'
+              ? 'danh sách video Đã Thích'
+              : 'danh sách video Repost');
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1048,9 +1113,12 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                 Icons.file_download_outlined,
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Lưu trữ danh sách video về máy trước khi thao tác hàng loạt.',
-                style: TextStyle(color: ClearTokColors.secondary, fontSize: 13),
+              Text(
+                'Sao lưu toàn bộ $totalCount mục trong $hubTitle (kèm link TikTok gốc) về bộ nhớ tạm trước khi thao tác hàng loạt.',
+                style: const TextStyle(
+                  color: ClearTokColors.secondary,
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 20),
               Row(
@@ -1071,13 +1139,17 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                         Icons.table_chart_rounded,
                         color: ClearTokColors.cyan,
                       ),
-                      label: const Text('Copy CSV'),
+                      label: const Text('Sao lưu CSV'),
                       onPressed: () {
-                        final csv = ExportAnalyticsService.exportToCsv(_videos);
+                        final csv = isFollow
+                            ? ExportAnalyticsService.exportFollowingToCsv(
+                                _followingUsers,
+                              )
+                            : ExportAnalyticsService.exportToCsv(_videos);
                         Clipboard.setData(ClipboardData(text: csv));
                         Navigator.pop(ctx);
                         _showSnack(
-                          'Đã copy toàn bộ ${_videos.length} video dạng CSV!',
+                          'Đã sao lưu $totalCount mục ($hubTitle) dạng CSV!',
                         );
                       },
                     ),
@@ -1096,15 +1168,17 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                         ),
                       ),
                       icon: const Icon(Icons.data_object_rounded),
-                      label: const Text('Copy JSON'),
+                      label: const Text('Sao lưu JSON'),
                       onPressed: () {
-                        final jsonStr = ExportAnalyticsService.exportToJson(
-                          _videos,
-                        );
+                        final jsonStr = isFollow
+                            ? ExportAnalyticsService.exportFollowingToJson(
+                                _followingUsers,
+                              )
+                            : ExportAnalyticsService.exportToJson(_videos);
                         Clipboard.setData(ClipboardData(text: jsonStr));
                         Navigator.pop(ctx);
                         _showSnack(
-                          'Đã copy toàn bộ ${_videos.length} video dạng JSON!',
+                          'Đã sao lưu $totalCount mục ($hubTitle) dạng JSON!',
                         );
                       },
                     ),
@@ -1124,6 +1198,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     bool pulseJitter = widget.database.pulseJitterEnabled;
     int deepBatch = widget.database.deepRestBatchCount;
     int deepSec = widget.database.deepRestDurationSec;
+    bool soundEnabled = widget.database.soundEffectsEnabled;
 
     showModalBottomSheet(
       context: context,
@@ -1255,6 +1330,31 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                     ),
                   ),
                 ],
+                const Divider(color: Colors.white10),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  activeThumbColor: ClearTokColors.cyan,
+                  title: const Text(
+                    'Âm thanh giọt nước & Rung phản hồi iOS',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  subtitle: const Text(
+                    'Phát tiếng click êm dịu khi trượt thanh Dock & bấm nút',
+                    style: TextStyle(color: ClearTokColors.muted, fontSize: 11),
+                  ),
+                  value: soundEnabled,
+                  onChanged: (val) {
+                    setModalState(() => soundEnabled = val);
+                    LiquidSoundHaptics.enabled = val;
+                    widget.database.setSoundEffectsEnabled(val);
+                    if (val) LiquidSoundHaptics.tapPop();
+                    setState(() {});
+                  },
+                ),
                 const SizedBox(height: 16),
               ],
             ),

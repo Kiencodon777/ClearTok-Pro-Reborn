@@ -285,6 +285,10 @@ class LocalDatabase {
     await _historyBox?.delete(key);
   }
 
+  Future<void> removeProcessedHistoryEntries(Iterable<String> keys) async {
+    await _historyBox?.deleteAll(keys);
+  }
+
   Future<void> clearProcessedHistory({String? type}) async {
     final box = _historyBox;
     if (box == null) return;
@@ -300,6 +304,14 @@ class LocalDatabase {
         .toList();
     await box.deleteAll(keysToRemove);
   }
+
+  // ─── Audio & Haptic Feedback Settings ─────────────────────────────────────
+  bool get soundEffectsEnabled =>
+      (_settingsBox?.get('sound_effects_enabled', defaultValue: true)
+          as bool?) ??
+      true;
+  Future<void> setSoundEffectsEnabled(bool enabled) async =>
+      await _settingsBox?.put('sound_effects_enabled', enabled);
 
   // ─── Scan Batch Limit Settings ────────────────────────────────────────────
   int get scanBatchLimit =>
