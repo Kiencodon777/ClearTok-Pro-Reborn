@@ -12,6 +12,7 @@ class DiagnosticLogScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Log chẩn đoán'),
         flexibleSpace: const LiquidGlassContainer(
+          blur: false,
           borderRadius: 0,
           child: SizedBox.expand(),
         ),

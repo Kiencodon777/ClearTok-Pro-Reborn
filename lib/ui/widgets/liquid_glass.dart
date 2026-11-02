@@ -48,14 +48,14 @@ class ClearTokTokens {
 ShapeBorder gboxSquircleShape(
   double radius, {
   BorderSide side = BorderSide.none,
-}) => ContinuousRectangleBorder(
-  borderRadius: BorderRadius.circular(radius * 2.15),
+}) => RoundedRectangleBorder(
+  borderRadius: BorderRadius.circular(radius),
   side: side,
 );
 
 ThemeData clearTokTheme() {
-  final shape = gboxSquircleShape(
-    ClearTokTokens.radius,
+  final shape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(ClearTokTokens.radius),
     side: const BorderSide(
       color: ClearTokColors.border,
       width: ClearTokTokens.borderWidth,
@@ -98,7 +98,9 @@ ThemeData clearTokTheme() {
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: shape as OutlinedBorder,
+        shape: const StadiumBorder(
+          side: BorderSide(color: Colors.white24, width: 0.8),
+        ),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
@@ -125,9 +127,9 @@ ThemeData clearTokTheme() {
     bottomSheetTheme: const BottomSheetThemeData(
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
-      shape: ContinuousRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(ClearTokTokens.largeRadius * 2.15),
+          top: Radius.circular(ClearTokTokens.largeRadius),
         ),
       ),
     ),
@@ -141,7 +143,7 @@ ThemeData clearTokTheme() {
       backgroundColor: ClearTokColors.surface.withValues(alpha: .8),
       selectedColor: ClearTokColors.pink.withValues(alpha: .18),
       side: const BorderSide(color: ClearTokColors.border),
-      shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(36)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       labelStyle: ClearTokTokens.caption,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
     ),
@@ -184,15 +186,17 @@ class AmbientBackground extends StatelessWidget {
       ),
       Positioned.fill(
         child: IgnorePointer(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.topRight,
-                radius: 1.1,
-                colors: [
-                  ClearTokColors.pink.withValues(alpha: .20),
-                  Colors.transparent,
-                ],
+          child: RepaintBoundary(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.topRight,
+                  radius: 1.1,
+                  colors: [
+                    ClearTokColors.pink.withValues(alpha: .18),
+                    Colors.transparent,
+                  ],
+                ),
               ),
             ),
           ),
@@ -200,15 +204,17 @@ class AmbientBackground extends StatelessWidget {
       ),
       Positioned.fill(
         child: IgnorePointer(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.bottomLeft,
-                radius: 1.1,
-                colors: [
-                  ClearTokColors.cyan.withValues(alpha: .16),
-                  Colors.transparent,
-                ],
+          child: RepaintBoundary(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.bottomLeft,
+                  radius: 1.1,
+                  colors: [
+                    ClearTokColors.cyan.withValues(alpha: .14),
+                    Colors.transparent,
+                  ],
+                ),
               ),
             ),
           ),
@@ -243,21 +249,11 @@ class LiquidGlassContainer extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(borderRadius);
     final media = MediaQuery.of(context);
-    final borderShape = gboxSquircleShape(
-      borderRadius,
-      side: BorderSide(
-        color: isSelected
-            ? ClearTokColors.pink
-            : Colors.white.withValues(alpha: .18),
-        width: isSelected ? 1.1 : .8,
-      ),
-    );
     final content = Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: radius,
-        customBorder: borderShape,
         splashColor: ClearTokColors.cyan.withValues(alpha: .10),
         child: Container(
           padding: padding,
@@ -271,14 +267,14 @@ class LiquidGlassContainer extends StatelessWidget {
     if (!blur || media.highContrast) {
       return Container(
         margin: margin,
-        decoration: ShapeDecoration(
+        decoration: BoxDecoration(
           color: ClearTokColors.surface,
-          shape: gboxSquircleShape(
-            borderRadius,
-            side: BorderSide(
-              color: isSelected ? ClearTokColors.pink : ClearTokColors.border,
-              width: .8,
-            ),
+          borderRadius: radius,
+          border: Border.all(
+            color: isSelected
+                ? ClearTokColors.pink
+                : Colors.white.withValues(alpha: .14),
+            width: isSelected ? 1.1 : .8,
           ),
         ),
         child: content,
@@ -288,31 +284,37 @@ class LiquidGlassContainer extends StatelessWidget {
       padding: margin ?? EdgeInsets.zero,
       child: RepaintBoundary(
         child: DecoratedBox(
-          decoration: ShapeDecoration(
-            shape: gboxSquircleShape(borderRadius),
-            shadows: [
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: .35),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
+                color: Colors.black.withValues(alpha: .28),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
-          child: ClipPath(
-            clipper: ShapeBorderClipper(shape: gboxSquircleShape(borderRadius)),
+          child: ClipRRect(
+            borderRadius: radius,
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
               child: DecoratedBox(
-                decoration: ShapeDecoration(
-                  shape: borderShape,
+                decoration: BoxDecoration(
+                  borderRadius: radius,
+                  border: Border.all(
+                    color: isSelected
+                        ? ClearTokColors.pink
+                        : Colors.white.withValues(alpha: .20),
+                    width: isSelected ? 1.1 : .8,
+                  ),
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    stops: const [0.0, 0.35, 1.0],
+                    stops: const [0.0, 0.38, 1.0],
                     colors: [
                       Colors.white.withValues(alpha: .14),
-                      ClearTokColors.dockGlass.withValues(alpha: .62),
-                      ClearTokColors.dockGlass.withValues(alpha: .76),
+                      ClearTokColors.dockGlass.withValues(alpha: .58),
+                      ClearTokColors.dockGlass.withValues(alpha: .72),
                     ],
                   ),
                 ),
@@ -328,53 +330,180 @@ class LiquidGlassContainer extends StatelessWidget {
 
 class _StaticPillGlassBackdrop extends StatelessWidget {
   final double borderRadius;
-  const _StaticPillGlassBackdrop({required this.borderRadius});
+  final bool blur;
+  const _StaticPillGlassBackdrop({
+    required this.borderRadius,
+    this.blur = true,
+  });
 
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(borderRadius);
+    final box = DecoratedBox(
+      decoration: BoxDecoration(
+        color: ClearTokColors.dockGlass.withValues(alpha: 0.52),
+        borderRadius: radius,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.20),
+          width: 0.8,
+        ),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          stops: const [0.0, 0.42, 1.0],
+          colors: [
+            Colors.white.withValues(alpha: 0.14),
+            ClearTokColors.dockGlass.withValues(alpha: 0.50),
+            ClearTokColors.dockGlass.withValues(alpha: 0.68),
+          ],
+        ),
+      ),
+      child: const SizedBox.expand(),
+    );
+    if (!blur) return RepaintBoundary(child: box);
     return RepaintBoundary(
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: radius,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 24,
-              offset: const Offset(0, 10),
+              color: Colors.black.withValues(alpha: 0.34),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
         child: ClipRRect(
           borderRadius: radius,
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: ClearTokColors.dockGlass.withValues(alpha: 0.55),
-                borderRadius: radius,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  width: 0.8,
-                ),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: const [0.0, 0.45, 1.0],
-                  colors: [
-                    Colors.white.withValues(alpha: 0.14),
-                    ClearTokColors.dockGlass.withValues(alpha: 0.55),
-                    ClearTokColors.dockGlass.withValues(alpha: 0.68),
-                  ],
-                ),
-              ),
-              child: const SizedBox.expand(),
-            ),
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: box,
           ),
         ),
       ),
     );
   }
+}
+
+/// Crystal-clear water droplet painter that runs directly on the GPU canvas
+/// via `super(repaint: controller)` without rebuilding any Widget tree!
+class _WaterDropletPillPainter extends CustomPainter {
+  final Animation<double> position;
+  final int itemCount;
+  final double baseHeight;
+  final double Function() getStartPos;
+  final double Function() getTargetPos;
+  final double Function() getDragVelocity;
+  final bool Function() getIsDragging;
+
+  _WaterDropletPillPainter({
+    required this.position,
+    required this.itemCount,
+    required this.baseHeight,
+    required this.getStartPos,
+    required this.getTargetPos,
+    required this.getDragVelocity,
+    required this.getIsDragging,
+  }) : super(repaint: position);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (itemCount <= 0 || size.width <= 0) return;
+    final itemWidth = size.width / itemCount;
+    final maxIdx = math.max(0, itemCount - 1).toDouble();
+    final pos = position.value.clamp(0.0, maxIdx).toDouble();
+    final startPos = getStartPos();
+    final targetPos = getTargetPos();
+    final isDragging = getIsDragging();
+    final travel = (targetPos - startPos).abs();
+
+    double flightStretch = 0.0;
+    if (!isDragging && travel > 0.02) {
+      final t = ((pos - startPos) / (targetPos - startPos))
+          .clamp(0.0, 1.0)
+          .toDouble();
+      flightStretch = math.sin(t * math.pi) * (travel.clamp(0.5, 1.8) * 0.36);
+    }
+    final dragStretch = isDragging
+        ? (getDragVelocity().abs() * 0.32).clamp(0.0, 0.38).toDouble()
+        : 0.0;
+    final stretch = math.max(flightStretch, dragStretch);
+
+    final pillW = itemWidth * (1.0 + stretch);
+    final pillH = baseHeight * (1.0 - stretch * 0.09);
+    final centerX = (pos + 0.5) * itemWidth;
+    final left = (centerX - pillW / 2)
+        .clamp(0.0, math.max(0.0, size.width - pillW))
+        .toDouble();
+    final top = (size.height - pillH) / 2;
+
+    final rect = Rect.fromLTWH(left, top, pillW, pillH);
+    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(pillH / 2));
+
+    // 1. Subtle caustic water shadow under the droplet
+    final shadowPaint = Paint()
+      ..color = ClearTokColors.neonCyan.withValues(alpha: 0.12)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    canvas.drawRRect(rrect.shift(const Offset(0, 2)), shadowPaint);
+
+    // 2. Crystal-clear water droplet body (transparent center, refractive edges)
+    final bodyPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        stops: const [0.0, 0.26, 0.68, 1.0],
+        colors: [
+          Colors.white.withValues(alpha: 0.28),
+          Colors.white.withValues(alpha: 0.06),
+          Colors.white.withValues(alpha: 0.03),
+          ClearTokColors.neonCyan.withValues(alpha: 0.14),
+        ],
+      ).createShader(rect);
+    canvas.drawRRect(rrect, bodyPaint);
+
+    // 3. Top meniscus specular highlight (vầng sáng khúc xạ đỉnh giọt nước)
+    final glossRect = Rect.fromLTWH(
+      left + pillW * 0.10,
+      top + 1.5,
+      pillW * 0.80,
+      pillH * 0.36,
+    );
+    final glossRRect = RRect.fromRectAndRadius(
+      glossRect,
+      Radius.circular(pillH * 0.20),
+    );
+    final glossPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.white.withValues(alpha: 0.34),
+          Colors.white.withValues(alpha: 0.0),
+        ],
+      ).createShader(glossRect);
+    canvas.drawRRect(glossRRect, glossPaint);
+
+    // 4. Crisp water surface tension rim (viền căng bề mặt giọt nước)
+    final borderPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        stops: const [0.0, 0.5, 1.0],
+        colors: [
+          Colors.white.withValues(alpha: 0.58),
+          Colors.white.withValues(alpha: 0.18),
+          ClearTokColors.neonCyan.withValues(alpha: 0.42),
+        ],
+      ).createShader(rect);
+    canvas.drawRRect(rrect.deflate(0.5), borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _WaterDropletPillPainter oldDelegate) =>
+      oldDelegate.itemCount != itemCount ||
+      oldDelegate.baseHeight != baseHeight;
 }
 
 class GBoxDockItem {
@@ -417,8 +546,8 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
 
   static const _spring = SpringDescription(
     mass: 1.0,
-    stiffness: 340.0,
-    damping: 25.0,
+    stiffness: 360.0,
+    damping: 26.0,
   );
 
   @override
@@ -465,8 +594,8 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
     final delta = details.primaryDelta ?? 0.0;
     final step = delta / itemWidth;
     final maxIdx = (widget.items.length - 1).toDouble();
-    _dragVelocity = (step * 14.0).clamp(-1.5, 1.5);
-    _controller.value = (_controller.value + step).clamp(0.0, maxIdx);
+    _dragVelocity = (step * 14.0).clamp(-1.5, 1.5).toDouble();
+    _controller.value = (_controller.value + step).clamp(0.0, maxIdx).toDouble();
   }
 
   void _handleDragEnd(DragEndDetails details, double itemWidth) {
@@ -480,7 +609,7 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
       nextIndex = (vx > 0 ? _controller.value.ceil() : _controller.value.floor())
           .clamp(0, maxIdx);
     }
-    _animateTo(nextIndex.toDouble(), velocity: vx.clamp(-6.0, 6.0));
+    _animateTo(nextIndex.toDouble(), velocity: vx.clamp(-6.0, 6.0).toDouble());
     if (nextIndex != widget.selectedIndex) {
       widget.onTabSelected(nextIndex);
     }
@@ -514,181 +643,97 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Layer 1: Static Frosted Liquid Glass Background (never rebuilds on animation)
+                    // Layer 1: Static Frosted Liquid Glass Background
                     const Positioned.fill(
                       child: _StaticPillGlassBackdrop(borderRadius: 31),
                     ),
 
-                    // Layer 2: Dynamic Liquid Stretch Sliding Pill + Icons
+                    // Layer 2: GPU CustomPainter Water Droplet Pill (Zero widget rebuild!)
+                    Positioned.fill(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: padH,
+                          vertical: 5,
+                        ),
+                        child: RepaintBoundary(
+                          child: CustomPaint(
+                            painter: _WaterDropletPillPainter(
+                              position: _controller,
+                              itemCount: count,
+                              baseHeight: 52,
+                              getStartPos: () => _startPos,
+                              getTargetPos: () => _targetPos,
+                              getDragVelocity: () => _dragVelocity,
+                              getIsDragging: () => _isDragging,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Layer 3: Interactive Tab Items
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: padH,
                         vertical: 5,
                       ),
-                      child: AnimatedBuilder(
-                        animation: _controller,
-                        builder: (context, _) {
-                          final maxIdx = math.max(0, count - 1).toDouble();
-                          final pos = _controller.value.clamp(0.0, maxIdx);
-                          final travel = (_targetPos - _startPos).abs();
-                          double flightStretch = 0.0;
-                          if (!_isDragging && travel > 0.02) {
-                            final t = ((pos - _startPos) /
-                                    (_targetPos - _startPos))
-                                .clamp(0.0, 1.0);
-                            flightStretch =
-                                math.sin(t * math.pi) *
-                                (travel.clamp(0.5, 1.8) * 0.34);
-                          }
-                          final dragStretch = _isDragging
-                              ? (_dragVelocity.abs() * 0.30).clamp(0.0, 0.36)
-                              : 0.0;
-                          final stretch = math.max(flightStretch, dragStretch);
-
-                          final pillW = itemWidth * (1.0 + stretch);
-                          final pillH = 52.0 * (1.0 - stretch * 0.08);
-                          final centerX = (pos + 0.5) * itemWidth;
-                          final left = (centerX - pillW / 2)
-                              .clamp(0.0, math.max(0.0, trackWidth - pillW))
-                              .toDouble();
-
-                          return Stack(
-                            alignment: Alignment.centerLeft,
-                            children: [
-                              Positioned(
-                                left: left,
-                                width: pillW,
-                                height: pillH,
-                                child: IgnorePointer(
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(
-                                        pillH / 2,
-                                      ),
-                                      border: Border.all(
-                                        color: ClearTokColors.neonCyan
-                                            .withValues(alpha: 0.42),
-                                        width: 0.9,
-                                      ),
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        stops: const [0.0, 0.55, 1.0],
-                                        colors: [
-                                          ClearTokColors.neonCyan.withValues(
-                                            alpha: 0.18,
-                                          ),
-                                          ClearTokColors.neonPink.withValues(
-                                            alpha: 0.22,
-                                          ),
-                                          ClearTokColors.neonCyan.withValues(
-                                            alpha: 0.14,
-                                          ),
-                                        ],
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: ClearTokColors.neonPink
-                                              .withValues(alpha: 0.24),
-                                          blurRadius: 14,
-                                          spreadRadius: 0.5,
+                      child: Row(
+                        children: List.generate(count, (idx) {
+                          final item = widget.items[idx];
+                          final isSelected = idx == widget.selectedIndex;
+                          return Expanded(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () {
+                                _animateTo(idx.toDouble());
+                                widget.onTabSelected(idx);
+                              },
+                              child: SizedBox(
+                                height: 52,
+                                child: AnimatedScale(
+                                  scale: isSelected ? 1.07 : 1.0,
+                                  duration: const Duration(milliseconds: 180),
+                                  curve: Curves.easeOutCubic,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      IconTheme.merge(
+                                        data: IconThemeData(
+                                          size: 20,
+                                          color: isSelected
+                                              ? ClearTokColors.neonCyan
+                                              : Colors.white.withValues(
+                                                  alpha: 0.55,
+                                                ),
                                         ),
-                                        BoxShadow(
-                                          color: ClearTokColors.neonCyan
-                                              .withValues(alpha: 0.18),
-                                          blurRadius: 12,
+                                        child: isSelected
+                                            ? item.activeIcon
+                                            : item.icon,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        item.label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: isSelected
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : Colors.white.withValues(
+                                                  alpha: 0.55,
+                                                ),
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                              Row(
-                                children: List.generate(count, (idx) {
-                                  final item = widget.items[idx];
-                                  final proximity = (1.0 - (pos - idx).abs())
-                                      .clamp(0.0, 1.0)
-                                      .toDouble();
-                                  final isSelected = proximity > 0.55;
-                                  final scale = 1.0 + (0.08 * proximity);
-                                  final iconColor = Color.lerp(
-                                    Colors.white.withValues(alpha: 0.50),
-                                    ClearTokColors.neonCyan,
-                                    proximity,
-                                  )!;
-                                  final textColor = Color.lerp(
-                                    Colors.white.withValues(alpha: 0.50),
-                                    Colors.white,
-                                    proximity,
-                                  )!;
-
-                                  return Expanded(
-                                    child: GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onTap: () {
-                                        _animateTo(idx.toDouble());
-                                        widget.onTabSelected(idx);
-                                      },
-                                      child: SizedBox(
-                                        height: 52,
-                                        child: Transform.scale(
-                                          scale: scale,
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              DecoratedBox(
-                                                decoration: BoxDecoration(
-                                                  shape: BoxShape.circle,
-                                                  boxShadow: proximity > 0.35
-                                                      ? [
-                                                          BoxShadow(
-                                                            color: ClearTokColors
-                                                                .neonCyan
-                                                                .withValues(
-                                                                  alpha:
-                                                                      0.32 *
-                                                                      proximity,
-                                                                ),
-                                                            blurRadius: 10,
-                                                          ),
-                                                        ]
-                                                      : const [],
-                                                ),
-                                                child: IconTheme.merge(
-                                                  data: IconThemeData(
-                                                    size: 20,
-                                                    color: iconColor,
-                                                  ),
-                                                  child: isSelected
-                                                      ? item.activeIcon
-                                                      : item.icon,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                item.label,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 10.5,
-                                                  fontWeight: isSelected
-                                                      ? FontWeight.w700
-                                                      : FontWeight.w500,
-                                                  color: textColor,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }),
-                              ),
-                            ],
+                            ),
                           );
-                        },
+                        }),
                       ),
                     ),
                   ],
@@ -730,11 +775,12 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
   late final AnimationController _controller;
   double _startPos = 0.0;
   double _targetPos = 0.0;
+  double _dragVelocity = 0.0;
   bool _isDragging = false;
 
   static const _spring = SpringDescription(
     mass: 1.0,
-    stiffness: 350.0,
+    stiffness: 360.0,
     damping: 26.0,
   );
 
@@ -760,6 +806,7 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
   void _animateTo(double target, {double velocity = 0.0}) {
     _startPos = _controller.value;
     _targetPos = target;
+    _dragVelocity = 0.0;
     final simulation = SpringSimulation(
       _spring,
       _controller.value,
@@ -798,10 +845,10 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
               onHorizontalDragUpdate: (d) {
                 if (itemWidth <= 0) return;
                 final step = (d.primaryDelta ?? 0.0) / itemWidth;
-                _controller.value = (_controller.value + step).clamp(
-                  0.0,
-                  (count - 1).toDouble(),
-                );
+                _dragVelocity = (step * 14.0).clamp(-1.5, 1.5).toDouble();
+                _controller.value = (_controller.value + step)
+                    .clamp(0.0, (count - 1).toDouble())
+                    .toDouble();
               },
               onHorizontalDragEnd: (d) {
                 _isDragging = false;
@@ -811,147 +858,93 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
                   widget.onSegmentSelected(nextIdx);
                 }
               },
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: ClearTokColors.dockGlass.withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.14),
-                    width: 0.8,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Positioned.fill(
+                    child: _StaticPillGlassBackdrop(
+                      borderRadius: 24,
+                      blur: false,
+                    ),
                   ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(padH),
-                  child: AnimatedBuilder(
-                    animation: _controller,
-                    builder: (context, _) {
-                      final maxIdx = math.max(0, count - 1).toDouble();
-                      final pos = _controller.value.clamp(0.0, maxIdx);
-                      final travel = (_targetPos - _startPos).abs();
-                      double stretch = 0.0;
-                      if (!_isDragging && travel > 0.02) {
-                        final t = ((pos - _startPos) / (_targetPos - _startPos))
-                            .clamp(0.0, 1.0);
-                        stretch =
-                            math.sin(t * math.pi) *
-                            (travel.clamp(0.5, 1.6) * 0.28);
-                      }
-                      final pillW = itemWidth * (1.0 + stretch);
-                      final pillH = 40.0 * (1.0 - stretch * 0.06);
-                      final centerX = (pos + 0.5) * itemWidth;
-                      final left = (centerX - pillW / 2)
-                          .clamp(0.0, math.max(0.0, trackWidth - pillW))
-                          .toDouble();
-
-                      return Stack(
-                        alignment: Alignment.centerLeft,
-                        children: [
-                          Positioned(
-                            left: left,
-                            width: pillW,
-                            height: pillH,
-                            child: IgnorePointer(
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(
-                                    pillH / 2,
-                                  ),
-                                  border: Border.all(
-                                    color: ClearTokColors.neonCyan.withValues(
-                                      alpha: 0.40,
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsets.all(padH),
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: _WaterDropletPillPainter(
+                            position: _controller,
+                            itemCount: count,
+                            baseHeight: 40,
+                            getStartPos: () => _startPos,
+                            getTargetPos: () => _targetPos,
+                            getDragVelocity: () => _dragVelocity,
+                            getIsDragging: () => _isDragging,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(padH),
+                    child: Row(
+                      children: List.generate(count, (idx) {
+                        final seg = widget.segments[idx];
+                        final active = idx == widget.selectedIndex;
+                        return Expanded(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              _animateTo(idx.toDouble());
+                              widget.onSegmentSelected(idx);
+                            },
+                            child: SizedBox(
+                              height: 40,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      seg.icon,
+                                      size: 15,
+                                      color: active
+                                          ? ClearTokColors.neonCyan
+                                          : Colors.white.withValues(
+                                              alpha: 0.55,
+                                            ),
                                     ),
-                                    width: 0.8,
-                                  ),
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    stops: const [0.0, 1.0],
-                                    colors: [
-                                      ClearTokColors.neonPink.withValues(
-                                        alpha: 0.24,
+                                    const SizedBox(width: 5),
+                                    Flexible(
+                                      child: Text(
+                                        seg.label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: active
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                          color: active
+                                              ? Colors.white
+                                              : Colors.white.withValues(
+                                                  alpha: 0.55,
+                                                ),
+                                        ),
                                       ),
-                                      ClearTokColors.neonCyan.withValues(
-                                        alpha: 0.16,
-                                      ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
-                          Row(
-                            children: List.generate(count, (idx) {
-                              final seg = widget.segments[idx];
-                              final proximity = (1.0 - (pos - idx).abs())
-                                  .clamp(0.0, 1.0)
-                                  .toDouble();
-                              final active = proximity > 0.55;
-                              final scale = 1.0 + (0.05 * proximity);
-                              return Expanded(
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: () {
-                                    _animateTo(idx.toDouble());
-                                    widget.onSegmentSelected(idx);
-                                  },
-                                  child: SizedBox(
-                                    height: 40,
-                                    child: Transform.scale(
-                                      scale: scale,
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              seg.icon,
-                                              size: 15,
-                                              color: Color.lerp(
-                                                Colors.white.withValues(
-                                                  alpha: 0.50,
-                                                ),
-                                                ClearTokColors.neonCyan,
-                                                proximity,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 5),
-                                            Flexible(
-                                              child: Text(
-                                                seg.label,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: active
-                                                      ? FontWeight.w700
-                                                      : FontWeight.w500,
-                                                  color: Color.lerp(
-                                                    Colors.white.withValues(
-                                                      alpha: 0.50,
-                                                    ),
-                                                    Colors.white,
-                                                    proximity,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }),
-                          ),
-                        ],
-                      );
-                    },
+                        );
+                      }),
+                    ),
                   ),
-                ),
+                ],
               ),
             );
           },
@@ -976,6 +969,7 @@ class GlassSheet extends StatelessWidget {
   );
 }
 
+/// Cohesive Water-Glass Capsule Action Button (`Quét Repost`, `Hủy Repost`, etc.)
 class GlassActionButton extends StatelessWidget {
   final Widget icon;
   final String label;
@@ -993,66 +987,85 @@ class GlassActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shape = gboxSquircleShape(
-      ClearTokTokens.radius,
-      side: BorderSide(
-        color: primary
-            ? ClearTokColors.pink.withValues(alpha: .65)
-            : Colors.white.withValues(alpha: .20),
-        width: .8,
-      ),
-    );
-    return Opacity(
-      opacity: enabled ? 1.0 : .55,
-      child: SizedBox(
-        width: double.infinity,
-        height: 54,
-        child: DecoratedBox(
-          decoration: ShapeDecoration(
-            shape: shape,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              stops: const [0.0, 1.0],
-              colors: primary
-                  ? [
-                      ClearTokColors.pink.withValues(alpha: .42),
-                      const Color(0xFF8C1635).withValues(alpha: .68),
-                    ]
-                  : [
-                      Colors.white.withValues(alpha: .12),
-                      ClearTokColors.raised.withValues(alpha: .88),
-                    ],
+    final radius = BorderRadius.circular(25);
+    final accent = primary ? ClearTokColors.neonPink : ClearTokColors.neonCyan;
+
+    return RepaintBoundary(
+      child: Opacity(
+        opacity: enabled ? 1.0 : .50,
+        child: SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              border: Border.all(
+                color: primary
+                    ? ClearTokColors.neonPink.withValues(alpha: .55)
+                    : Colors.white.withValues(alpha: .28),
+                width: .9,
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: const [0.0, 0.35, 1.0],
+                colors: primary
+                    ? [
+                        Colors.white.withValues(alpha: .22),
+                        ClearTokColors.neonPink.withValues(alpha: .26),
+                        const Color(0xFF3A0D1E).withValues(alpha: .65),
+                      ]
+                    : [
+                        Colors.white.withValues(alpha: .20),
+                        Colors.white.withValues(alpha: .06),
+                        ClearTokColors.dockGlass.withValues(alpha: .68),
+                      ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: primary ? .18 : .10),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onPressed,
-              customBorder: shape,
-              splashColor: ClearTokColors.cyan.withValues(alpha: .14),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconTheme.merge(
-                      data: const IconThemeData(size: 20, color: Colors.white),
-                      child: icon,
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        label,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onPressed,
+                borderRadius: radius,
+                splashColor: accent.withValues(alpha: .16),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconTheme.merge(
+                        data: IconThemeData(
+                          size: 18,
+                          color: primary
+                              ? Colors.white
+                              : ClearTokColors.neonCyan,
+                        ),
+                        child: icon,
+                      ),
+                      const SizedBox(width: 7),
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.1,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

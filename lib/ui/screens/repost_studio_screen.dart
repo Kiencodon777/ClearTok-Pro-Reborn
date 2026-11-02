@@ -1329,12 +1329,14 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                     children: [
                       // Top App Bar
                       LiquidGlassContainer(
+                        blur: false,
+                        borderRadius: 26,
                         margin: const EdgeInsets.symmetric(
                           horizontal: ClearTokTokens.inset,
                           vertical: 8,
                         ),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
+                          horizontal: 10,
                           vertical: 4,
                         ),
                         child: Row(
@@ -1863,7 +1865,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   }
 
   Widget _buildFollowingList() {
-    if (_filteredFollowing.isEmpty) {
+    final filtered = _filteredFollowing;
+    if (filtered.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1903,9 +1906,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
         ClearTokTokens.dockClearance +
             MediaQuery.of(context).viewPadding.bottom,
       ),
-      itemCount: _filteredFollowing.length,
+      itemCount: filtered.length,
       itemBuilder: (ctx, idx) {
-        final u = _filteredFollowing[idx];
+        final u = filtered[idx];
         final isSelected = _selectedIds.contains(u.id);
 
         return LiquidGlassContainer(
@@ -1976,7 +1979,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   }
 
   Widget _buildVideosGrid() {
-    if (_filteredVideos.isEmpty) {
+    final filtered = _filteredVideos;
+    if (filtered.isEmpty) {
       final emptyText = _videos.isEmpty
           ? (_currentHub == 'unlike'
                 ? 'Chưa quét được video đã thích nào!'
@@ -2026,9 +2030,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
         mainAxisSpacing: 12,
         childAspectRatio: 0.72,
       ),
-      itemCount: _filteredVideos.length,
+      itemCount: filtered.length,
       itemBuilder: (ctx, idx) {
-        final v = _filteredVideos[idx];
+        final v = filtered[idx];
         final isSelected = _selectedIds.contains(v.id);
 
         return Semantics(

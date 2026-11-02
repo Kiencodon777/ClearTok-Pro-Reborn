@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../../api/tiktok_client.dart';
@@ -30,15 +31,77 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
   TikTokClient? _client;
   double _loadProgress = 0.0;
   bool _isLoading = true;
-  bool _desktopMode = true;
+  bool _desktopMode = false;
   bool _switchingMode = false;
+  bool _cleanedInitialRiskTokens = false;
 
-  // EXACT desktop macOS User-Agent recovered from ClearTok's webview_transport.dart
   static const String desktopUserAgent =
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+  static const String mobileUserAgent =
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1';
+
+  // Injected BEFORE TikTok's webmssdk.js loads so Passport never flags the WebView
+  static const String _stealthFingerprintJs = r'''
+(function() {
+  try {
+    Object.defineProperty(navigator, 'webdriver', {
+      get: function() { return false; },
+      configurable: true
+    });
+    var ua = navigator.userAgent || '';
+    if (ua.indexOf('Macintosh') !== -1) {
+      Object.defineProperty(navigator, 'platform', {
+        get: function() { return 'MacIntel'; },
+        configurable: true
+      });
+      Object.defineProperty(navigator, 'vendor', {
+        get: function() { return 'Google Inc.'; },
+        configurable: true
+      });
+      Object.defineProperty(navigator, 'maxTouchPoints', {
+        get: function() { return 0; },
+        configurable: true
+      });
+    } else if (ua.indexOf('iPhone') !== -1) {
+      Object.defineProperty(navigator, 'platform', {
+        get: function() { return 'iPhone'; },
+        configurable: true
+      });
+      Object.defineProperty(navigator, 'vendor', {
+        get: function() { return 'Apple Computer, Inc.'; },
+        configurable: true
+      });
+      Object.defineProperty(navigator, 'maxTouchPoints', {
+        get: function() { return 5; },
+        configurable: true
+      });
+    }
+  } catch (_) {}
+})();
+''';
 
   static const String _loginInputStabilizerJs = r'''
 (function() {
+  try {
+    // Clear cached risk/rate-limit flags in web storage when on /login
+    if (location.pathname.indexOf('/login') !== -1) {
+      try {
+        var keysToRemove = [];
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i) || '';
+          if (k.indexOf('passport') !== -1 || k.indexOf('mssdk') !== -1 ||
+              k.indexOf('verify') !== -1 || k.indexOf('risk') !== -1 ||
+              k.indexOf('slardar') !== -1 || k.indexOf('tea_cache') !== -1) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach(function(k) { localStorage.removeItem(k); });
+        sessionStorage.clear();
+      } catch (_) {}
+    }
+  } catch (_) {}
+
   if (window.__lapinInputStabilizerInstalled) return;
   window.__lapinInputStabilizerInstalled = true;
   function stabilizeViewport() {
@@ -85,8 +148,7 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
 })();
 ''';
 
-  final String _initialUrl =
-      'https://www.tiktok.com/login/phone-or-email/email/?lang=en&tt_not_installed=true';
+  final String _initialUrl = 'https://www.tiktok.com/login';
 
   @override
   Widget build(BuildContext context) {
@@ -115,8 +177,8 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
                 color: ClearTokColors.pink.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(
-                Icons.desktop_mac,
+              child: Icon(
+                _desktopMode ? Icons.desktop_mac : Icons.phone_iphone_rounded,
                 color: ClearTokColors.cyan,
                 size: 20,
               ),
@@ -139,7 +201,7 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
                   Text(
                     isLogged
                         ? '@${widget.currentUser!.uniqueId} (Mục Repost Đã Sẵn Sàng)'
-                        : 'Cần đăng nhập tài khoản',
+                        : 'Bấm 🧹 nếu bị báo lỗi quá số lần thử',
                     style: TextStyle(
                       fontSize: 11,
                       color: isLogged
@@ -154,10 +216,19 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
           ],
         ),
         actions: [
+          if (!isLogged)
+            IconButton(
+              tooltip: 'Fix lỗi đăng nhập (Xóa phiên bị chặn)',
+              icon: const Icon(
+                Icons.cleaning_services_rounded,
+                color: ClearTokColors.warning,
+              ),
+              onPressed: _switchingMode ? null : _resetFlaggedLoginSession,
+            ),
           IconButton(
             tooltip: _desktopMode
                 ? 'Chuyển sang điện thoại'
-                : 'Chuyển sang máy tính',
+                : 'Chuyển sang máy tính (Quét QR)',
             icon: Icon(_desktopMode ? Icons.phone_android : Icons.desktop_mac),
             onPressed: _switchingMode ? null : _toggleBrowserMode,
           ),
@@ -175,7 +246,7 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
           PopupMenuButton<String>(
             tooltip: 'Menu trình duyệt',
             icon: const Icon(Icons.more_horiz_rounded),
-            onSelected: (value) {
+            onSelected: (value) async {
               if (value == 'profile') {
                 _webViewController?.loadUrl(
                   urlRequest: URLRequest(
@@ -184,6 +255,22 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
                     ),
                   ),
                 );
+                return;
+              }
+              if (value == 'reset_session') {
+                await _resetFlaggedLoginSession();
+                return;
+              }
+              if (value == 'qr_login') {
+                if (!_desktopMode) {
+                  await _toggleBrowserMode(targetUrl: 'https://www.tiktok.com/login/qrcode');
+                } else {
+                  _webViewController?.loadUrl(
+                    urlRequest: URLRequest(
+                      url: WebUri('https://www.tiktok.com/login/qrcode'),
+                    ),
+                  );
+                }
                 return;
               }
               _webViewController?.loadUrl(
@@ -199,6 +286,27 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
                     title: Text('Mở trang cá nhân'),
                   ),
                 ),
+              const PopupMenuItem(
+                value: 'reset_session',
+                child: ListTile(
+                  leading: Icon(
+                    Icons.cleaning_services_rounded,
+                    color: ClearTokColors.warning,
+                  ),
+                  title: Text('Fix lỗi "Maximum attempts"'),
+                  subtitle: Text('Xóa cookie chặn & làm mới phiên'),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'qr_login',
+                child: ListTile(
+                  leading: Icon(
+                    Icons.qr_code_scanner_rounded,
+                    color: ClearTokColors.cyan,
+                  ),
+                  title: Text('Đăng nhập bằng mã QR'),
+                ),
+              ),
               const PopupMenuItem(
                 value: 'login',
                 child: ListTile(
@@ -226,9 +334,19 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
         color: ClearTokColors.background,
         child: InAppWebView(
           initialUrlRequest: URLRequest(url: WebUri(_initialUrl)),
+          initialUserScripts: UnmodifiableListView<UserScript>([
+            UserScript(
+              source: _stealthFingerprintJs,
+              injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+            ),
+            UserScript(
+              source: _loginInputStabilizerJs,
+              injectionTime: UserScriptInjectionTime.AT_DOCUMENT_END,
+            ),
+          ]),
           initialSettings: InAppWebViewSettings(
-            userAgent: desktopUserAgent,
-            preferredContentMode: UserPreferredContentMode.DESKTOP,
+            userAgent: mobileUserAgent,
+            preferredContentMode: UserPreferredContentMode.MOBILE,
             javaScriptEnabled: true,
             domStorageEnabled: true,
             databaseEnabled: true,
@@ -240,7 +358,7 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
             supportZoom: false,
             transparentBackground: false,
             useHybridComposition: true,
-            supportMultipleWindows: false,
+            supportMultipleWindows: true,
             javaScriptCanOpenWindowsAutomatically: true,
             cacheEnabled: true,
             mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
@@ -261,13 +379,17 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
               action: ServerTrustAuthResponseAction.PROCEED,
             );
           },
-          onWebViewCreated: (controller) {
+          onWebViewCreated: (controller) async {
             _webViewController = controller;
             _client = TikTokClient(
               webViewController: controller,
               remoteConfig: widget.remoteConfig,
             );
             widget.onClientReady(controller, _client!);
+            if (widget.currentUser == null && !_cleanedInitialRiskTokens) {
+              _cleanedInitialRiskTokens = true;
+              await _clearRiskCookiesOnly();
+            }
           },
           onLoadStart: (controller, url) {
             setState(() {
@@ -317,12 +439,89 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
     );
   }
 
+  /// Clears only TikTok's anti-bot rate-limit cookies (`s_v_web_id`, `msToken`,
+  /// `passport_csrf_token`, `tt_csrf_token`) while keeping valid session cookies
+  /// (`sessionid`, `sid_tt`) intact.
+  Future<void> _clearRiskCookiesOnly() async {
+    try {
+      final cm = CookieManager.instance();
+      final domainUrl = WebUri('https://www.tiktok.com');
+      final cookies = await cm.getCookies(url: domainUrl);
+      final hasSession = cookies.any(
+        (c) =>
+            (c.name == 'sessionid' ||
+                c.name == 'sessionid_ss' ||
+                c.name == 'sid_tt') &&
+            (c.value?.toString().isNotEmpty ?? false),
+      );
+      if (hasSession) return;
+      for (final name in [
+        's_v_web_id',
+        'msToken',
+        'ttwid',
+        'odin_tt',
+        'passport_csrf_token',
+        'passport_csrf_token_default',
+        'tt_chain_token',
+      ]) {
+        await cm.deleteCookie(url: domainUrl, name: name, domain: '.tiktok.com');
+        await cm.deleteCookie(
+          url: domainUrl,
+          name: name,
+          domain: 'www.tiktok.com',
+        );
+      }
+    } catch (_) {}
+  }
+
+  /// Full reset when TikTok blocks login with "Maximum number of attempts reached"
+  Future<void> _resetFlaggedLoginSession() async {
+    final controller = _webViewController;
+    if (controller == null) return;
+    setState(() => _switchingMode = true);
+    try {
+      await CookieManager.instance().deleteAllCookies();
+      await InAppWebViewController.clearAllCache();
+      await controller.evaluateJavascript(
+        source:
+            'try { localStorage.clear(); sessionStorage.clear(); } catch (_) {}',
+      );
+      await controller.setSettings(
+        settings: InAppWebViewSettings(
+          userAgent: mobileUserAgent,
+          preferredContentMode: UserPreferredContentMode.MOBILE,
+          useWideViewPort: false,
+          loadWithOverviewMode: false,
+          supportZoom: false,
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _desktopMode = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Đã xóa cookie chặn & tạo phiên Mobile sạch! Anh đăng nhập lại hoặc dùng Google/SĐT/QR nhé.',
+          ),
+        ),
+      );
+      await controller.loadUrl(
+        urlRequest: URLRequest(
+          url: WebUri('https://www.tiktok.com/login'),
+          headers: const {'Cache-Control': 'no-cache, no-store, must-revalidate'},
+        ),
+      );
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _switchingMode = false);
+    }
+  }
+
   Future<void> _syncViewportForUrl(
     InAppWebViewController controller,
     WebUri? url,
   ) async {
     final urlStr = url?.toString() ?? '';
-    final isLogin = urlStr.contains('/login');
+    final isLogin = urlStr.contains('/login') && !urlStr.contains('/qrcode');
     try {
       await controller.setSettings(
         settings: InAppWebViewSettings(
@@ -331,6 +530,7 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
           supportZoom: !isLogin,
         ),
       );
+      await controller.evaluateJavascript(source: _stealthFingerprintJs);
       await controller.evaluateJavascript(source: _loginInputStabilizerJs);
     } catch (_) {}
   }
@@ -340,20 +540,34 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
     final profile = await _client!.extractLiveUserProfile();
     if (profile != null && profile.secUid.isNotEmpty) {
       widget.onUserStatusChanged(profile);
+      // Once authenticated, smoothly enable Desktop mode for full Studio API access
+      if (!_desktopMode && _webViewController != null) {
+        try {
+          await _webViewController!.setSettings(
+            settings: InAppWebViewSettings(
+              userAgent: desktopUserAgent,
+              preferredContentMode: UserPreferredContentMode.DESKTOP,
+              useWideViewPort: true,
+              loadWithOverviewMode: true,
+            ),
+          );
+          if (mounted) setState(() => _desktopMode = true);
+        } catch (_) {}
+      }
     }
   }
 
-  Future<void> _toggleBrowserMode() async {
+  Future<void> _toggleBrowserMode({String? targetUrl}) async {
     final controller = _webViewController;
     if (controller == null) return;
     setState(() => _switchingMode = true);
     final nextDesktop = !_desktopMode;
     try {
-      final currentUrl = (await controller.getUrl())?.toString() ?? '';
-      final isLogin = currentUrl.contains('/login');
-      final agent = nextDesktop
-          ? desktopUserAgent
-          : await InAppWebViewController.getDefaultUserAgent();
+      final currentUrl =
+          targetUrl ?? ((await controller.getUrl())?.toString() ?? '');
+      final isLogin =
+          currentUrl.contains('/login') && !currentUrl.contains('/qrcode');
+      final agent = nextDesktop ? desktopUserAgent : mobileUserAgent;
       await controller.setSettings(
         settings: InAppWebViewSettings(
           userAgent: agent,
@@ -371,7 +585,13 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
         0,
         details: {'browser_mode': nextDesktop ? 'desktop' : 'mobile'},
       );
-      await controller.reload();
+      if (targetUrl != null) {
+        await controller.loadUrl(
+          urlRequest: URLRequest(url: WebUri(targetUrl)),
+        );
+      } else {
+        await controller.reload();
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
