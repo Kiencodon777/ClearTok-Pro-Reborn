@@ -37,6 +37,54 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
   static const String desktopUserAgent =
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+  static const String _loginInputStabilizerJs = r'''
+(function() {
+  if (window.__lapinInputStabilizerInstalled) return;
+  window.__lapinInputStabilizerInstalled = true;
+  function stabilizeViewport() {
+    var isLogin = location.pathname.indexOf('/login') !== -1;
+    var meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.name = 'viewport';
+      if (document.head) document.head.appendChild(meta);
+    }
+    if (meta && isLogin) {
+      meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+    }
+    if (isLogin && !document.getElementById('__lapin_login_css')) {
+      var style = document.createElement('style');
+      style.id = '__lapin_login_css';
+      style.textContent =
+        'html, body { width: 100% !important; max-width: 100vw !important; min-width: 0 !important; overflow-x: hidden !important; background: #12141d !important; } ' +
+        '#app, [id*="login"], [class*="loginContainer"], [class*="LoginContainer"], [class*="modal"] { max-width: 100vw !important; min-width: 0 !important; box-sizing: border-box !important; } ' +
+        'input, textarea { font-size: 16px !important; }';
+      if (document.head) document.head.appendChild(style);
+    }
+  }
+  stabilizeViewport();
+  document.addEventListener('DOMContentLoaded', stabilizeViewport);
+  function keepInputVisible(e) {
+    var el = e && e.target;
+    if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA')) return;
+    stabilizeViewport();
+    setTimeout(function() {
+      try {
+        window.scrollTo(0, Math.max(0, window.scrollY));
+        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      } catch (_) {}
+    }, 120);
+    setTimeout(function() {
+      try {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      } catch (_) {}
+    }, 320);
+  }
+  document.addEventListener('focusin', keepInputVisible, true);
+  document.addEventListener('input', keepInputVisible, true);
+})();
+''';
+
   final String _initialUrl =
       'https://www.tiktok.com/login/phone-or-email/email/?lang=en&tt_not_installed=true';
 
@@ -46,10 +94,16 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
 
     return Scaffold(
       backgroundColor: ClearTokColors.background,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        flexibleSpace: const LiquidGlassContainer(
-          borderRadius: 0,
+        backgroundColor: ClearTokColors.surface,
+        flexibleSpace: const DecoratedBox(
+          decoration: BoxDecoration(
+            color: ClearTokColors.surface,
+            border: Border(
+              bottom: BorderSide(color: ClearTokColors.border, width: .6),
+            ),
+          ),
           child: SizedBox.expand(),
         ),
         elevation: 0,
@@ -168,92 +222,117 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
               )
             : null,
       ),
-      body: Stack(
-        children: [
-          InAppWebView(
-            initialUrlRequest: URLRequest(url: WebUri(_initialUrl)),
-            initialSettings: InAppWebViewSettings(
-              userAgent: desktopUserAgent,
-              preferredContentMode: UserPreferredContentMode.DESKTOP,
-              javaScriptEnabled: true,
-              domStorageEnabled: true,
-              databaseEnabled: true,
-              thirdPartyCookiesEnabled: true,
-              allowFileAccess: true,
-              allowContentAccess: true,
-              useWideViewPort: true,
-              loadWithOverviewMode: true,
-              supportMultipleWindows: false,
-              javaScriptCanOpenWindowsAutomatically: true,
-              cacheEnabled: true,
-              mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
-              safeBrowsingEnabled: false,
-              hardwareAcceleration: true,
-              allowsInlineMediaPlayback: true,
-              mediaPlaybackRequiresUserGesture: false,
-            ),
-            onCreateWindow: (controller, createWindowAction) async {
-              final targetUrl = createWindowAction.request.url;
-              if (targetUrl != null) {
-                controller.loadUrl(urlRequest: URLRequest(url: targetUrl));
-              }
-              return false;
-            },
-            onReceivedServerTrustAuthRequest: (controller, challenge) async {
-              return ServerTrustAuthResponse(
-                action: ServerTrustAuthResponseAction.PROCEED,
-              );
-            },
-            onWebViewCreated: (controller) {
-              _webViewController = controller;
-              _client = TikTokClient(
-                webViewController: controller,
-                remoteConfig: widget.remoteConfig,
-              );
-              widget.onClientReady(controller, _client!);
-            },
-            onLoadStart: (controller, url) {
-              setState(() {
-                _isLoading = true;
-              });
-            },
-            onProgressChanged: (controller, progress) {
-              setState(() {
-                _loadProgress = progress / 100.0;
-                if (progress >= 100) _isLoading = false;
-              });
-            },
-            onLoadStop: (controller, url) async {
-              setState(() {
-                _isLoading = false;
-              });
-              await _evaluateUserSession();
-            },
-            shouldOverrideUrlLoading: (controller, navigationAction) async {
-              final uri = navigationAction.request.url;
-              if (uri == null) return NavigationActionPolicy.ALLOW;
-
-              // Prevent Net::ERR_UNKNOWN_URL_SCHEME on Android
-              if (uri.scheme == 'tiktok' || uri.scheme.startsWith('snssdk')) {
-                final targetUrl = uri.queryParameters['url'];
-                if (targetUrl != null && targetUrl.isNotEmpty) {
-                  controller.loadUrl(
-                    urlRequest: URLRequest(url: WebUri(targetUrl)),
-                  );
-                }
-                return NavigationActionPolicy.CANCEL;
-              }
-
-              if (uri.scheme == 'http' || uri.scheme == 'https') {
-                return NavigationActionPolicy.ALLOW;
-              }
-
-              return NavigationActionPolicy.CANCEL;
-            },
+      body: ColoredBox(
+        color: ClearTokColors.background,
+        child: InAppWebView(
+          initialUrlRequest: URLRequest(url: WebUri(_initialUrl)),
+          initialSettings: InAppWebViewSettings(
+            userAgent: desktopUserAgent,
+            preferredContentMode: UserPreferredContentMode.DESKTOP,
+            javaScriptEnabled: true,
+            domStorageEnabled: true,
+            databaseEnabled: true,
+            thirdPartyCookiesEnabled: true,
+            allowFileAccess: true,
+            allowContentAccess: true,
+            useWideViewPort: false,
+            loadWithOverviewMode: false,
+            supportZoom: false,
+            transparentBackground: false,
+            useHybridComposition: true,
+            supportMultipleWindows: false,
+            javaScriptCanOpenWindowsAutomatically: true,
+            cacheEnabled: true,
+            mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
+            safeBrowsingEnabled: false,
+            hardwareAcceleration: true,
+            allowsInlineMediaPlayback: true,
+            mediaPlaybackRequiresUserGesture: false,
           ),
-        ],
+          onCreateWindow: (controller, createWindowAction) async {
+            final targetUrl = createWindowAction.request.url;
+            if (targetUrl != null) {
+              controller.loadUrl(urlRequest: URLRequest(url: targetUrl));
+            }
+            return false;
+          },
+          onReceivedServerTrustAuthRequest: (controller, challenge) async {
+            return ServerTrustAuthResponse(
+              action: ServerTrustAuthResponseAction.PROCEED,
+            );
+          },
+          onWebViewCreated: (controller) {
+            _webViewController = controller;
+            _client = TikTokClient(
+              webViewController: controller,
+              remoteConfig: widget.remoteConfig,
+            );
+            widget.onClientReady(controller, _client!);
+          },
+          onLoadStart: (controller, url) {
+            setState(() {
+              _isLoading = true;
+            });
+            _syncViewportForUrl(controller, url);
+          },
+          onProgressChanged: (controller, progress) {
+            setState(() {
+              _loadProgress = progress / 100.0;
+              if (progress >= 100) _isLoading = false;
+            });
+          },
+          onUpdateVisitedHistory: (controller, url, isReload) {
+            _syncViewportForUrl(controller, url);
+          },
+          onLoadStop: (controller, url) async {
+            setState(() {
+              _isLoading = false;
+            });
+            await _syncViewportForUrl(controller, url);
+            await _evaluateUserSession();
+          },
+          shouldOverrideUrlLoading: (controller, navigationAction) async {
+            final uri = navigationAction.request.url;
+            if (uri == null) return NavigationActionPolicy.ALLOW;
+
+            // Prevent Net::ERR_UNKNOWN_URL_SCHEME on Android
+            if (uri.scheme == 'tiktok' || uri.scheme.startsWith('snssdk')) {
+              final targetUrl = uri.queryParameters['url'];
+              if (targetUrl != null && targetUrl.isNotEmpty) {
+                controller.loadUrl(
+                  urlRequest: URLRequest(url: WebUri(targetUrl)),
+                );
+              }
+              return NavigationActionPolicy.CANCEL;
+            }
+
+            if (uri.scheme == 'http' || uri.scheme == 'https') {
+              return NavigationActionPolicy.ALLOW;
+            }
+
+            return NavigationActionPolicy.CANCEL;
+          },
+        ),
       ),
     );
+  }
+
+  Future<void> _syncViewportForUrl(
+    InAppWebViewController controller,
+    WebUri? url,
+  ) async {
+    final urlStr = url?.toString() ?? '';
+    final isLogin = urlStr.contains('/login');
+    try {
+      await controller.setSettings(
+        settings: InAppWebViewSettings(
+          useWideViewPort: _desktopMode && !isLogin,
+          loadWithOverviewMode: _desktopMode && !isLogin,
+          supportZoom: !isLogin,
+        ),
+      );
+      await controller.evaluateJavascript(source: _loginInputStabilizerJs);
+    } catch (_) {}
   }
 
   Future<void> _evaluateUserSession() async {
@@ -270,6 +349,8 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
     setState(() => _switchingMode = true);
     final nextDesktop = !_desktopMode;
     try {
+      final currentUrl = (await controller.getUrl())?.toString() ?? '';
+      final isLogin = currentUrl.contains('/login');
       final agent = nextDesktop
           ? desktopUserAgent
           : await InAppWebViewController.getDefaultUserAgent();
@@ -279,8 +360,8 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
           preferredContentMode: nextDesktop
               ? UserPreferredContentMode.DESKTOP
               : UserPreferredContentMode.MOBILE,
-          useWideViewPort: nextDesktop,
-          loadWithOverviewMode: nextDesktop,
+          useWideViewPort: nextDesktop && !isLogin,
+          loadWithOverviewMode: nextDesktop && !isLogin,
         ),
       );
       if (!mounted) return;

@@ -1,5 +1,5 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' as glass;
 
 class ClearTokColors {
   static const background = Color(0xFF07080C);
@@ -40,9 +40,17 @@ class ClearTokTokens {
   );
 }
 
+ShapeBorder gboxSquircleShape(
+  double radius, {
+  BorderSide side = BorderSide.none,
+}) => ContinuousRectangleBorder(
+  borderRadius: BorderRadius.circular(radius * 2.15),
+  side: side,
+);
+
 ThemeData clearTokTheme() {
-  final shape = RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(ClearTokTokens.radius),
+  final shape = gboxSquircleShape(
+    ClearTokTokens.radius,
     side: const BorderSide(
       color: ClearTokColors.border,
       width: ClearTokTokens.borderWidth,
@@ -85,7 +93,7 @@ ThemeData clearTokTheme() {
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: shape,
+        shape: shape as OutlinedBorder,
       ),
     ),
     textButtonTheme: TextButtonThemeData(
@@ -112,9 +120,9 @@ ThemeData clearTokTheme() {
     bottomSheetTheme: const BottomSheetThemeData(
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
+      shape: ContinuousRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(ClearTokTokens.largeRadius),
+          top: Radius.circular(ClearTokTokens.largeRadius * 2.15),
         ),
       ),
     ),
@@ -128,7 +136,7 @@ ThemeData clearTokTheme() {
       backgroundColor: ClearTokColors.surface.withValues(alpha: .8),
       selectedColor: ClearTokColors.pink.withValues(alpha: .18),
       side: const BorderSide(color: ClearTokColors.border),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(36)),
       labelStyle: ClearTokTokens.caption,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
     ),
@@ -230,11 +238,21 @@ class LiquidGlassContainer extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(borderRadius);
     final media = MediaQuery.of(context);
+    final borderShape = gboxSquircleShape(
+      borderRadius,
+      side: BorderSide(
+        color: isSelected
+            ? ClearTokColors.pink
+            : Colors.white.withValues(alpha: .22),
+        width: isSelected ? 1.1 : .7,
+      ),
+    );
     final content = Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: radius,
+        customBorder: borderShape,
         splashColor: ClearTokColors.cyan.withValues(alpha: .10),
         child: Container(
           padding: padding,
@@ -248,37 +266,269 @@ class LiquidGlassContainer extends StatelessWidget {
     if (!blur || media.highContrast) {
       return Container(
         margin: margin,
-        decoration: BoxDecoration(
+        decoration: ShapeDecoration(
           color: ClearTokColors.surface,
-          borderRadius: radius,
-          border: Border.all(
-            color: isSelected ? ClearTokColors.pink : ClearTokColors.border,
-            width: .6,
+          shape: gboxSquircleShape(
+            borderRadius,
+            side: BorderSide(
+              color: isSelected ? ClearTokColors.pink : ClearTokColors.border,
+              width: .7,
+            ),
           ),
         ),
         child: content,
       );
     }
-    // Keep the optical platter behind its content so interactive glass children retain refraction.
     return Padding(
       padding: margin ?? EdgeInsets.zero,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: IgnorePointer(
-              child: glass.GlassContainer(
-                shape: glass.LiquidRoundedSuperellipse(
-                  borderRadius: borderRadius,
+      child: RepaintBoundary(
+        child: DecoratedBox(
+          decoration: ShapeDecoration(
+            shape: gboxSquircleShape(borderRadius),
+            shadows: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .38),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: ClipPath(
+            clipper: ShapeBorderClipper(shape: gboxSquircleShape(borderRadius)),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+              child: DecoratedBox(
+                decoration: ShapeDecoration(
+                  shape: borderShape,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    stops: const [0.0, 0.42, 1.0],
+                    colors: [
+                      Colors.white.withValues(alpha: .14),
+                      ClearTokColors.surface.withValues(alpha: .80),
+                      const Color(0xFF0D101A).withValues(alpha: .88),
+                    ],
+                  ),
                 ),
-                settings: glass.LiquidGlassSettings.ios27Dark,
-                quality: glass.GlassQuality.premium,
-                useOwnLayer: true,
-                child: const SizedBox.expand(),
+                child: content,
               ),
             ),
           ),
-          content,
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class GBoxDockItem {
+  final Widget icon;
+  final Widget activeIcon;
+  final String label;
+
+  const GBoxDockItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+  });
+}
+
+class GBoxLiquidDock extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onTabSelected;
+  final List<GBoxDockItem> items;
+
+  const GBoxLiquidDock({
+    super.key,
+    required this.selectedIndex,
+    required this.onTabSelected,
+    required this.items,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 64,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+        child: Row(
+          children: List.generate(items.length, (idx) {
+            final item = items[idx];
+            final active = idx == selectedIndex;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => onTabSelected(idx),
+                    customBorder: gboxSquircleShape(22),
+                    splashColor: ClearTokColors.cyan.withValues(alpha: .14),
+                    highlightColor: ClearTokColors.pink.withValues(alpha: .08),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      decoration: ShapeDecoration(
+                        shape: gboxSquircleShape(
+                          22,
+                          side: BorderSide(
+                            color: active
+                                ? ClearTokColors.pink.withValues(alpha: .50)
+                                : Colors.transparent,
+                            width: .8,
+                          ),
+                        ),
+                        gradient: active
+                            ? LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                stops: const [0.0, 1.0],
+                                colors: [
+                                  ClearTokColors.pink.withValues(alpha: .26),
+                                  ClearTokColors.cyan.withValues(alpha: .14),
+                                ],
+                              )
+                            : null,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconTheme.merge(
+                            data: IconThemeData(
+                              size: 21,
+                              color: active
+                                  ? ClearTokColors.cyan
+                                  : ClearTokColors.secondary,
+                            ),
+                            child: active ? item.activeIcon : item.icon,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            item.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: active
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: active
+                                  ? Colors.white
+                                  : ClearTokColors.secondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+
+class GBoxSegment {
+  final String label;
+  final IconData icon;
+
+  const GBoxSegment({required this.label, required this.icon});
+}
+
+class GBoxSegmentedControl extends StatelessWidget {
+  final List<GBoxSegment> segments;
+  final int selectedIndex;
+  final ValueChanged<int> onSegmentSelected;
+
+  const GBoxSegmentedControl({
+    super.key,
+    required this.segments,
+    required this.selectedIndex,
+    required this.onSegmentSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LiquidGlassContainer(
+      blur: false,
+      borderRadius: 22,
+      padding: const EdgeInsets.all(4),
+      child: SizedBox(
+        height: 46,
+        child: Row(
+          children: List.generate(segments.length, (idx) {
+            final seg = segments[idx];
+            final active = idx == selectedIndex;
+            return Expanded(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => onSegmentSelected(idx),
+                  customBorder: gboxSquircleShape(18),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    decoration: ShapeDecoration(
+                      shape: gboxSquircleShape(
+                        18,
+                        side: BorderSide(
+                          color: active
+                              ? ClearTokColors.pink.withValues(alpha: .48)
+                              : Colors.transparent,
+                          width: .8,
+                        ),
+                      ),
+                      gradient: active
+                          ? LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              stops: const [0.0, 1.0],
+                              colors: [
+                                ClearTokColors.pink.withValues(alpha: .28),
+                                ClearTokColors.cyan.withValues(alpha: .14),
+                              ],
+                            )
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          seg.icon,
+                          size: 16,
+                          color: active
+                              ? ClearTokColors.cyan
+                              : ClearTokColors.secondary,
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            seg.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: active
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: active
+                                  ? Colors.white
+                                  : ClearTokColors.secondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
       ),
     );
   }
@@ -312,47 +562,76 @@ class GlassActionButton extends StatelessWidget {
     this.primary = false,
   });
 
+  bool get enabled => onPressed != null;
+
   @override
-  Widget build(BuildContext context) => glass.GlassButton.custom(
-    onTap: onPressed ?? () {},
-    enabled: onPressed != null,
-    label: label,
-    width: double.infinity,
-    height: 56,
-    shape: const glass.LiquidRoundedSuperellipse(
-      borderRadius: ClearTokTokens.radius,
-    ),
-    settings: primary
-        ? glass.LiquidGlassSettings.ios27Dark.copyWith(
-            glassColor: ClearTokColors.pink.withValues(alpha: .32),
-          )
-        : glass.LiquidGlassSettings.ios27Dark,
-    quality: glass.GlassQuality.premium,
-    useOwnLayer: true,
-    stretch: .18,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconTheme.merge(
-            data: const IconThemeData(size: 20, color: Colors.white),
-            child: icon,
+  Widget build(BuildContext context) {
+    final shape = gboxSquircleShape(
+      ClearTokTokens.radius,
+      side: BorderSide(
+        color: primary
+            ? ClearTokColors.pink.withValues(alpha: .65)
+            : Colors.white.withValues(alpha: .20),
+        width: .8,
+      ),
+    );
+    return Opacity(
+      opacity: enabled ? 1.0 : .55,
+      child: SizedBox(
+        width: double.infinity,
+        height: 54,
+        child: DecoratedBox(
+          decoration: ShapeDecoration(
+            shape: shape,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              stops: const [0.0, 1.0],
+              colors: primary
+                  ? [
+                      ClearTokColors.pink.withValues(alpha: .42),
+                      const Color(0xFF8C1635).withValues(alpha: .68),
+                    ]
+                  : [
+                      Colors.white.withValues(alpha: .12),
+                      ClearTokColors.raised.withValues(alpha: .88),
+                    ],
+            ),
           ),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onPressed,
+              customBorder: shape,
+              splashColor: ClearTokColors.cyan.withValues(alpha: .14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconTheme.merge(
+                      data: const IconThemeData(size: 20, color: Colors.white),
+                      child: icon,
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

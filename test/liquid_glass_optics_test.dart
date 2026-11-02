@@ -3,7 +3,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' as glass;
 import 'package:cleartok_reborn/core/remote_payload_config.dart';
 import 'package:cleartok_reborn/models/tiktok_video.dart';
 import 'package:cleartok_reborn/ui/screens/main_navigation_screen.dart';
@@ -80,15 +79,7 @@ void main() {
                 padding: const EdgeInsets.only(top: 47, bottom: 34),
                 viewPadding: const EdgeInsets.only(top: 47, bottom: 34),
               ),
-              child: glass.LiquidGlassWidgets.wrap(
-                theme: const glass.GlassThemeData.ios27(
-                  brightness: Brightness.dark,
-                ),
-                child: glass.GlassPage(
-                  background: const AmbientBackground(child: SizedBox.expand()),
-                  child: child!,
-                ),
-              ),
+              child: AmbientBackground(child: child!),
             ),
           ),
           home: MainNavigationScreen(
@@ -117,7 +108,7 @@ void main() {
         tester.getBottomRight(find.byKey(const ValueKey('creator-dock'))).dy,
         844,
       );
-      expect(find.byType(glass.GlassTabBar), findsOneWidget);
+      expect(find.byType(GBoxLiquidDock), findsOneWidget);
       expect(tester.takeException(), isNull);
       await expectLater(
         find.byKey(const ValueKey('optics-preview')),

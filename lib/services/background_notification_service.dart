@@ -35,7 +35,7 @@ class BackgroundNotificationService {
 
     final androidDetails = AndroidNotificationDetails(
       'cleartok_bg_channel',
-      'ClearTok Deletion Tasks',
+      'LapinTokk Deletion Tasks',
       channelDescription: 'Ongoing batch deletion progress and anti-ban status',
       importance: Importance.low,
       priority: Priority.low,
@@ -54,7 +54,7 @@ class BackgroundNotificationService {
     try {
       await _notifications.show(
         888,
-        'ClearTok Pro: Đang Dọn Dẹp ($deleted/$total)',
+        'LapinTokk: Đang Dọn Dẹp ($deleted/$total)',
         statusText,
         details,
       );
@@ -66,7 +66,7 @@ class BackgroundNotificationService {
 
     const androidDetails = AndroidNotificationDetails(
       'cleartok_done_channel',
-      'ClearTok Completion',
+      'LapinTokk Completion',
       channelDescription: 'Batch tasks completion notifications',
       importance: Importance.high,
       priority: Priority.high,
@@ -81,7 +81,7 @@ class BackgroundNotificationService {
       await _notifications.cancel(888);
       await _notifications.show(
         889,
-        'ClearTok Pro: Hoàn Tất! 🎉',
+        'LapinTokk: Hoàn Tất! 🎉',
         'Đã dọn dẹp $deleted video thành công (Thất bại: $failed).',
         details,
       );

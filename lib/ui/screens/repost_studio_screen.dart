@@ -1,4 +1,3 @@
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' as glass;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -1347,7 +1346,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                                 width: 40,
                                 height: 40,
                                 fit: BoxFit.cover,
-                                semanticLabel: 'ClearTok Pro',
+                                semanticLabel: 'LapinTokk',
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -1356,7 +1355,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
-                                    'ClearTok Studio Pro',
+                                    'LapinTokk Studio',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
@@ -1496,19 +1495,19 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                           horizontal: 16,
                           vertical: 4,
                         ),
-                        child: glass.GlassSegmentedControl(
+                        child: GBoxSegmentedControl(
                           segments: const [
-                            glass.GlassSegment(
+                            GBoxSegment(
                               label: 'Reposts',
-                              icon: Icon(Icons.repeat_rounded),
+                              icon: Icons.repeat_rounded,
                             ),
-                            glass.GlassSegment(
+                            GBoxSegment(
                               label: 'Mass Un-Like',
-                              icon: Icon(Icons.favorite_border_rounded),
+                              icon: Icons.favorite_border_rounded,
                             ),
-                            glass.GlassSegment(
+                            GBoxSegment(
                               label: 'Mass Un-Follow',
-                              icon: Icon(Icons.person_remove_rounded),
+                              icon: Icons.person_remove_rounded,
                             ),
                           ],
                           selectedIndex: const [
@@ -1529,31 +1528,6 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                             });
                             _loadItems();
                           },
-                          height: 56,
-                          selectedTextStyle: Theme.of(context)
-                              .textTheme
-                              .labelMedium!
-                              .copyWith(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                          unselectedTextStyle: Theme.of(context)
-                              .textTheme
-                              .labelMedium!
-                              .copyWith(
-                                color: ClearTokColors.secondary,
-                                fontSize: 11,
-                              ),
-                          selectedIconColor: ClearTokColors.cyan,
-                          unselectedIconColor: ClearTokColors.secondary,
-                          backgroundColor: Colors.white.withValues(alpha: .06),
-                          indicatorColor: ClearTokColors.pink.withValues(
-                            alpha: .22,
-                          ),
-                          settings: glass.LiquidGlassSettings.ios27Dark,
-                          quality: glass.GlassQuality.premium,
-                          useOwnLayer: true,
                         ),
                       ),
 
@@ -2062,21 +2036,26 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
           selected: isSelected,
           button: true,
           child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(ClearTokTokens.radius),
-              border: Border.all(
-                color: isSelected ? ClearTokColors.pink : Colors.white10,
-                width: isSelected ? 2 : 1,
+            decoration: ShapeDecoration(
+              shape: gboxSquircleShape(
+                ClearTokTokens.radius,
+                side: BorderSide(
+                  color: isSelected ? ClearTokColors.pink : Colors.white10,
+                  width: isSelected ? 2 : 1,
+                ),
               ),
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(ClearTokTokens.radius),
+            child: ClipPath(
+              clipper: ShapeBorderClipper(
+                shape: gboxSquircleShape(ClearTokTokens.radius),
+              ),
               child: Stack(
                 children: [
                   Positioned.fill(
                     child: Image.network(
                       v.coverUrl,
                       fit: BoxFit.cover,
+                      filterQuality: FilterQuality.low,
                       errorBuilder: (_, __, ___) => Container(
                         color: ClearTokColors.surface,
                         child: const Icon(

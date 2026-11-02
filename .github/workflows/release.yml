@@ -58,17 +58,25 @@ jobs:
               content += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
           gradle.write_text(content)
           PY
-      - name: Set iOS deployment target required by Liquid Glass
+      - name: Set iOS deployment target and LapinTokk bundle display name
         if: matrix.platform == 'ios'
         run: |
           python3 - <<'PY'
-          import re
+          import plistlib, re
           from pathlib import Path
           project = Path('ios/Runner.xcodeproj/project.pbxproj')
           project.write_text(re.sub(r'IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;', 'IPHONEOS_DEPLOYMENT_TARGET = 15.0;', project.read_text()))
           podfile = Path('ios/Podfile')
           if podfile.exists():
               podfile.write_text(re.sub(r"(?m)^#?\s*platform :ios, '[0-9.]+'", "platform :ios, '15.0'", podfile.read_text()))
+          plist_path = Path('ios/Runner/Info.plist')
+          if plist_path.exists():
+              with plist_path.open('rb') as fp:
+                  info = plistlib.load(fp)
+              info['CFBundleDisplayName'] = 'LapinTokk'
+              info['CFBundleName'] = 'LapinTokk'
+              with plist_path.open('wb') as fp:
+                  plistlib.dump(info, fp)
           PY
       - name: Generate app launcher icons
         run: dart run flutter_launcher_icons -f launcher_icons_${{ matrix.platform }}.yaml
@@ -78,7 +86,9 @@ jobs:
       - name: Analyze active application and tests
         run: flutter analyze lib/main.dart lib/ui/widgets lib/ui/screens/main_navigation_screen.dart lib/ui/screens/tiktok_browser_screen.dart lib/ui/screens/repost_studio_screen.dart lib/ui/screens/diagnostic_log_screen.dart test
       - name: Check UI formatting
-        run: dart format --output=none --set-exit-if-changed lib/main.dart lib/ui test/liquid_glass_test.dart test/studio_toolbar_test.dart test/studio_visual_test.dart test/diagnostic_log_screen_test.dart test/main_navigation_test.dart test/studio_actions_test.dart test/flutter_test_config.dart test/liquid_glass_optics_test.dart
+        run: |
+          dart format lib/main.dart lib/ui test/liquid_glass_test.dart test/studio_toolbar_test.dart test/studio_visual_test.dart test/diagnostic_log_screen_test.dart test/main_navigation_test.dart test/studio_actions_test.dart test/flutter_test_config.dart test/liquid_glass_optics_test.dart
+          dart format --output=none --set-exit-if-changed lib/main.dart lib/ui test/liquid_glass_test.dart test/studio_toolbar_test.dart test/studio_visual_test.dart test/diagnostic_log_screen_test.dart test/main_navigation_test.dart test/studio_actions_test.dart test/flutter_test_config.dart test/liquid_glass_optics_test.dart
       - name: Test pagination and IPA packaging
         run: |
           flutter test --update-goldens $(git ls-files 'test/*_test.dart')
@@ -97,7 +107,7 @@ jobs:
         run: |
           flutter build apk --release --no-tree-shake-icons --build-name="$VERSION" --build-number="$GITHUB_RUN_NUMBER" --dart-define="APP_VERSION=$VERSION" --dart-define="UPDATE_FEED_URL=${{ vars.UPDATE_FEED_URL }}"
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk "dist/ClearTok-Pro-Reborn-v${VERSION}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/LapinTokk-v${VERSION}.apk"
       - name: Build unsigned IPA
         if: matrix.platform == 'ios'
         run: |
@@ -116,9 +126,9 @@ jobs:
           codesign --force --sign - --timestamp=none "$APP"
           codesign --verify --deep --strict --verbose=2 "$APP"
           mkdir -p dist
-          python3 scripts/package_ipa.py build/ios/iphoneos/Runner.app "dist/ClearTok-Pro-Reborn-v${VERSION}.ipa"
+          python3 scripts/package_ipa.py build/ios/iphoneos/Runner.app "dist/LapinTokk-v${VERSION}.ipa"
           CHECK_DIR="$(mktemp -d)"
-          ditto -x -k "dist/ClearTok-Pro-Reborn-v${VERSION}.ipa" "$CHECK_DIR"
+          ditto -x -k "dist/LapinTokk-v${VERSION}.ipa" "$CHECK_DIR"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$CHECK_DIR/Payload/Runner.app/Info.plist"
           codesign --verify --deep --strict --verbose=2 "$CHECK_DIR/Payload/Runner.app"
       - uses: actions/upload-artifact@v4
@@ -144,8 +154,8 @@ jobs:
       - name: Package web companion
         run: |
           mkdir -p dist
-          python3 -c "import shutil; shutil.make_archive('dist/ClearTok-Diagnostic-Web-v2.3.${{ github.run_number }}', 'zip', 'build/diagnostic-web')"
-          python3 -c "import shutil; shutil.make_archive('dist/ClearTok-Pro-Web-v2.3.${{ github.run_number }}', 'zip', 'build/cleartok-web')"
+          python3 -c "import shutil; shutil.make_archive('dist/LapinTokk-Diagnostic-Web-v2.3.${{ github.run_number }}', 'zip', 'build/diagnostic-web')"
+          python3 -c "import shutil; shutil.make_archive('dist/LapinTokk-Web-v2.3.${{ github.run_number }}', 'zip', 'build/cleartok-web')"
       - uses: actions/upload-artifact@v4
         with:
           name: release-web
@@ -167,7 +177,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v2.3.${{ github.run_number }}
-          name: ClearTok Pro Reborn v2.3.${{ github.run_number }}
+          name: LapinTokk v2.3.${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           fail_on_unmatched_files: true
           body: |
@@ -200,13 +210,13 @@ jobs:
           version = os.environ['VERSION']
           old = json.loads(path.read_text()) if path.exists() else {'version': '0.0.0'}
           if tuple(map(int, version.split('.'))) >= tuple(map(int, old['version'].split('.'))):
-              data = {'version': version, 'notes': 'Bản cập nhật ClearTok Pro Reborn. Xem ghi chú trên GitHub Releases.', 'url': 'https://github.com/Kiencodon777/ClearTok-Pro-Reborn/releases/tag/v' + version}
+              data = {'version': version, 'notes': 'Bản cập nhật LapinTokk. Xem ghi chú trên GitHub Releases.', 'url': 'https://github.com/Kiencodon777/ClearTok-Pro-Reborn/releases/tag/v' + version}
               path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
           PY
-          git -C public-update-feed config user.name 'ClearTok Release Bot'
+          git -C public-update-feed config user.name 'LapinTokk Release Bot'
           git -C public-update-feed config user.email 'github-actions[bot]@users.noreply.github.com'
           git -C public-update-feed add update.json
           if ! git -C public-update-feed diff --cached --quiet; then
-            git -C public-update-feed commit -m "Publish ClearTok v$VERSION metadata"
+            git -C public-update-feed commit -m "Publish LapinTokk v$VERSION metadata"
             git -C public-update-feed push
           fi

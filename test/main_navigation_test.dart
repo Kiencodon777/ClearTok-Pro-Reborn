@@ -59,7 +59,7 @@ void main() {
     expect(find.byType(IndexedStack), findsOneWidget);
     await tester.tap(find.text('Studio Reposts').hitTestable().first);
     await tester.pumpAndSettle();
-    expect(find.text('ClearTok Studio Pro'), findsOneWidget);
+    expect(find.text('LapinTokk Studio'), findsOneWidget);
     expect(
       find.ancestor(
         of: find.byType(ProjectCreditFooter),

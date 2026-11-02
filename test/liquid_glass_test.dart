@@ -1,4 +1,3 @@
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' as glass;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cleartok_reborn/ui/widgets/liquid_glass.dart';
@@ -27,7 +26,7 @@ void main() {
         ),
       );
       expect(
-        find.byType(glass.GlassContainer),
+        find.byType(BackdropFilter),
         highContrast ? findsNothing : findsOneWidget,
       );
       expect(
@@ -78,8 +77,8 @@ void main() {
       expect(taps, 2);
       expect(
         tester
-            .widget<glass.GlassButton>(
-              find.widgetWithText(glass.GlassButton, 'Disabled'),
+            .widget<GlassActionButton>(
+              find.widgetWithText(GlassActionButton, 'Disabled'),
             )
             .enabled,
         isFalse,
@@ -89,6 +88,13 @@ void main() {
       )) {
         final decoration = box.decoration;
         if (decoration is BoxDecoration &&
+            decoration.gradient is LinearGradient) {
+          final gradient = decoration.gradient! as LinearGradient;
+          if (gradient.stops != null) {
+            expect(gradient.colors.length, gradient.stops!.length);
+          }
+        }
+        if (decoration is ShapeDecoration &&
             decoration.gradient is LinearGradient) {
           final gradient = decoration.gradient! as LinearGradient;
           if (gradient.stops != null) {

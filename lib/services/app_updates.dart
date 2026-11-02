@@ -32,7 +32,7 @@ class AppRelease {
 }
 
 class AppUpdates {
-  static const currentVersion = String.fromEnvironment('APP_VERSION', defaultValue: '2.2.2');
+  static const currentVersion = String.fromEnvironment('APP_VERSION', defaultValue: '2.3.26');
   static const feedUrl = String.fromEnvironment('UPDATE_FEED_URL');
   static bool _checking = false;
   static final releasesUrl = Uri.parse('https://github.com/Kiencodon777/ClearTok-Pro-Reborn/releases');
@@ -66,9 +66,9 @@ class AppUpdates {
         content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(width: double.infinity, padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF7F1738), Color(0xFF114A4E)]), borderRadius: BorderRadius.circular(14)),
-            child: const Column(children: [Icon(Icons.system_update, size: 44, color: Color(0xFF25F4EE)), SizedBox(height: 10), Text('ClearTok Pro Reborn', style: TextStyle(fontWeight: FontWeight.bold))])),
+            child: const Column(children: [Icon(Icons.system_update, size: 44, color: Color(0xFF25F4EE)), SizedBox(height: 10), Text('LapinTokk', style: TextStyle(fontWeight: FontWeight.bold))])),
           const SizedBox(height: 16),
-          Text(available == null ? notice! : 'ClearTok ${available.version} đã sẵn sàng.'),
+          Text(available == null ? notice! : 'LapinTokk ${available.version} đã sẵn sàng.'),
           if (available != null) ...[const SizedBox(height: 16), const Text('Có gì mới', style: TextStyle(fontWeight: FontWeight.bold)), const SizedBox(height: 8), Text(available.notes)],
           const SizedBox(height: 12),
           const Text('iOS: tải IPA rồi ký/cài lại bằng công cụ của bạn. App không tự cài bản cập nhật.', style: TextStyle(fontSize: 12, color: Color(0xFFBDC7D5))),

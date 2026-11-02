@@ -161,7 +161,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ClearTok Pro — Unlimited'),
+        title: const Text('LapinTokk — Unlimited'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

@@ -1,4 +1,3 @@
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' as glass;
 import 'package:flutter/material.dart';
 import '../../api/tiktok_client.dart';
 import '../../core/remote_payload_config.dart';
@@ -39,8 +38,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final repostCount = widget.database.getAllReposts().length;
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 80;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
+      resizeToAvoidBottomInset: false,
       extendBody: _currentIndex == 1,
       body: MediaQuery.removePadding(
         context: context,
@@ -67,7 +70,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               },
             ),
 
-            // Tab 1: ClearTok Studio / Reposts Manager
+            // Tab 1: LapinTokk Studio / Reposts Manager
             RepostStudioScreen(
               database: widget.database,
               client: _client,
@@ -80,77 +83,57 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: LiquidGlassContainer(
-        key: const ValueKey('creator-dock'),
-        margin: const EdgeInsets.fromLTRB(8, 0, 8, 0),
-        borderRadius: 28,
-        child: SafeArea(
-          top: false,
-          minimum: const EdgeInsets.only(bottom: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              glass.GlassTabBar.bottom(
-                selectedIndex: _currentIndex,
-                onTabSelected: (idx) => setState(() => _currentIndex = idx),
-                horizontalPadding: 4,
-                verticalPadding: 0,
-                barHeight: 64,
-                barBorderRadius: 24,
-                glowOpacity: .08,
-                glowBlurRadius: 8,
-                quality: glass.GlassQuality.premium,
-                backgroundQuality: glass.GlassQuality.minimal,
-                settings: glass.LiquidGlassSettings.ios27Dark.copyWith(
-                  glassColor: Colors.transparent,
-                  blur: 0,
-                  thickness: 0,
+      bottomNavigationBar: keyboardOpen
+          ? null
+          : LiquidGlassContainer(
+              key: const ValueKey('creator-dock'),
+              margin: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+              borderRadius: 28,
+              child: SafeArea(
+                top: false,
+                minimum: const EdgeInsets.only(bottom: 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GBoxLiquidDock(
+                      selectedIndex: _currentIndex,
+                      onTabSelected: (idx) =>
+                          setState(() => _currentIndex = idx),
+                      items: [
+                        const GBoxDockItem(
+                          icon: Icon(Icons.public_outlined),
+                          activeIcon: Icon(Icons.public),
+                          label: 'TikTok Web',
+                        ),
+                        GBoxDockItem(
+                          icon: Badge(
+                            isLabelVisible: repostCount > 0,
+                            label: Text('$repostCount'),
+                            backgroundColor: ClearTokColors.cyan,
+                            textColor: Colors.black,
+                            child: const Icon(Icons.dashboard_outlined),
+                          ),
+                          activeIcon: Badge(
+                            isLabelVisible: repostCount > 0,
+                            label: Text('$repostCount'),
+                            backgroundColor: ClearTokColors.cyan,
+                            textColor: Colors.black,
+                            child: const Icon(Icons.dashboard_rounded),
+                          ),
+                          label: 'Studio Reposts',
+                        ),
+                        const GBoxDockItem(
+                          icon: Icon(Icons.receipt_long_outlined),
+                          activeIcon: Icon(Icons.receipt_long),
+                          label: 'Log',
+                        ),
+                      ],
+                    ),
+                    if (_currentIndex == 1) const ProjectCreditFooter(),
+                  ],
                 ),
-                indicatorSettings: glass.LiquidGlassSettings.ios27Dark,
-                indicatorColor: ClearTokColors.pink.withValues(alpha: .20),
-                selectedIconColor: ClearTokColors.cyan,
-                selectedLabelColor: Colors.white,
-                unselectedIconColor: ClearTokColors.secondary,
-                unselectedLabelColor: ClearTokColors.secondary,
-                tabs: [
-                  const glass.GlassTab(
-                    icon: Icon(Icons.public_outlined),
-                    activeIcon: Icon(Icons.public),
-                    label: 'TikTok Web',
-                  ),
-                  glass.GlassTab(
-                    icon: Badge(
-                      isLabelVisible: widget.database
-                          .getAllReposts()
-                          .isNotEmpty,
-                      label: Text('${widget.database.getAllReposts().length}'),
-                      backgroundColor: ClearTokColors.cyan,
-                      textColor: Colors.black,
-                      child: const Icon(Icons.dashboard_outlined),
-                    ),
-                    activeIcon: Badge(
-                      isLabelVisible: widget.database
-                          .getAllReposts()
-                          .isNotEmpty,
-                      label: Text('${widget.database.getAllReposts().length}'),
-                      backgroundColor: ClearTokColors.cyan,
-                      textColor: Colors.black,
-                      child: const Icon(Icons.dashboard_rounded),
-                    ),
-                    label: 'Studio Reposts',
-                  ),
-                  const glass.GlassTab(
-                    icon: Icon(Icons.receipt_long_outlined),
-                    activeIcon: Icon(Icons.receipt_long),
-                    label: 'Log',
-                  ),
-                ],
               ),
-              if (_currentIndex == 1) const ProjectCreditFooter(),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 }
