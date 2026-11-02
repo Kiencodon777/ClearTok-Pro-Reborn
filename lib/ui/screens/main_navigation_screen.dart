@@ -85,53 +85,49 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ),
       bottomNavigationBar: keyboardOpen
           ? null
-          : LiquidGlassContainer(
+          : SafeArea(
               key: const ValueKey('creator-dock'),
-              margin: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-              borderRadius: 28,
-              child: SafeArea(
-                top: false,
-                minimum: const EdgeInsets.only(bottom: 4),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GBoxLiquidDock(
-                      selectedIndex: _currentIndex,
-                      onTabSelected: (idx) =>
-                          setState(() => _currentIndex = idx),
-                      items: [
-                        const GBoxDockItem(
-                          icon: Icon(Icons.public_outlined),
-                          activeIcon: Icon(Icons.public),
-                          label: 'TikTok Web',
+              top: false,
+              minimum: const EdgeInsets.only(bottom: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GBoxLiquidDock(
+                    selectedIndex: _currentIndex,
+                    onTabSelected: (idx) =>
+                        setState(() => _currentIndex = idx),
+                    items: [
+                      const GBoxDockItem(
+                        icon: Icon(Icons.public_rounded),
+                        activeIcon: Icon(Icons.public_rounded),
+                        label: 'TikTok Web',
+                      ),
+                      GBoxDockItem(
+                        icon: Badge(
+                          isLabelVisible: repostCount > 0,
+                          label: Text('$repostCount'),
+                          backgroundColor: ClearTokColors.neonCyan,
+                          textColor: Colors.black,
+                          child: const Icon(Icons.grid_view_rounded),
                         ),
-                        GBoxDockItem(
-                          icon: Badge(
-                            isLabelVisible: repostCount > 0,
-                            label: Text('$repostCount'),
-                            backgroundColor: ClearTokColors.cyan,
-                            textColor: Colors.black,
-                            child: const Icon(Icons.dashboard_outlined),
-                          ),
-                          activeIcon: Badge(
-                            isLabelVisible: repostCount > 0,
-                            label: Text('$repostCount'),
-                            backgroundColor: ClearTokColors.cyan,
-                            textColor: Colors.black,
-                            child: const Icon(Icons.dashboard_rounded),
-                          ),
-                          label: 'Studio Reposts',
+                        activeIcon: Badge(
+                          isLabelVisible: repostCount > 0,
+                          label: Text('$repostCount'),
+                          backgroundColor: ClearTokColors.neonCyan,
+                          textColor: Colors.black,
+                          child: const Icon(Icons.grid_view_rounded),
                         ),
-                        const GBoxDockItem(
-                          icon: Icon(Icons.receipt_long_outlined),
-                          activeIcon: Icon(Icons.receipt_long),
-                          label: 'Log',
-                        ),
-                      ],
-                    ),
-                    if (_currentIndex == 1) const ProjectCreditFooter(),
-                  ],
-                ),
+                        label: 'Studio Reposts',
+                      ),
+                      const GBoxDockItem(
+                        icon: Icon(Icons.receipt_long_rounded),
+                        activeIcon: Icon(Icons.receipt_long_rounded),
+                        label: 'Log',
+                      ),
+                    ],
+                  ),
+                  if (_currentIndex == 1) const ProjectCreditFooter(),
+                ],
               ),
             ),
     );
