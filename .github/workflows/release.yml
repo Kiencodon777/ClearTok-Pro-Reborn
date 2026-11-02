@@ -90,6 +90,7 @@ jobs:
           dart format lib/main.dart lib/ui test/liquid_glass_test.dart test/studio_toolbar_test.dart test/studio_visual_test.dart test/diagnostic_log_screen_test.dart test/main_navigation_test.dart test/studio_actions_test.dart test/flutter_test_config.dart test/liquid_glass_optics_test.dart
           dart format --output=none --set-exit-if-changed lib/main.dart lib/ui test/liquid_glass_test.dart test/studio_toolbar_test.dart test/studio_visual_test.dart test/diagnostic_log_screen_test.dart test/main_navigation_test.dart test/studio_actions_test.dart test/flutter_test_config.dart test/liquid_glass_optics_test.dart
       - name: Test pagination and IPA packaging
+        if: matrix.platform == 'android'
         run: |
           flutter test --update-goldens $(git ls-files 'test/*_test.dart')
           python3 -m unittest discover -s test -p '*_test.py'
@@ -99,13 +100,10 @@ jobs:
           name: ui-previews
           path: build/ui-previews/*.png
           if-no-files-found: error
-      - name: Build debug APK
-        if: matrix.platform == 'android'
-        run: flutter build apk --debug
       - name: Build APK
         if: matrix.platform == 'android'
         run: |
-          flutter build apk --release --no-tree-shake-icons --build-name="$VERSION" --build-number="$GITHUB_RUN_NUMBER" --dart-define="APP_VERSION=$VERSION" --dart-define="UPDATE_FEED_URL=${{ vars.UPDATE_FEED_URL }}"
+          flutter build apk --release --target-platform android-arm64 --no-tree-shake-icons --build-name="$VERSION" --build-number="$GITHUB_RUN_NUMBER" --dart-define="APP_VERSION=$VERSION" --dart-define="UPDATE_FEED_URL=${{ vars.UPDATE_FEED_URL }}"
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-release.apk "dist/LapinTokk-v${VERSION}.apk"
       - name: Build unsigned IPA

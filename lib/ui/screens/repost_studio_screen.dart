@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -1208,7 +1209,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                   min: 200,
                   max: 2000,
                   divisions: 18,
-                  activeColor: ClearTokColors.pink,
+                  activeColor: ClearTokColors.cyan,
+              checkColor: Colors.black,
                   inactiveColor: Colors.white12,
                   label: '${currentDelay}ms',
                   onChanged: (val) {
@@ -1399,93 +1401,40 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                                 ],
                               ),
                             ),
-                            IconButton(
-                              tooltip: _toolsExpanded
-                                  ? 'Thu gọn công cụ'
-                                  : 'Mở rộng công cụ',
-                              icon: Icon(
-                                _toolsExpanded ? Icons.expand_less : Icons.tune,
-                                color: ClearTokColors.cyan,
-                              ),
-                              onPressed: () {
-                                setState(
-                                  () => _toolsExpanded = !_toolsExpanded,
-                                );
-                                widget.database.setStudioToolsExpanded(
-                                  _toolsExpanded,
-                                );
-                              },
-                            ),
-                            PopupMenuButton<String>(
-                              tooltip: 'Menu Studio',
-                              icon: const Icon(
-                                Icons.more_horiz_rounded,
-                                color: ClearTokColors.cyan,
-                              ),
-                              color: ClearTokColors.surface.withValues(
-                                alpha: .96,
-                              ),
-                              elevation: 2,
-                              shadowColor: Colors.transparent,
-                              surfaceTintColor: Colors.transparent,
-                              position: PopupMenuPosition.under,
-                              offset: const Offset(0, 8),
-                              constraints: const BoxConstraints(
-                                minWidth: 270,
-                                maxWidth: 310,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(22),
-                                side: const BorderSide(
-                                  color: ClearTokColors.border,
+                            BouncyTapWrapper(
+                              pressedScale: 0.88,
+                              onTap: () {},
+                              child: IconButton(
+                                tooltip: _toolsExpanded
+                                    ? 'Thu gọn công cụ'
+                                    : 'Mở rộng công cụ',
+                                icon: Icon(
+                                  _toolsExpanded
+                                      ? Icons.expand_less
+                                      : Icons.tune,
+                                  color: ClearTokColors.cyan,
                                 ),
-                              ),
-                              onSelected: (value) {
-                                if (value == 'analytics') {
-                                  _showAnalyticsModal();
-                                }
-                                if (value == 'export') _showExportModal();
-                                if (value == 'settings') {
-                                  _showSettingsModal();
-                                }
-                                if (value == 'update') {
-                                  AppUpdates.check(
-                                    context,
-                                    widget.database,
-                                    manual: true,
+                                onPressed: () {
+                                  setState(
+                                    () => _toolsExpanded = !_toolsExpanded,
                                   );
-                                }
-                              },
-                              itemBuilder: (_) => [
-                                _studioMenuItem(
-                                  'analytics',
-                                  Icons.insights_rounded,
-                                  ClearTokColors.cyan,
-                                  'Thống kê',
-                                  'Tổng quan tương tác của bạn',
+                                  widget.database.setStudioToolsExpanded(
+                                    _toolsExpanded,
+                                  );
+                                },
+                              ),
+                            ),
+                            BouncyTapWrapper(
+                              pressedScale: 0.88,
+                              onTap: () {},
+                              child: IconButton(
+                                tooltip: 'Menu Studio',
+                                icon: const Icon(
+                                  Icons.more_horiz_rounded,
+                                  color: ClearTokColors.cyan,
                                 ),
-                                _studioMenuItem(
-                                  'export',
-                                  Icons.file_download_outlined,
-                                  ClearTokColors.cyan,
-                                  'Xuất CSV/JSON',
-                                  'Lưu báo cáo vào thiết bị',
-                                ),
-                                _studioMenuItem(
-                                  'settings',
-                                  Icons.tune_rounded,
-                                  ClearTokColors.pink,
-                                  'Cài đặt',
-                                  'Tùy chỉnh nhịp xử lý',
-                                ),
-                                _studioMenuItem(
-                                  'update',
-                                  Icons.system_update_rounded,
-                                  ClearTokColors.pink,
-                                  'Kiểm tra cập nhật',
-                                  'Khám phá phiên bản mới',
-                                ),
-                              ],
+                                onPressed: _openStudioMenuPopover,
+                              ),
                             ),
                           ],
                         ),
@@ -1797,54 +1746,247 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     );
   }
 
-  PopupMenuItem<String> _studioMenuItem(
+  Future<void> _openStudioMenuPopover() async {
+    final selected = await showGeneralDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Đóng Menu Studio',
+      barrierColor: Colors.black.withValues(alpha: 0.34),
+      transitionDuration: const Duration(milliseconds: 280),
+      pageBuilder: (ctx, anim, secAnim) {
+        return SafeArea(
+          child: Align(
+            alignment: Alignment.topRight,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 62, right: 16, left: 16),
+              child: Material(
+                color: Colors.transparent,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minWidth: 272,
+                    maxWidth: 312,
+                  ),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(26),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.52),
+                          blurRadius: 32,
+                          offset: const Offset(0, 14),
+                        ),
+                        BoxShadow(
+                          color: ClearTokColors.cyan.withValues(alpha: 0.08),
+                          blurRadius: 20,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(26),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(26),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.20),
+                              width: 0.9,
+                            ),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              stops: const [0.0, 0.45, 1.0],
+                              colors: [
+                                Colors.white.withValues(alpha: 0.14),
+                                const Color(0xFF171B24).withValues(alpha: 0.88),
+                                const Color(0xFF0E1117).withValues(alpha: 0.94),
+                              ],
+                            ),
+                          ),
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 10,
+                              horizontal: 8,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _studioGlassMenuRow(
+                                  ctx,
+                                  'analytics',
+                                  Icons.insights_rounded,
+                                  ClearTokColors.cyan,
+                                  'Thống kê',
+                                  'Tổng quan tương tác của bạn',
+                                ),
+                                Divider(
+                                  height: 6,
+                                  indent: 14,
+                                  endIndent: 14,
+                                  color: Colors.white.withValues(alpha: 0.07),
+                                ),
+                                _studioGlassMenuRow(
+                                  ctx,
+                                  'export',
+                                  Icons.file_download_outlined,
+                                  ClearTokColors.cyan,
+                                  'Xuất CSV/JSON',
+                                  'Lưu báo cáo vào thiết bị',
+                                ),
+                                Divider(
+                                  height: 6,
+                                  indent: 14,
+                                  endIndent: 14,
+                                  color: Colors.white.withValues(alpha: 0.07),
+                                ),
+                                _studioGlassMenuRow(
+                                  ctx,
+                                  'settings',
+                                  Icons.tune_rounded,
+                                  const Color(0xFF5CE1E6),
+                                  'Cài đặt',
+                                  'Tùy chỉnh nhịp xử lý',
+                                ),
+                                Divider(
+                                  height: 6,
+                                  indent: 14,
+                                  endIndent: 14,
+                                  color: Colors.white.withValues(alpha: 0.07),
+                                ),
+                                _studioGlassMenuRow(
+                                  ctx,
+                                  'update',
+                                  Icons.system_update_rounded,
+                                  const Color(0xFFFF9F0A),
+                                  'Kiểm tra cập nhật',
+                                  'Khám phá phiên bản mới',
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (ctx, anim, secAnim, child) {
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutBack,
+          reverseCurve: Curves.easeInCubic,
+        );
+        final fade = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOut,
+        );
+        return FadeTransition(
+          opacity: fade,
+          child: Transform.translate(
+            offset: Offset(0, (1.0 - curved.value) * -14.0),
+            child: Transform.scale(
+              scale: 0.76 + 0.24 * curved.value,
+              alignment: const Alignment(0.88, -0.86),
+              child: child,
+            ),
+          ),
+        );
+      },
+    );
+    if (!mounted || selected == null) return;
+    if (selected == 'analytics') {
+      _showAnalyticsModal();
+    } else if (selected == 'export') {
+      _showExportModal();
+    } else if (selected == 'settings') {
+      _showSettingsModal();
+    } else if (selected == 'update') {
+      AppUpdates.check(
+        context,
+        widget.database,
+        manual: true,
+      );
+    }
+  }
+
+  Widget _studioGlassMenuRow(
+    BuildContext dialogContext,
     String value,
     IconData icon,
     Color color,
     String title,
     String description,
   ) {
-    return PopupMenuItem<String>(
-      value: value,
-      height: 76,
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: ClearTokColors.text,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+    return BouncyTapWrapper(
+      pressedScale: 0.95,
+      onTap: () => Navigator.of(dialogContext).pop(value),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        splashColor: color.withValues(alpha: 0.14),
+        onTap: () => Navigator.of(dialogContext).pop(value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      color.withValues(alpha: 0.24),
+                      color.withValues(alpha: 0.08),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: color.withValues(alpha: 0.36),
+                    width: 0.8,
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  description,
-                  style: const TextStyle(
-                    color: ClearTokColors.secondary,
-                    fontSize: 11,
-                  ),
+                child: Icon(icon, color: color, size: 21),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: ClearTokColors.text,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        color: ClearTokColors.secondary,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: Colors.white.withValues(alpha: 0.32),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -2044,8 +2186,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
               shape: gboxSquircleShape(
                 ClearTokTokens.radius,
                 side: BorderSide(
-                  color: isSelected ? ClearTokColors.pink : Colors.white10,
-                  width: isSelected ? 2 : 1,
+                  color: isSelected ? ClearTokColors.cyan.withValues(alpha: 0.72) : Colors.white12,
+                  width: isSelected ? 1.5 : 0.8,
                 ),
               ),
             ),
@@ -2088,14 +2230,14 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? ClearTokColors.pink
+                            ? ClearTokColors.cyan
                             : Colors.black54,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        isSelected ? Icons.check : Icons.circle_outlined,
+                        isSelected ? Icons.check_rounded : Icons.circle_outlined,
                         size: 16,
-                        color: Colors.white,
+                        color: isSelected ? Colors.black : Colors.white,
                       ),
                     ),
                   ),
@@ -2166,13 +2308,17 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   }
 
   Widget _buildScanLimitPill(String label, int limit) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: _scanBatchLimit == limit,
-      onSelected: (_) {
-        setState(() => _scanBatchLimit = limit);
-        widget.database.setScanBatchLimit(limit);
-      },
+    return BouncyTapWrapper(
+      pressedScale: 0.90,
+      onTap: () {},
+      child: ChoiceChip(
+        label: Text(label),
+        selected: _scanBatchLimit == limit,
+        onSelected: (_) {
+          setState(() => _scanBatchLimit = limit);
+          widget.database.setScanBatchLimit(limit);
+        },
+      ),
     );
   }
 
@@ -2230,30 +2376,36 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     final isSelected = _selectedFilter == id;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        avatar: Icon(
-          id == 'most_liked'
-              ? Icons.favorite_border_rounded
-              : id == 'newest'
-              ? Icons.arrow_upward_rounded
-              : id == 'oldest'
-              ? Icons.arrow_downward_rounded
-              : id == 'selected'
-              ? Icons.check_circle_outline
-              : Icons.filter_list_rounded,
-          size: 16,
-        ),
-        label: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : ClearTokColors.secondary,
-            fontSize: 12,
+      child: BouncyTapWrapper(
+        pressedScale: 0.91,
+        onTap: () {},
+        child: ChoiceChip(
+          avatar: Icon(
+            id == 'most_liked'
+                ? Icons.favorite_border_rounded
+                : id == 'newest'
+                ? Icons.arrow_upward_rounded
+                : id == 'oldest'
+                ? Icons.arrow_downward_rounded
+                : id == 'selected'
+                ? Icons.check_circle_outline
+                : Icons.filter_list_rounded,
+            size: 16,
+            color: isSelected ? ClearTokColors.cyan : ClearTokColors.secondary,
           ),
+          label: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? Colors.white : ClearTokColors.secondary,
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+          selected: isSelected,
+          selectedColor: ClearTokColors.cyan.withValues(alpha: .18),
+          backgroundColor: ClearTokColors.surface,
+          onSelected: (_) => setState(() => _selectedFilter = id),
         ),
-        selected: isSelected,
-        selectedColor: ClearTokColors.pink.withValues(alpha: .18),
-        backgroundColor: ClearTokColors.surface,
-        onSelected: (_) => setState(() => _selectedFilter = id),
       ),
     );
   }
