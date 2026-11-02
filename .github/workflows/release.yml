@@ -84,7 +84,7 @@ jobs:
         continue-on-error: true
         run: flutter analyze lib test
       - name: Analyze active application and tests
-        run: flutter analyze lib/main.dart lib/ui/widgets lib/ui/screens/main_navigation_screen.dart lib/ui/screens/tiktok_browser_screen.dart lib/ui/screens/repost_studio_screen.dart lib/ui/screens/diagnostic_log_screen.dart test
+        run: flutter analyze lib/main.dart lib/ui/widgets lib/ui/screens/main_navigation_screen.dart lib/ui/screens/tiktok_browser_screen.dart lib/ui/screens/repost_studio_screen.dart lib/ui/screens/processed_history_screen.dart lib/ui/screens/diagnostic_log_screen.dart test
       - name: Check UI formatting
         run: |
           dart format lib/main.dart lib/ui test/liquid_glass_test.dart test/studio_toolbar_test.dart test/studio_visual_test.dart test/diagnostic_log_screen_test.dart test/main_navigation_test.dart test/studio_actions_test.dart test/flutter_test_config.dart test/liquid_glass_optics_test.dart
@@ -208,7 +208,13 @@ jobs:
           version = os.environ['VERSION']
           old = json.loads(path.read_text()) if path.exists() else {'version': '0.0.0'}
           if tuple(map(int, version.split('.'))) >= tuple(map(int, old['version'].split('.'))):
-              data = {'version': version, 'notes': 'Bản cập nhật LapinTokk. Xem ghi chú trên GitHub Releases.', 'url': 'https://github.com/Kiencodon777/ClearTok-Pro-Reborn/releases/tag/v' + version}
+              notes = (
+                  "• Hiệu ứng Giọt Nước Pha Lê Trong Suốt phóng đại tràn viền & Thanh Dock lắc nảy đàn hồi chuẩn GBox.\n"
+                  "• Thêm Tab thứ 4 'Đã Xử Lý' dưới thanh Dock & Tách riêng bộ đếm Đã Xử Lý cho từng mục (Repost, Un-Like, Un-Follow).\n"
+                  "• Nhấn giữ (Long-Press) vào bất kỳ video hoặc kênh nào để mở menu xem ngược lại trực tiếp trên TikTok.\n"
+                  "• Khôi phục nền Gradient đa sắc & tối ưu tốc độ quét/xử lý."
+              )
+              data = {'version': version, 'notes': notes, 'url': 'https://github.com/Kiencodon777/ClearTok-Pro-Reborn/releases/tag/v' + version}
               path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
           PY
           git -C public-update-feed config user.name 'LapinTokk Release Bot'

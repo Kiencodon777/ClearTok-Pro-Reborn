@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../api/tiktok_client.dart';
 import '../../database/local_database.dart';
 import '../../models/tiktok_follow_user.dart';
@@ -16,6 +17,7 @@ class RepostStudioScreen extends StatefulWidget {
   final TikTokClient? client;
   final TikTokUserProfile? currentUser;
   final VoidCallback onSwitchToBrowser;
+  final ValueChanged<String>? onOpenInTikTokWeb;
 
   const RepostStudioScreen({
     super.key,
@@ -23,6 +25,7 @@ class RepostStudioScreen extends StatefulWidget {
     required this.client,
     required this.currentUser,
     required this.onSwitchToBrowser,
+    this.onOpenInTikTokWeb,
   });
 
   @override
@@ -1498,7 +1501,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                               const SizedBox(width: 10),
                               _buildMetricCard(
                                 title: 'Đã Xử Lý',
-                                value: '${widget.database.totalDeletedCount}',
+                                value:
+                                    '${widget.database.deletedCountForHub(_currentHub)}',
                                 color: ClearTokColors.cyan,
                                 icon: Icons.delete_sweep_rounded,
                               ),
@@ -2105,6 +2109,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                 });
               },
             ),
+            onLongPress: () => _showFollowingQuickAccessMenu(u),
             onTap: () {
               setState(() {
                 if (isSelected) {
@@ -2286,6 +2291,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                         borderRadius: BorderRadius.circular(
                           ClearTokTokens.radius,
                         ),
+                        onLongPress: () => _showVideoQuickAccessMenu(v),
                         onTap: () {
                           setState(() {
                             if (isSelected) {
@@ -2304,6 +2310,337 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _showVideoQuickAccessMenu(TikTokVideo v) async {
+    HapticFeedback.mediumImpact();
+    final cleanAuthor = v.authorUsername
+        .replaceFirst(RegExp(r'^@'), '')
+        .trim();
+    final videoUrl = cleanAuthor.isNotEmpty && cleanAuthor != 'unknown'
+        ? 'https://www.tiktok.com/@$cleanAuthor/video/${v.id}'
+        : 'https://www.tiktok.com/video/${v.id}';
+    final isSelected = _selectedIds.contains(v.id);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => GlassSheet(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: SizedBox(
+                      width: 54,
+                      height: 70,
+                      child: v.coverUrl.isNotEmpty
+                          ? Image.network(
+                              v.coverUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: ClearTokColors.surface,
+                                child: const Icon(
+                                  Icons.ondemand_video_rounded,
+                                  color: ClearTokColors.cyan,
+                                ),
+                              ),
+                            )
+                          : Container(
+                              color: ClearTokColors.surface,
+                              child: const Icon(
+                                Icons.ondemand_video_rounded,
+                                color: ClearTokColors.cyan,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '@${v.authorUsername}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          v.description.isNotEmpty
+                              ? v.description
+                              : 'Video ID: ${v.id}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: ClearTokColors.secondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.favorite_rounded,
+                              size: 13,
+                              color: ClearTokColors.pink,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${v.diggCount} lượt thích',
+                              style: const TextStyle(
+                                color: ClearTokColors.muted,
+                                fontSize: 11.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              GlassActionButton(
+                icon: const Icon(Icons.public_rounded),
+                label: 'Xem video trên tab TikTok Web',
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  if (widget.onOpenInTikTokWeb != null) {
+                    widget.onOpenInTikTokWeb!(videoUrl);
+                  } else {
+                    widget.onSwitchToBrowser();
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              GlassActionButton(
+                primary: true,
+                icon: const Icon(Icons.open_in_new_rounded),
+                label: 'Mở video bằng ứng dụng TikTok ngoài',
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final uri = Uri.tryParse(videoUrl);
+                  if (uri != null) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.copy_rounded, size: 17),
+                      label: const Text('Sao chép link'),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: videoUrl));
+                        Navigator.pop(ctx);
+                        _showSnack('Đã sao chép liên kết video TikTok!');
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: Icon(
+                        isSelected
+                            ? Icons.remove_circle_outline_rounded
+                            : Icons.check_circle_outline_rounded,
+                        size: 17,
+                        color: ClearTokColors.cyan,
+                      ),
+                      label: Text(isSelected ? 'Bỏ chọn' : 'Chọn mục này'),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        setState(() {
+                          if (isSelected) {
+                            _selectedIds.remove(v.id);
+                          } else {
+                            _selectedIds.add(v.id);
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showFollowingQuickAccessMenu(TikTokFollowUser u) async {
+    HapticFeedback.mediumImpact();
+    final cleanUser = u.uniqueId.replaceFirst(RegExp(r'^@'), '').trim();
+    final profileUrl = cleanUser.isNotEmpty
+        ? 'https://www.tiktok.com/@$cleanUser'
+        : 'https://www.tiktok.com/';
+    final isSelected = _selectedIds.contains(u.id);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => GlassSheet(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundImage: u.avatarThumb.isNotEmpty
+                        ? NetworkImage(u.avatarThumb)
+                        : null,
+                    backgroundColor: ClearTokColors.raised,
+                    child: u.avatarThumb.isEmpty
+                        ? Text(
+                            u.uniqueId.isNotEmpty
+                                ? u.uniqueId[0].toUpperCase()
+                                : '@',
+                            style: const TextStyle(color: ClearTokColors.cyan),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '@${u.uniqueId}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if (u.nickname.isNotEmpty)
+                          Text(
+                            u.nickname,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: ClearTokColors.secondary,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              GlassActionButton(
+                icon: const Icon(Icons.public_rounded),
+                label: 'Xem kênh trên tab TikTok Web',
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  if (widget.onOpenInTikTokWeb != null) {
+                    widget.onOpenInTikTokWeb!(profileUrl);
+                  } else {
+                    widget.onSwitchToBrowser();
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              GlassActionButton(
+                primary: true,
+                icon: const Icon(Icons.open_in_new_rounded),
+                label: 'Mở kênh bằng ứng dụng TikTok ngoài',
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final uri = Uri.tryParse(profileUrl);
+                  if (uri != null) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.copy_rounded, size: 17),
+                      label: const Text('Sao chép link'),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: profileUrl));
+                        Navigator.pop(ctx);
+                        _showSnack('Đã sao chép liên kết kênh TikTok!');
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: Icon(
+                        isSelected
+                            ? Icons.remove_circle_outline_rounded
+                            : Icons.check_circle_outline_rounded,
+                        size: 17,
+                        color: ClearTokColors.cyan,
+                      ),
+                      label: Text(isSelected ? 'Bỏ chọn' : 'Chọn kênh này'),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        setState(() {
+                          if (isSelected) {
+                            _selectedIds.remove(u.id);
+                          } else {
+                            _selectedIds.add(u.id);
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

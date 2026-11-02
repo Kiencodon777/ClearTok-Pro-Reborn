@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../../api/tiktok_client.dart';
 import '../../core/remote_payload_config.dart';
 import '../../database/local_database.dart';
 import 'repost_studio_screen.dart';
 import 'tiktok_browser_screen.dart';
+import 'processed_history_screen.dart';
 import 'diagnostic_log_screen.dart';
 import '../../services/app_updates.dart';
 import '../widgets/project_credits.dart';
@@ -33,21 +35,35 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   int _currentIndex = 0;
+  InAppWebViewController? _webViewController;
   TikTokClient? _client;
   TikTokUserProfile? _currentUser;
+
+  void _openUrlInTikTokWeb(String url) {
+    setState(() {
+      _currentIndex = 0;
+    });
+    final controller = _webViewController;
+    if (controller != null && url.isNotEmpty) {
+      try {
+        controller.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+      } catch (_) {}
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final repostCount = widget.database.getAllReposts().length;
+    final processedCount = widget.database.totalDeletedCount;
     final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 80;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: false,
-      extendBody: _currentIndex == 1,
+      extendBody: _currentIndex == 1 || _currentIndex == 2,
       body: MediaQuery.removePadding(
         context: context,
-        removeBottom: _currentIndex == 1,
+        removeBottom: _currentIndex == 1 || _currentIndex == 2,
         child: IndexedStack(
           index: _currentIndex,
           children: [
@@ -57,6 +73,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               currentUser: _currentUser,
               onClientReady: (controller, client) {
                 setState(() {
+                  _webViewController = controller;
                   _client = client;
                 });
               },
@@ -70,7 +87,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               },
             ),
 
-            // Tab 1: LapinTokk Studio / Reposts Manager
+            // Tab 1: LapinTokk Studio / Reposts, Un-Like, Un-Follow Manager
             RepostStudioScreen(
               database: widget.database,
               client: _client,
@@ -78,7 +95,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               onSwitchToBrowser: () {
                 setState(() => _currentIndex = 0);
               },
+              onOpenInTikTokWeb: _openUrlInTikTokWeb,
             ),
+
+            // Tab 2: Processed History (Reposts, Un-Liked, Un-Followed)
+            ProcessedHistoryScreen(
+              database: widget.database,
+              onOpenInTikTokWeb: _openUrlInTikTokWeb,
+            ),
+
+            // Tab 3: Diagnostic Log
             const DiagnosticLogScreen(),
           ],
         ),
@@ -94,8 +120,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 children: [
                   GBoxLiquidDock(
                     selectedIndex: _currentIndex,
-                    onTabSelected: (idx) =>
-                        setState(() => _currentIndex = idx),
+                    onTabSelected: (idx) => setState(() => _currentIndex = idx),
                     items: [
                       const GBoxDockItem(
                         icon: Icon(Icons.public_rounded),
@@ -118,6 +143,23 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                           child: const Icon(Icons.grid_view_rounded),
                         ),
                         label: 'Studio Reposts',
+                      ),
+                      GBoxDockItem(
+                        icon: Badge(
+                          isLabelVisible: processedCount > 0,
+                          label: Text('$processedCount'),
+                          backgroundColor: ClearTokColors.pink,
+                          textColor: Colors.white,
+                          child: const Icon(Icons.history_edu_rounded),
+                        ),
+                        activeIcon: Badge(
+                          isLabelVisible: processedCount > 0,
+                          label: Text('$processedCount'),
+                          backgroundColor: ClearTokColors.pink,
+                          textColor: Colors.white,
+                          child: const Icon(Icons.history_edu_rounded),
+                        ),
+                        label: 'Đã Xử Lý',
                       ),
                       const GBoxDockItem(
                         icon: Icon(Icons.receipt_long_rounded),

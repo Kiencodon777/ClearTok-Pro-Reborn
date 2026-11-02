@@ -5,21 +5,20 @@ import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 
 class ClearTokColors {
-  // GBox / iOS 19 Obsidian & Emerald Liquid Glass Palette
-  static const background = Color(0xFF06070A);
-  static const surface = Color(0xFF13161E);
-  static const pink = Color(0xFFFF453A); // iOS Native Coral Red
-  static const cyan = Color(0xFF32D74B); // GBox Emerald Green
-  static const neonCyan = Color(0xFF34E865); // Luminous GBox Liquid Emerald
-  static const neonPink = Color(0xFFFF453A);
-  static const dockGlass = Color(0xFF151820);
-  static const raised = Color(0xFF1C202B);
-  static const text = Color(0xFFF5F7FA);
-  static const secondary = Color(0xFFB4BCCB);
-  static const muted = Color(0xFF8E97A8);
-  static const border = Color(0xFF2E3442);
-  static const success = Color(0xFF32D74B);
-  static const warning = Color(0xFFFFD60A);
+  static const background = Color(0xFF07080C);
+  static const surface = Color(0xFF161926);
+  static const pink = Color(0xFFFE2C55);
+  static const cyan = Color(0xFF25F4EE);
+  static const neonCyan = Color(0xFF00F2FE);
+  static const neonPink = Color(0xFFFF2A54);
+  static const dockGlass = Color(0xFF141824);
+  static const raised = Color(0xFF202431);
+  static const text = Color(0xFFF5F6FA);
+  static const secondary = Color(0xFFB6BDCC);
+  static const muted = Color(0xFF9AA4B5);
+  static const border = Color(0xFF424957);
+  static const success = Color(0xFF80DCC4);
+  static const warning = Color(0xFFFFD18A);
 }
 
 class ClearTokTokens {
@@ -142,8 +141,8 @@ ThemeData clearTokTheme() {
     ),
     chipTheme: ChipThemeData(
       checkmarkColor: ClearTokColors.cyan,
-      backgroundColor: ClearTokColors.surface.withValues(alpha: .9),
-      selectedColor: ClearTokColors.cyan.withValues(alpha: .18),
+      backgroundColor: ClearTokColors.surface.withValues(alpha: .85),
+      selectedColor: ClearTokColors.pink.withValues(alpha: .22),
       side: const BorderSide(color: ClearTokColors.border),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       labelStyle: ClearTokTokens.caption,
@@ -151,7 +150,7 @@ ThemeData clearTokTheme() {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: ClearTokColors.surface.withValues(alpha: .88),
+      fillColor: ClearTokColors.surface.withValues(alpha: .85),
       hintStyle: ClearTokTokens.caption,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
@@ -192,10 +191,11 @@ class AmbientBackground extends StatelessWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: RadialGradient(
-                  center: const Alignment(0.0, -0.85),
-                  radius: 1.25,
+                  center: Alignment.topRight,
+                  radius: 1.15,
                   colors: [
-                    ClearTokColors.cyan.withValues(alpha: .07),
+                    ClearTokColors.pink.withValues(alpha: .20),
+                    const Color(0xFF6C1D5F).withValues(alpha: .08),
                     Colors.transparent,
                   ],
                 ),
@@ -210,10 +210,11 @@ class AmbientBackground extends StatelessWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: RadialGradient(
-                  center: const Alignment(0.0, 0.95),
-                  radius: 1.1,
+                  center: Alignment.bottomLeft,
+                  radius: 1.15,
                   colors: [
-                    const Color(0xFF1E2638).withValues(alpha: .22),
+                    ClearTokColors.cyan.withValues(alpha: .16),
+                    const Color(0xFF143552).withValues(alpha: .08),
                     Colors.transparent,
                   ],
                 ),
@@ -358,8 +359,8 @@ class LiquidGlassContainer extends StatelessWidget {
           borderRadius: radius,
           border: Border.all(
             color: isSelected
-                ? ClearTokColors.cyan
-                : Colors.white.withValues(alpha: .12),
+                ? ClearTokColors.pink
+                : Colors.white.withValues(alpha: .14),
             width: isSelected ? 1.2 : .8,
           ),
         ),
@@ -374,7 +375,7 @@ class LiquidGlassContainer extends StatelessWidget {
             borderRadius: radius,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: .35),
+                color: Colors.black.withValues(alpha: .30),
                 blurRadius: 18,
                 offset: const Offset(0, 6),
               ),
@@ -389,8 +390,8 @@ class LiquidGlassContainer extends StatelessWidget {
                   borderRadius: radius,
                   border: Border.all(
                     color: isSelected
-                        ? ClearTokColors.cyan
-                        : Colors.white.withValues(alpha: .16),
+                        ? ClearTokColors.pink
+                        : Colors.white.withValues(alpha: .20),
                     width: isSelected ? 1.2 : .8,
                   ),
                   gradient: LinearGradient(
@@ -398,9 +399,9 @@ class LiquidGlassContainer extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     stops: const [0.0, 0.38, 1.0],
                     colors: [
-                      Colors.white.withValues(alpha: .11),
-                      ClearTokColors.dockGlass.withValues(alpha: .68),
-                      ClearTokColors.dockGlass.withValues(alpha: .82),
+                      Colors.white.withValues(alpha: .14),
+                      ClearTokColors.dockGlass.withValues(alpha: .60),
+                      ClearTokColors.dockGlass.withValues(alpha: .76),
                     ],
                   ),
                 ),
@@ -427,10 +428,10 @@ class _StaticPillGlassBackdrop extends StatelessWidget {
     final radius = BorderRadius.circular(borderRadius);
     final box = DecoratedBox(
       decoration: BoxDecoration(
-        color: ClearTokColors.dockGlass.withValues(alpha: 0.65),
+        color: ClearTokColors.dockGlass.withValues(alpha: 0.62),
         borderRadius: radius,
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.16),
+          color: Colors.white.withValues(alpha: 0.18),
           width: 0.85,
         ),
         gradient: LinearGradient(
@@ -438,9 +439,9 @@ class _StaticPillGlassBackdrop extends StatelessWidget {
           end: Alignment.bottomCenter,
           stops: const [0.0, 0.45, 1.0],
           colors: [
-            Colors.white.withValues(alpha: 0.12),
-            const Color(0xFF171A22).withValues(alpha: 0.68),
-            const Color(0xFF0E1015).withValues(alpha: 0.84),
+            Colors.white.withValues(alpha: 0.13),
+            const Color(0xFF171A24).withValues(alpha: 0.66),
+            const Color(0xFF0E1017).withValues(alpha: 0.82),
           ],
         ),
       ),
@@ -453,7 +454,7 @@ class _StaticPillGlassBackdrop extends StatelessWidget {
           borderRadius: radius,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.45),
+              color: Colors.black.withValues(alpha: 0.42),
               blurRadius: 24,
               offset: const Offset(0, 10),
             ),
@@ -471,15 +472,17 @@ class _StaticPillGlassBackdrop extends StatelessWidget {
   }
 }
 
-/// Authentic GBox Liquid Glass Water-Droplet Painter.
-/// Runs 100% on GPU Canvas with zero widget rebuilds, smooth lens inflation
-/// (`lensSwell`), elastic edge squish/bounce on Left & Right ends, and
-/// GBox's signature Crystal White + Emerald Prism refraction!
+/// Authentic GBox Crystal-Clear Water-Droplet Painter.
+/// - 100% transparent crystal water body (NEVER turns solid green!)
+/// - When moving/pressed (`lensSwell > 0`), the droplet magnifies LARGER than
+///   the dock height (`pillH` expands past `size.height` by up to +10px!)
+///   just like GBox's protruding water lens!
 class _WaterDropletPillPainter extends CustomPainter {
   final Animation<double> position;
   final Animation<double> lensSwell;
   final int itemCount;
   final double baseHeight;
+  final double maxExpandedHeight;
   final double Function() getSmoothedVelocity;
 
   _WaterDropletPillPainter({
@@ -487,6 +490,7 @@ class _WaterDropletPillPainter extends CustomPainter {
     required this.lensSwell,
     required this.itemCount,
     required this.baseHeight,
+    required this.maxExpandedHeight,
     required this.getSmoothedVelocity,
   }) : super(repaint: Listenable.merge([position, lensSwell]));
 
@@ -496,93 +500,95 @@ class _WaterDropletPillPainter extends CustomPainter {
     final itemWidth = size.width / itemCount;
     final maxIdx = math.max(0, itemCount - 1).toDouble();
 
-    // Raw position WITH spring overshoot preserved at left (< 0) and right (> maxIdx)!
     final rawPos = position.value;
     final swell = lensSwell.value.clamp(0.0, 1.45).toDouble();
     final vel = getSmoothedVelocity().abs().clamp(0.0, 1.5).toDouble();
 
-    // Calculate elastic edge overshoot (when bouncing on Left tab 0 or Right tab maxIdx)
+    // Elastic edge overshoot at Left (< 0) and Right (> maxIdx)
     double edgeOvershoot = 0.0;
     double displayPos = rawPos;
     if (rawPos < 0.0) {
       edgeOvershoot = (-rawPos).clamp(0.0, 0.45).toDouble();
-      displayPos = -edgeOvershoot * 0.35;
+      displayPos = -edgeOvershoot * 0.36;
     } else if (rawPos > maxIdx) {
       edgeOvershoot = (rawPos - maxIdx).clamp(0.0, 0.45).toDouble();
-      displayPos = maxIdx + edgeOvershoot * 0.35;
+      displayPos = maxIdx + edgeOvershoot * 0.36;
     }
 
-    // Smooth liquid stretch & GBox droplet magnification (no per-frame jitter!)
-    final widthStretch =
-        (swell * 0.08) + (vel * 0.14) - (edgeOvershoot * 0.18);
-    final heightStretch =
-        (swell * 0.16) - (vel * 0.05) + (edgeOvershoot * 0.14);
-
-    final pillW = (itemWidth * (1.0 + widthStretch))
-        .clamp(itemWidth * 0.78, size.width * 0.92)
+    // Active optical energy (0.0 at rest -> 1.0 when touched/sliding/bouncing)
+    final opticalEnergy = (swell * 0.90 + vel * 0.65 + edgeOvershoot * 1.4)
+        .clamp(0.0, 1.0)
         .toDouble();
-    final pillH = (baseHeight * (1.0 + heightStretch))
-        .clamp(baseHeight * 0.86, size.height + 6.0)
+
+    // GBox magnifying water droplet expansion:
+    // When active, the pill swells wider AND taller than the dock itself!
+    final widthStretch =
+        (swell * 0.16) + (vel * 0.18) - (edgeOvershoot * 0.18);
+    final pillW = (itemWidth * (1.0 + widthStretch))
+        .clamp(itemWidth * 0.80, size.width * 0.94)
+        .toDouble();
+
+    final targetExpandedH =
+        lerpDouble(baseHeight, maxExpandedHeight, opticalEnergy)! +
+        (edgeOvershoot * 6.0);
+    final pillH = targetExpandedH
+        .clamp(baseHeight * 0.88, maxExpandedHeight + 4.0)
         .toDouble();
 
     final centerX = (displayPos + 0.5) * itemWidth;
-    const minLeft = -3.0;
-    final maxLeft = math.max(minLeft, size.width - pillW + 3.0);
+    const minLeft = -6.0;
+    final maxLeft = math.max(minLeft, size.width - pillW + 6.0);
     final left = (centerX - pillW / 2).clamp(minLeft, maxLeft).toDouble();
     final top = (size.height - pillH) / 2;
 
     final rect = Rect.fromLTWH(left, top, pillW, pillH);
     final rrect = RRect.fromRectAndRadius(rect, Radius.circular(pillH / 2));
 
-    // Active optical energy (0.0 when resting -> 1.0 when pressed/sliding/bouncing)
-    final opticalEnergy = (swell * 0.85 + vel * 0.6 + edgeOvershoot * 1.4)
-        .clamp(0.0, 1.0)
-        .toDouble();
+    // 1. Deep optical drop shadow under the protruding water lens
+    final shadowPaint = Paint()
+      ..color = Colors.black.withValues(
+        alpha: lerpDouble(0.22, 0.48, opticalEnergy)!,
+      )
+      ..maskFilter = MaskFilter.blur(
+        BlurStyle.normal,
+        lerpDouble(4.0, 12.0, opticalEnergy)!,
+      );
+    canvas.drawRRect(rrect.shift(const Offset(0, 3)), shadowPaint);
 
-    // 1. GBox Emerald Caustic Glow under the droplet when active
-    if (opticalEnergy > 0.02) {
-      final glowPaint = Paint()
-        ..color = ClearTokColors.neonCyan.withValues(
-          alpha: 0.22 * opticalEnergy,
-        )
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
-      canvas.drawRRect(rrect.shift(const Offset(0, 2)), glowPaint);
-    }
-
-    // 2. GBox Smoked-Crystal Body:
-    // Resting: sleek dark smoked glass capsule (`#252932`).
-    // Active/Sliding: crystal-clear magnified water lens with bright meniscus!
-    final topAlpha = lerpDouble(0.16, 0.34, opticalEnergy)!;
-    final midAlpha = lerpDouble(0.42, 0.10, opticalEnergy)!;
-    final botAlpha = lerpDouble(0.55, 0.22, opticalEnergy)!;
+    // 2. 100% Crystal-Clear Water Droplet Body (Transparent center like real water!)
+    // At rest: subtle smoked capsule. In motion: ultra-clear transparent glass lens!
     final bodyPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        stops: const [0.0, 0.32, 0.72, 1.0],
+        stops: const [0.0, 0.25, 0.65, 1.0],
         colors: [
-          Colors.white.withValues(alpha: topAlpha),
-          const Color(0xFF282D37).withValues(alpha: midAlpha),
-          const Color(0xFF1E222B).withValues(alpha: botAlpha),
-          Color.lerp(
-            const Color(0xFF2A303C).withValues(alpha: 0.45),
-            ClearTokColors.neonCyan.withValues(alpha: 0.26),
-            opticalEnergy,
-          )!,
+          Colors.white.withValues(
+            alpha: lerpDouble(0.14, 0.26, opticalEnergy)!,
+          ),
+          Colors.white.withValues(
+            alpha: lerpDouble(0.06, 0.02, opticalEnergy)!,
+          ),
+          Colors.black.withValues(
+            alpha: lerpDouble(0.22, 0.04, opticalEnergy)!,
+          ),
+          Colors.white.withValues(
+            alpha: lerpDouble(0.05, 0.16, opticalEnergy)!,
+          ),
         ],
       ).createShader(rect);
     canvas.drawRRect(rrect, bodyPaint);
 
-    // 3. Top Water Meniscus Specular Arc (Khúc xạ vòm kính phía trên)
+    // 3. Top Water Meniscus Specular Highlight (Vòm khúc xạ ánh sáng trắng trong suốt)
     final glossRect = Rect.fromLTWH(
       left + pillW * 0.08,
-      top + 1.2,
+      top + 1.5,
       pillW * 0.84,
-      pillH * 0.38,
+      pillH * 0.36,
     );
     final glossRRect = RRect.fromRectAndRadius(
       glossRect,
-      Radius.circular(pillH * 0.22),
+      Radius.circular(pillH * 0.20),
     );
     final glossPaint = Paint()
       ..shader = LinearGradient(
@@ -590,38 +596,58 @@ class _WaterDropletPillPainter extends CustomPainter {
         end: Alignment.bottomCenter,
         colors: [
           Colors.white.withValues(
-            alpha: lerpDouble(0.20, 0.46, opticalEnergy)!,
+            alpha: lerpDouble(0.18, 0.46, opticalEnergy)!,
           ),
           Colors.white.withValues(alpha: 0.0),
         ],
       ).createShader(glossRect);
     canvas.drawRRect(glossRRect, glossPaint);
 
-    // 4. GBox Chromatic Prism Rim (Silver-White top rim + GBox Emerald bottom/side refraction)
+    // 4. Bottom Inner Caustic Water Reflection Arc
+    if (opticalEnergy > 0.05) {
+      final bottomArcRect = Rect.fromLTWH(
+        left + pillW * 0.14,
+        top + pillH * 0.72,
+        pillW * 0.72,
+        pillH * 0.24,
+      );
+      final bottomArcRRect = RRect.fromRectAndRadius(
+        bottomArcRect,
+        Radius.circular(pillH * 0.14),
+      );
+      final bottomArcPaint = Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [
+            Colors.white.withValues(alpha: 0.24 * opticalEnergy),
+            Colors.white.withValues(alpha: 0.0),
+          ],
+        ).createShader(bottomArcRect);
+      canvas.drawRRect(bottomArcRRect, bottomArcPaint);
+    }
+
+    // 5. Crisp Pure-Crystal Surface Tension Rim (Viền nước trong suốt như GBox)
     final borderPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = lerpDouble(1.0, 1.5, opticalEnergy)!
+      ..strokeWidth = lerpDouble(0.95, 1.55, opticalEnergy)!
       ..shader = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        stops: const [0.0, 0.45, 0.78, 1.0],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        stops: const [0.0, 0.35, 0.70, 1.0],
         colors: [
           Colors.white.withValues(
-            alpha: lerpDouble(0.38, 0.82, opticalEnergy)!,
+            alpha: lerpDouble(0.38, 0.88, opticalEnergy)!,
           ),
           Colors.white.withValues(
-            alpha: lerpDouble(0.14, 0.35, opticalEnergy)!,
+            alpha: lerpDouble(0.12, 0.32, opticalEnergy)!,
           ),
-          Color.lerp(
-            Colors.white.withValues(alpha: 0.18),
-            ClearTokColors.neonCyan.withValues(alpha: 0.75),
-            opticalEnergy,
-          )!,
-          Color.lerp(
-            Colors.white.withValues(alpha: 0.24),
-            const Color(0xFF80FFAA).withValues(alpha: 0.90),
-            opticalEnergy,
-          )!,
+          Colors.white.withValues(
+            alpha: lerpDouble(0.10, 0.28, opticalEnergy)!,
+          ),
+          Colors.white.withValues(
+            alpha: lerpDouble(0.22, 0.72, opticalEnergy)!,
+          ),
         ],
       ).createShader(rect);
     canvas.drawRRect(rrect.deflate(0.5), borderPaint);
@@ -630,7 +656,8 @@ class _WaterDropletPillPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _WaterDropletPillPainter oldDelegate) =>
       oldDelegate.itemCount != itemCount ||
-      oldDelegate.baseHeight != baseHeight;
+      oldDelegate.baseHeight != baseHeight ||
+      oldDelegate.maxExpandedHeight != maxExpandedHeight;
 }
 
 class GBoxDockItem {
@@ -656,7 +683,7 @@ class GBoxLiquidDock extends StatefulWidget {
     required this.selectedIndex,
     required this.onTabSelected,
     required this.items,
-    this.margin = const EdgeInsets.symmetric(horizontal: 24),
+    this.margin = const EdgeInsets.symmetric(horizontal: 20),
   });
 
   @override
@@ -667,21 +694,28 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
     with TickerProviderStateMixin {
   late final AnimationController _controller;
   late final AnimationController _lensController;
+  late final AnimationController _dockRecoilController;
   double _smoothedVelocity = 0.0;
   bool _isDragging = false;
   int _lastAnimatedTarget = 0;
 
-  // Underdamped GBox liquid spring so Left (0), Middle (1), and Right (2) ALL bounce!
   static const _moveSpring = SpringDescription(
     mass: 1.0,
     stiffness: 290.0,
-    damping: 19.5,
+    damping: 19.0,
   );
 
   static const _swellSpring = SpringDescription(
     mass: 1.0,
     stiffness: 340.0,
-    damping: 17.5,
+    damping: 17.0,
+  );
+
+  // Coupled dock recoil spring: makes the whole dock sway & bounce left-right with the droplet!
+  static const _dockRecoilSpring = SpringDescription(
+    mass: 1.0,
+    stiffness: 260.0,
+    damping: 13.5,
   );
 
   static const _springTolerance = Tolerance(distance: 0.002, velocity: 0.01);
@@ -695,6 +729,10 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
       vsync: this,
     );
     _lensController = AnimationController.unbounded(
+      value: 0.0,
+      vsync: this,
+    );
+    _dockRecoilController = AnimationController.unbounded(
       value: 0.0,
       vsync: this,
     );
@@ -716,7 +754,7 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
         _swellSpring,
         _lensController.value,
         1.0,
-        2.2,
+        2.4,
         tolerance: _springTolerance,
       ),
     );
@@ -726,9 +764,21 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
     _lensController.animateWith(
       SpringSimulation(
         _swellSpring,
-        math.max(_lensController.value, 0.85),
+        math.max(_lensController.value, 0.90),
         0.0,
-        -2.6,
+        -2.8,
+        tolerance: _springTolerance,
+      ),
+    );
+  }
+
+  void _triggerDockRecoil(double directionImpulse) {
+    _dockRecoilController.animateWith(
+      SpringSimulation(
+        _dockRecoilSpring,
+        _dockRecoilController.value,
+        0.0,
+        directionImpulse.clamp(-4.5, 4.5).toDouble(),
         tolerance: _springTolerance,
       ),
     );
@@ -741,15 +791,18 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
     final maxIdx = math.max(0, widget.items.length - 1);
     final distance = target - current;
 
-    // Ensure a juicy liquid bounce even when tapping or releasing right on Left (0) or Right (maxIdx)!
     double velocity = dragVelocity ?? 0.0;
+    double dockImpulse = distance * 2.2 + velocity * 0.45;
     if (distance.abs() < 0.12 && velocity.abs() < 1.2) {
       if (targetIndex == 0) {
-        velocity = -2.8; // Elastic bounce against left glass wall
+        velocity = -2.8;
+        dockImpulse = -3.2;
       } else if (targetIndex == maxIdx) {
-        velocity = 2.8; // Elastic bounce against right glass wall
+        velocity = 2.8;
+        dockImpulse = 3.2;
       } else {
         velocity = distance >= 0 ? 2.2 : -2.2;
+        dockImpulse = distance >= 0 ? 2.4 : -2.4;
       }
     }
 
@@ -763,11 +816,13 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
     );
     _controller.animateWith(simulation);
     _swellDownWithBounce();
+    _triggerDockRecoil(dockImpulse);
   }
 
   void _handleDragStart(DragStartDetails details) {
     _isDragging = true;
     _controller.stop();
+    _dockRecoilController.stop();
     _smoothedVelocity = 0.0;
     HapticFeedback.selectionClick();
     _swellUp();
@@ -779,21 +834,25 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
     final step = delta / itemWidth;
     final maxIdx = (widget.items.length - 1).toDouble();
 
-    // Low-pass filter velocity so pill width NEVER stutters/jitters during drag!
     _smoothedVelocity = (_smoothedVelocity * 0.78 + (step * 8.0) * 0.22)
         .clamp(-1.2, 1.2)
         .toDouble();
 
     double next = _controller.value + step;
-    // Soft rubber-band resistance when pulling past Left (0.0) or Right (maxIdx)
     if (next < 0.0) {
-      next = _controller.value + step * 0.35;
-      next = next.clamp(-0.28, 0.0).toDouble();
+      next = (_controller.value + step * 0.35).clamp(-0.28, 0.0).toDouble();
     } else if (next > maxIdx) {
-      next = _controller.value + step * 0.35;
-      next = next.clamp(maxIdx, maxIdx + 0.28).toDouble();
+      next = (_controller.value + step * 0.35)
+          .clamp(maxIdx, maxIdx + 0.28)
+          .toDouble();
     }
     _controller.value = next;
+
+    // Coupled horizontal sway & elastic stretch of the entire dock while dragging!
+    final nextRecoil = (_dockRecoilController.value * 0.82 + step * 1.35)
+        .clamp(-0.65, 0.65)
+        .toDouble();
+    _dockRecoilController.value = nextRecoil;
   }
 
   void _handleDragEnd(DragEndDetails details, double itemWidth) {
@@ -821,6 +880,7 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
   void dispose() {
     _controller.dispose();
     _lensController.dispose();
+    _dockRecoilController.dispose();
     super.dispose();
   }
 
@@ -841,7 +901,10 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
               return Listener(
                 onPointerDown: (_) => _swellUp(),
                 onPointerCancel: (_) {
-                  if (!_isDragging) _swellDownWithBounce();
+                  if (!_isDragging) {
+                    _swellDownWithBounce();
+                    _triggerDockRecoil(0.0);
+                  }
                 },
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
@@ -849,109 +912,129 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
                   onHorizontalDragUpdate: (d) =>
                       _handleDragUpdate(d, itemWidth),
                   onHorizontalDragEnd: (d) => _handleDragEnd(d, itemWidth),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    alignment: Alignment.center,
-                    children: [
-                      // Layer 1: Static Frosted GBox Glass Background
-                      const Positioned.fill(
-                        child: _StaticPillGlassBackdrop(borderRadius: 31),
-                      ),
+                  child: AnimatedBuilder(
+                    animation: _dockRecoilController,
+                    builder: (context, dockChild) {
+                      final recoil = _dockRecoilController.value
+                          .clamp(-0.85, 0.85)
+                          .toDouble();
+                      final dx = recoil * 9.0;
+                      final scaleX = 1.0 + recoil.abs() * 0.032;
+                      final scaleY = 1.0 - recoil.abs() * 0.018;
+                      return Transform.translate(
+                        offset: Offset(dx, 0),
+                        child: Transform.scale(
+                          scaleX: scaleX,
+                          scaleY: scaleY,
+                          child: dockChild,
+                        ),
+                      );
+                    },
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.center,
+                      children: [
+                        // Layer 1: Static Frosted GBox Glass Background
+                        const Positioned.fill(
+                          child: _StaticPillGlassBackdrop(borderRadius: 31),
+                        ),
 
-                      // Layer 2: GPU CustomPainter Water Droplet Pill (Zero widget rebuild!)
-                      Positioned.fill(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: padH,
-                            vertical: 5,
-                          ),
-                          child: RepaintBoundary(
-                            child: CustomPaint(
-                              painter: _WaterDropletPillPainter(
-                                position: _controller,
-                                lensSwell: _lensController,
-                                itemCount: count,
-                                baseHeight: 52,
-                                getSmoothedVelocity: () => _smoothedVelocity,
+                        // Layer 2: GPU CustomPainter Crystal Water Droplet Pill
+                        // Expands up to 70px (protruding outside the 62px dock like GBox!)
+                        Positioned.fill(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: padH,
+                            ),
+                            child: RepaintBoundary(
+                              child: CustomPaint(
+                                painter: _WaterDropletPillPainter(
+                                  position: _controller,
+                                  lensSwell: _lensController,
+                                  itemCount: count,
+                                  baseHeight: 50,
+                                  maxExpandedHeight: 70,
+                                  getSmoothedVelocity: () => _smoothedVelocity,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
 
-                      // Layer 3: Interactive Tab Items with iOS Spring Bounce
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: padH,
-                          vertical: 5,
-                        ),
-                        child: Row(
-                          children: List.generate(count, (idx) {
-                            final item = widget.items[idx];
-                            final isSelected = idx == widget.selectedIndex;
-                            return Expanded(
-                              child: BouncyTapWrapper(
-                                pressedScale: 0.90,
-                                onTap: () {},
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: () {
-                                    _animateToIndex(idx);
-                                    widget.onTabSelected(idx);
-                                  },
-                                  child: SizedBox(
-                                    height: 52,
-                                    child: AnimatedScale(
-                                      scale: isSelected ? 1.06 : 1.0,
-                                      duration: const Duration(
-                                        milliseconds: 220,
-                                      ),
-                                      curve: Curves.easeOutBack,
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          IconTheme.merge(
-                                            data: IconThemeData(
-                                              size: 20,
-                                              color: isSelected
-                                                  ? ClearTokColors.neonCyan
-                                                  : Colors.white.withValues(
-                                                      alpha: 0.55,
-                                                    ),
+                        // Layer 3: Interactive Tab Items with iOS Spring Bounce
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: padH,
+                            vertical: 5,
+                          ),
+                          child: Row(
+                            children: List.generate(count, (idx) {
+                              final item = widget.items[idx];
+                              final isSelected = idx == widget.selectedIndex;
+                              return Expanded(
+                                child: BouncyTapWrapper(
+                                  pressedScale: 0.90,
+                                  onTap: () {},
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () {
+                                      _animateToIndex(idx);
+                                      widget.onTabSelected(idx);
+                                    },
+                                    child: SizedBox(
+                                      height: 52,
+                                      child: AnimatedScale(
+                                        scale: isSelected ? 1.06 : 1.0,
+                                        duration: const Duration(
+                                          milliseconds: 220,
+                                        ),
+                                        curve: Curves.easeOutBack,
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            IconTheme.merge(
+                                              data: IconThemeData(
+                                                size: 19,
+                                                color: isSelected
+                                                    ? ClearTokColors.neonCyan
+                                                    : Colors.white.withValues(
+                                                        alpha: 0.55,
+                                                      ),
+                                              ),
+                                              child: isSelected
+                                                  ? item.activeIcon
+                                                  : item.icon,
                                             ),
-                                            child: isSelected
-                                                ? item.activeIcon
-                                                : item.icon,
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            item.label,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 10.5,
-                                              fontWeight: isSelected
-                                                  ? FontWeight.w700
-                                                  : FontWeight.w500,
-                                              color: isSelected
-                                                  ? ClearTokColors.neonCyan
-                                                  : Colors.white.withValues(
-                                                      alpha: 0.55,
-                                                    ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              item.label,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 10.0,
+                                                fontWeight: isSelected
+                                                    ? FontWeight.w700
+                                                    : FontWeight.w500,
+                                                color: isSelected
+                                                    ? ClearTokColors.neonCyan
+                                                    : Colors.white.withValues(
+                                                        alpha: 0.55,
+                                                      ),
+                                              ),
                                             ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            );
-                          }),
+                              );
+                            }),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -990,6 +1073,7 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
     with TickerProviderStateMixin {
   late final AnimationController _controller;
   late final AnimationController _lensController;
+  late final AnimationController _barRecoilController;
   double _smoothedVelocity = 0.0;
   bool _isDragging = false;
   int _lastAnimatedTarget = 0;
@@ -997,13 +1081,19 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
   static const _moveSpring = SpringDescription(
     mass: 1.0,
     stiffness: 290.0,
-    damping: 19.5,
+    damping: 19.0,
   );
 
   static const _swellSpring = SpringDescription(
     mass: 1.0,
     stiffness: 340.0,
-    damping: 17.5,
+    damping: 17.0,
+  );
+
+  static const _barRecoilSpring = SpringDescription(
+    mass: 1.0,
+    stiffness: 270.0,
+    damping: 14.0,
   );
 
   static const _springTolerance = Tolerance(distance: 0.002, velocity: 0.01);
@@ -1017,6 +1107,10 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
       vsync: this,
     );
     _lensController = AnimationController.unbounded(
+      value: 0.0,
+      vsync: this,
+    );
+    _barRecoilController = AnimationController.unbounded(
       value: 0.0,
       vsync: this,
     );
@@ -1038,7 +1132,7 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
         _swellSpring,
         _lensController.value,
         1.0,
-        2.2,
+        2.4,
         tolerance: _springTolerance,
       ),
     );
@@ -1048,9 +1142,21 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
     _lensController.animateWith(
       SpringSimulation(
         _swellSpring,
-        math.max(_lensController.value, 0.85),
+        math.max(_lensController.value, 0.90),
         0.0,
-        -2.6,
+        -2.8,
+        tolerance: _springTolerance,
+      ),
+    );
+  }
+
+  void _triggerBarRecoil(double impulse) {
+    _barRecoilController.animateWith(
+      SpringSimulation(
+        _barRecoilSpring,
+        _barRecoilController.value,
+        0.0,
+        impulse.clamp(-4.0, 4.0).toDouble(),
         tolerance: _springTolerance,
       ),
     );
@@ -1064,13 +1170,17 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
     final distance = target - current;
 
     double velocity = dragVelocity ?? 0.0;
+    double barImpulse = distance * 2.0 + velocity * 0.4;
     if (distance.abs() < 0.12 && velocity.abs() < 1.2) {
       if (targetIndex == 0) {
         velocity = -2.6;
+        barImpulse = -2.8;
       } else if (targetIndex == maxIdx) {
         velocity = 2.6;
+        barImpulse = 2.8;
       } else {
         velocity = distance >= 0 ? 2.0 : -2.0;
+        barImpulse = distance >= 0 ? 2.2 : -2.2;
       }
     }
 
@@ -1084,12 +1194,14 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
     );
     _controller.animateWith(simulation);
     _swellDownWithBounce();
+    _triggerBarRecoil(barImpulse);
   }
 
   @override
   void dispose() {
     _controller.dispose();
     _lensController.dispose();
+    _barRecoilController.dispose();
     super.dispose();
   }
 
@@ -1108,13 +1220,17 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
             return Listener(
               onPointerDown: (_) => _swellUp(),
               onPointerCancel: (_) {
-                if (!_isDragging) _swellDownWithBounce();
+                if (!_isDragging) {
+                  _swellDownWithBounce();
+                  _triggerBarRecoil(0.0);
+                }
               },
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onHorizontalDragStart: (_) {
                   _isDragging = true;
                   _controller.stop();
+                  _barRecoilController.stop();
                   _smoothedVelocity = 0.0;
                   HapticFeedback.selectionClick();
                   _swellUp();
@@ -1138,6 +1254,10 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
                         .toDouble();
                   }
                   _controller.value = next;
+                  _barRecoilController.value =
+                      (_barRecoilController.value * 0.82 + step * 1.2)
+                          .clamp(-0.55, 0.55)
+                          .toDouble();
                 },
                 onHorizontalDragEnd: (d) {
                   _isDragging = false;
@@ -1161,102 +1281,121 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
                     widget.onSegmentSelected(nextIdx);
                   }
                 },
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
-                  children: [
-                    const Positioned.fill(
-                      child: _StaticPillGlassBackdrop(
-                        borderRadius: 24,
-                        blur: false,
+                child: AnimatedBuilder(
+                  animation: _barRecoilController,
+                  builder: (context, barChild) {
+                    final recoil = _barRecoilController.value
+                        .clamp(-0.75, 0.75)
+                        .toDouble();
+                    return Transform.translate(
+                      offset: Offset(recoil * 6.5, 0),
+                      child: Transform.scale(
+                        scaleX: 1.0 + recoil.abs() * 0.025,
+                        scaleY: 1.0 - recoil.abs() * 0.014,
+                        child: barChild,
                       ),
-                    ),
-                    Positioned.fill(
-                      child: Padding(
-                        padding: const EdgeInsets.all(padH),
-                        child: RepaintBoundary(
-                          child: CustomPaint(
-                            painter: _WaterDropletPillPainter(
-                              position: _controller,
-                              lensSwell: _lensController,
-                              itemCount: count,
-                              baseHeight: 40,
-                              getSmoothedVelocity: () => _smoothedVelocity,
+                    );
+                  },
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      const Positioned.fill(
+                        child: _StaticPillGlassBackdrop(
+                          borderRadius: 24,
+                          blur: false,
+                        ),
+                      ),
+                      Positioned.fill(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: padH),
+                          child: RepaintBoundary(
+                            child: CustomPaint(
+                              painter: _WaterDropletPillPainter(
+                                position: _controller,
+                                lensSwell: _lensController,
+                                itemCount: count,
+                                baseHeight: 40,
+                                maxExpandedHeight: 54,
+                                getSmoothedVelocity: () => _smoothedVelocity,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(padH),
-                      child: Row(
-                        children: List.generate(count, (idx) {
-                          final seg = widget.segments[idx];
-                          final active = idx == widget.selectedIndex;
-                          return Expanded(
-                            child: BouncyTapWrapper(
-                              pressedScale: 0.91,
-                              onTap: () {},
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () {
-                                  _animateToIndex(idx);
-                                  widget.onSegmentSelected(idx);
-                                },
-                                child: SizedBox(
-                                  height: 40,
-                                  child: AnimatedScale(
-                                    scale: active ? 1.04 : 1.0,
-                                    duration: const Duration(milliseconds: 200),
-                                    curve: Curves.easeOutBack,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
+                      Padding(
+                        padding: const EdgeInsets.all(padH),
+                        child: Row(
+                          children: List.generate(count, (idx) {
+                            final seg = widget.segments[idx];
+                            final active = idx == widget.selectedIndex;
+                            return Expanded(
+                              child: BouncyTapWrapper(
+                                pressedScale: 0.91,
+                                onTap: () {},
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () {
+                                    _animateToIndex(idx);
+                                    widget.onSegmentSelected(idx);
+                                  },
+                                  child: SizedBox(
+                                    height: 40,
+                                    child: AnimatedScale(
+                                      scale: active ? 1.04 : 1.0,
+                                      duration: const Duration(
+                                        milliseconds: 200,
                                       ),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            seg.icon,
-                                            size: 15,
-                                            color: active
-                                                ? ClearTokColors.neonCyan
-                                                : Colors.white.withValues(
-                                                    alpha: 0.55,
-                                                  ),
-                                          ),
-                                          const SizedBox(width: 5),
-                                          Flexible(
-                                            child: Text(
-                                              seg.label,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: active
-                                                    ? FontWeight.w700
-                                                    : FontWeight.w500,
-                                                color: active
-                                                    ? Colors.white
-                                                    : Colors.white.withValues(
-                                                        alpha: 0.55,
-                                                      ),
+                                      curve: Curves.easeOutBack,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              seg.icon,
+                                              size: 15,
+                                              color: active
+                                                  ? ClearTokColors.neonCyan
+                                                  : Colors.white.withValues(
+                                                      alpha: 0.55,
+                                                    ),
+                                            ),
+                                            const SizedBox(width: 5),
+                                            Flexible(
+                                              child: Text(
+                                                seg.label,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: active
+                                                      ? FontWeight.w700
+                                                      : FontWeight.w500,
+                                                  color: active
+                                                      ? Colors.white
+                                                      : Colors.white.withValues(
+                                                          alpha: 0.55,
+                                                        ),
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ),
-                          );
-                        }),
+                              );
+                            }),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );
@@ -1318,9 +1457,9 @@ class GlassActionButton extends StatelessWidget {
                 borderRadius: radius,
                 border: Border.all(
                   color: primary
-                      ? ClearTokColors.neonPink.withValues(alpha: .52)
-                      : ClearTokColors.neonCyan.withValues(alpha: .38),
-                  width: 1.0,
+                      ? ClearTokColors.neonPink.withValues(alpha: .55)
+                      : Colors.white.withValues(alpha: .28),
+                  width: 0.95,
                 ),
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
@@ -1328,19 +1467,19 @@ class GlassActionButton extends StatelessWidget {
                   stops: const [0.0, 0.35, 1.0],
                   colors: primary
                       ? [
-                          Colors.white.withValues(alpha: .20),
-                          ClearTokColors.neonPink.withValues(alpha: .24),
-                          const Color(0xFF2D1014).withValues(alpha: .78),
+                          Colors.white.withValues(alpha: .22),
+                          ClearTokColors.neonPink.withValues(alpha: .26),
+                          const Color(0xFF3A0D1E).withValues(alpha: .68),
                         ]
                       : [
-                          Colors.white.withValues(alpha: .18),
-                          ClearTokColors.neonCyan.withValues(alpha: .10),
-                          const Color(0xFF131B18).withValues(alpha: .82),
+                          Colors.white.withValues(alpha: .20),
+                          Colors.white.withValues(alpha: .06),
+                          ClearTokColors.dockGlass.withValues(alpha: .72),
                         ],
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: accent.withValues(alpha: primary ? .16 : .12),
+                    color: accent.withValues(alpha: primary ? .18 : .10),
                     blurRadius: 14,
                     offset: const Offset(0, 4),
                   ),
