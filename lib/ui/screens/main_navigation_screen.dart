@@ -95,11 +95,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       },
                       destinations: [
                         // Keep tab order in sync with IndexedStack.
-                        NavigationDestination(
-                          icon: const Icon(Icons.public_outlined,
+                        const NavigationDestination(
+                          icon: Icon(Icons.public_outlined,
                               color: ClearTokColors.muted),
-                          selectedIcon: const Icon(Icons.public,
-                              color: ClearTokColors.pink),
+                          selectedIcon:
+                              Icon(Icons.public, color: ClearTokColors.pink),
                           label: 'TikTok Web',
                         ),
                         NavigationDestination(

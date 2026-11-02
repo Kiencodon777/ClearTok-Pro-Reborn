@@ -62,8 +62,9 @@ void main() {
       if (decoration is BoxDecoration &&
           decoration.gradient is LinearGradient) {
         final gradient = decoration.gradient! as LinearGradient;
-        if (gradient.stops != null)
+        if (gradient.stops != null) {
           expect(gradient.colors.length, gradient.stops!.length);
+        }
       }
     }
     expect(tester.takeException(), isNull);

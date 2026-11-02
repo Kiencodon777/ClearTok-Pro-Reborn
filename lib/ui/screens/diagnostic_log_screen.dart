@@ -19,9 +19,10 @@ class DiagnosticLogScreen extends StatelessWidget {
                 icon: const Icon(Icons.copy),
                 onPressed: () async {
                   await Clipboard.setData(ClipboardData(text: log.export()));
-                  if (context.mounted)
+                  if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Đã sao chép log')));
+                  }
                 }),
             IconButton(
                 tooltip: 'Xóa log',
@@ -40,10 +41,11 @@ class DiagnosticLogScreen extends StatelessWidget {
                     animation: log,
                     builder: (context, _) {
                       final entries = log.entries.reversed.toList();
-                      if (entries.isEmpty)
+                      if (entries.isEmpty) {
                         return const Center(
                             child: Text(
                                 'Chưa có log. Thực hiện thao tác trong Studio rồi quay lại đây.'));
+                      }
                       return ListView.builder(
                           itemCount: entries.length,
                           itemBuilder: (context, index) => Padding(

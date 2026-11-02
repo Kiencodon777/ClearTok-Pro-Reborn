@@ -271,9 +271,10 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
           details: {'browser_mode': nextDesktop ? 'desktop' : 'mobile'});
       await controller.reload();
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Không đổi được chế độ trình duyệt: $e')));
+      }
     } finally {
       if (mounted) setState(() => _switchingMode = false);
     }

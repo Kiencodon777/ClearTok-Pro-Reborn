@@ -1266,14 +1266,17 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                                       side: const BorderSide(
                                           color: ClearTokColors.border)),
                                   onSelected: (value) {
-                                    if (value == 'analytics')
+                                    if (value == 'analytics') {
                                       _showAnalyticsModal();
+                                    }
                                     if (value == 'export') _showExportModal();
-                                    if (value == 'settings')
+                                    if (value == 'settings') {
                                       _showSettingsModal();
-                                    if (value == 'update')
+                                    }
+                                    if (value == 'update') {
                                       AppUpdates.check(context, widget.database,
                                           manual: true);
+                                    }
                                   },
                                   itemBuilder: (_) => [
                                     _studioMenuItem(
@@ -1608,7 +1611,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.person_search_rounded,
+            const Icon(Icons.person_search_rounded,
                 size: 64, color: ClearTokColors.secondary),
             const SizedBox(height: 12),
             Text(
@@ -1709,7 +1712,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.video_collection_outlined,
+            const Icon(Icons.video_collection_outlined,
                 size: 64, color: ClearTokColors.secondary),
             const SizedBox(height: 12),
             Text(emptyText,
