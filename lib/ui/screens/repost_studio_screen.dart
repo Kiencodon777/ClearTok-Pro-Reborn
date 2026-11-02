@@ -1210,7 +1210,6 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                   max: 2000,
                   divisions: 18,
                   activeColor: ClearTokColors.cyan,
-              checkColor: Colors.black,
                   inactiveColor: Colors.white12,
                   label: '${currentDelay}ms',
                   onChanged: (val) {
@@ -2094,7 +2093,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
             ),
             trailing: Checkbox(
               value: isSelected,
-              activeColor: ClearTokColors.pink,
+              activeColor: ClearTokColors.cyan,
+              checkColor: Colors.black,
               onChanged: (val) {
                 setState(() {
                   if (val == true) {

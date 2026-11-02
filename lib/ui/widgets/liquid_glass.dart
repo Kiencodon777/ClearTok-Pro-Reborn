@@ -526,7 +526,7 @@ class _WaterDropletPillPainter extends CustomPainter {
         .toDouble();
 
     final centerX = (displayPos + 0.5) * itemWidth;
-    final minLeft = -3.0;
+    const minLeft = -3.0;
     final maxLeft = math.max(minLeft, size.width - pillW + 3.0);
     final left = (centerX - pillW / 2).clamp(minLeft, maxLeft).toDouble();
     final top = (size.height - pillH) / 2;
