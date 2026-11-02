@@ -18,6 +18,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Free Android runner space for debug and release builds
+        if: matrix.platform == 'android'
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/android/sdk/emulator
+          df -h /
       - name: Set version
         shell: bash
         run: echo "VERSION=2.3.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
