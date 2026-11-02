@@ -3,6 +3,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../../api/tiktok_client.dart';
 import '../../core/remote_payload_config.dart';
 import '../../services/diagnostic_log.dart';
+import '../widgets/liquid_glass.dart';
 
 class TikTokBrowserScreen extends StatefulWidget {
   final RemotePayloadConfig remoteConfig;
@@ -30,34 +31,36 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
   double _loadProgress = 0.0;
   bool _isLoading = true;
   bool _desktopMode = true;
-  bool _showStudioBanner = true;
   bool _switchingMode = false;
-  String _currentUrl = '';
 
   // EXACT desktop macOS User-Agent recovered from ClearTok's webview_transport.dart
   static const String desktopUserAgent =
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-  final String _initialUrl = 'https://www.tiktok.com/login/phone-or-email/email/?lang=en&tt_not_installed=true';
+  final String _initialUrl =
+      'https://www.tiktok.com/login/phone-or-email/email/?lang=en&tt_not_installed=true';
 
   @override
   Widget build(BuildContext context) {
     final isLogged = widget.currentUser != null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F111A),
+      backgroundColor: ClearTokColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF161926),
+        backgroundColor: Colors.transparent,
+        flexibleSpace: const LiquidGlassContainer(
+            borderRadius: 0, child: SizedBox.expand()),
         elevation: 0,
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color(0xFFFE2C55).withOpacity(0.15),
+                color: ClearTokColors.pink.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.desktop_mac, color: Color(0xFF25F4EE), size: 20),
+              child: const Icon(Icons.desktop_mac,
+                  color: ClearTokColors.cyan, size: 20),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -65,14 +68,22 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _desktopMode ? 'TikTok Desktop Web' : 'TikTok Mobile Web',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                    _desktopMode ? 'TikTok Desktop' : 'TikTok Mobile',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
                   ),
                   Text(
-                    isLogged ? '@${widget.currentUser!.uniqueId} (Mục Repost Đã Sẵn Sàng)' : 'Cần đăng nhập tài khoản',
+                    isLogged
+                        ? '@${widget.currentUser!.uniqueId} (Mục Repost Đã Sẵn Sàng)'
+                        : 'Cần đăng nhập tài khoản',
                     style: TextStyle(
                       fontSize: 11,
-                      color: isLogged ? const Color(0xFF25F4EE) : Colors.white54,
+                      color:
+                          isLogged ? ClearTokColors.cyan : ClearTokColors.muted,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -83,38 +94,51 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: _desktopMode ? 'Chuyển sang điện thoại' : 'Chuyển sang máy tính',
+            tooltip: _desktopMode
+                ? 'Chuyển sang điện thoại'
+                : 'Chuyển sang máy tính',
             icon: Icon(_desktopMode ? Icons.phone_android : Icons.desktop_mac),
             onPressed: _switchingMode ? null : _toggleBrowserMode,
           ),
-          if (isLogged && !_showStudioBanner)
-            IconButton(
-              tooltip: 'Hiện thanh Studio',
-              icon: const Icon(Icons.dashboard),
-              onPressed: () => setState(() => _showStudioBanner = true),
-            ),
           if (isLogged)
             IconButton(
-              icon: const Icon(Icons.person, color: Color(0xFF25F4EE)),
-              tooltip: 'Mở trang cá nhân Desktop (Xem mục Repost)',
-              onPressed: () {
-                final profileUrl = 'https://www.tiktok.com/@${widget.currentUser!.uniqueId}';
-                _webViewController?.loadUrl(urlRequest: URLRequest(url: WebUri(profileUrl)));
-              },
+              tooltip: 'Mở Studio',
+              icon: const Icon(Icons.dashboard),
+              onPressed: widget.onNavigateToStudio,
             ),
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white70),
+            icon: const Icon(Icons.refresh, color: ClearTokColors.secondary),
             tooltip: 'Tải lại trang',
             onPressed: () => _webViewController?.reload(),
           ),
-          IconButton(
-            icon: const Icon(Icons.lock_reset, color: Colors.white70),
-            tooltip: 'Về trang đăng nhập',
-            onPressed: () {
+          PopupMenuButton<String>(
+            tooltip: 'Menu trình duyệt',
+            icon: const Icon(Icons.more_horiz_rounded),
+            onSelected: (value) {
+              if (value == 'profile') {
+                _webViewController?.loadUrl(
+                    urlRequest: URLRequest(
+                        url: WebUri(
+                            'https://www.tiktok.com/@${widget.currentUser!.uniqueId}')));
+                return;
+              }
               _webViewController?.loadUrl(
                 urlRequest: URLRequest(url: WebUri(_initialUrl)),
               );
             },
+            itemBuilder: (_) => [
+              if (isLogged)
+                const PopupMenuItem(
+                    value: 'profile',
+                    child: ListTile(
+                        leading: Icon(Icons.person_outline),
+                        title: Text('Mở trang cá nhân'))),
+              const PopupMenuItem(
+                  value: 'login',
+                  child: ListTile(
+                      leading: Icon(Icons.lock_reset),
+                      title: Text('Về trang đăng nhập')))
+            ],
           ),
         ],
         bottom: _isLoading
@@ -123,7 +147,8 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
                 child: LinearProgressIndicator(
                   value: _loadProgress,
                   backgroundColor: Colors.transparent,
-                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFE2C55)),
+                  valueColor:
+                      const AlwaysStoppedAnimation<Color>(ClearTokColors.pink),
                 ),
               )
             : null,
@@ -160,7 +185,8 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
               return false;
             },
             onReceivedServerTrustAuthRequest: (controller, challenge) async {
-              return ServerTrustAuthResponse(action: ServerTrustAuthResponseAction.PROCEED);
+              return ServerTrustAuthResponse(
+                  action: ServerTrustAuthResponseAction.PROCEED);
             },
             onWebViewCreated: (controller) {
               _webViewController = controller;
@@ -173,7 +199,6 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
             onLoadStart: (controller, url) {
               setState(() {
                 _isLoading = true;
-                _currentUrl = url?.toString() ?? '';
               });
             },
             onProgressChanged: (controller, progress) {
@@ -185,7 +210,6 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
             onLoadStop: (controller, url) async {
               setState(() {
                 _isLoading = false;
-                _currentUrl = url?.toString() ?? '';
               });
               await _evaluateUserSession();
             },
@@ -197,7 +221,8 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
               if (uri.scheme == 'tiktok' || uri.scheme.startsWith('snssdk')) {
                 final targetUrl = uri.queryParameters['url'];
                 if (targetUrl != null && targetUrl.isNotEmpty) {
-                  controller.loadUrl(urlRequest: URLRequest(url: WebUri(targetUrl)));
+                  controller.loadUrl(
+                      urlRequest: URLRequest(url: WebUri(targetUrl)));
                 }
                 return NavigationActionPolicy.CANCEL;
               }
@@ -208,102 +233,6 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
 
               return NavigationActionPolicy.CANCEL;
             },
-          ),
-
-          // Bottom Floating VIP Banner when logged in
-          if (isLogged && _showStudioBanner) Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: AnimatedSlide(
-              offset: isLogged ? Offset.zero : const Offset(0, 1.5),
-              duration: const Duration(milliseconds: 400),
-              curve: Curves.easeOutCubic,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF1E2235), Color(0xFF121420)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF25F4EE).withOpacity(0.5), width: 1.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF25F4EE).withOpacity(0.2),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Colors.grey.shade800,
-                      backgroundImage: widget.currentUser?.avatarThumb.isNotEmpty == true
-                          ? NetworkImage(widget.currentUser!.avatarThumb)
-                          : null,
-                      child: widget.currentUser?.avatarThumb.isEmpty != false
-                          ? const Icon(Icons.person, color: Colors.white)
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.check_circle, color: Color(0xFF25F4EE), size: 14),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(
-                                  widget.currentUser?.nickname ?? 'Connected',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            '@${widget.currentUser?.uniqueId}',
-                            style: const TextStyle(color: Colors.white60, fontSize: 12),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      tooltip: 'Ẩn thanh Studio',
-                      icon: const Icon(Icons.close, color: Colors.white70),
-                      onPressed: () => setState(() => _showStudioBanner = false),
-                    ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFE2C55),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      ),
-                      onPressed: widget.onNavigateToStudio,
-                      child: const Row(
-                        children: [
-                          Text('Studio', style: TextStyle(fontWeight: FontWeight.bold)),
-                          SizedBox(width: 4),
-                          Icon(Icons.arrow_forward, size: 16),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ),
         ],
       ),
@@ -324,10 +253,15 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
     setState(() => _switchingMode = true);
     final nextDesktop = !_desktopMode;
     try {
-      final agent = nextDesktop ? desktopUserAgent : await InAppWebViewController.getDefaultUserAgent();
-      await controller.setSettings(settings: InAppWebViewSettings(
+      final agent = nextDesktop
+          ? desktopUserAgent
+          : await InAppWebViewController.getDefaultUserAgent();
+      await controller.setSettings(
+          settings: InAppWebViewSettings(
         userAgent: agent,
-        preferredContentMode: nextDesktop ? UserPreferredContentMode.DESKTOP : UserPreferredContentMode.MOBILE,
+        preferredContentMode: nextDesktop
+            ? UserPreferredContentMode.DESKTOP
+            : UserPreferredContentMode.MOBILE,
         useWideViewPort: nextDesktop,
         loadWithOverviewMode: nextDesktop,
       ));
@@ -337,8 +271,9 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
           details: {'browser_mode': nextDesktop ? 'desktop' : 'mobile'});
       await controller.reload();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không đổi được chế độ trình duyệt: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Không đổi được chế độ trình duyệt: $e')));
     } finally {
       if (mounted) setState(() => _switchingMode = false);
     }

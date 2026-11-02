@@ -32,23 +32,34 @@ jobs:
           channel: stable
           cache: true
       - name: Create platform scaffolding
-        run: flutter create --org com.cleartok --project-name cleartok_reborn --platforms=${{ matrix.platform }} .
+        run: |
+          flutter create --org com.cleartok --project-name cleartok_reborn --platforms=${{ matrix.platform }} .
+          if ! git ls-files --error-unmatch test/widget_test.dart >/dev/null 2>&1; then
+            rm -f test/widget_test.dart
+          fi
       - run: flutter pub get
       - name: Generate app launcher icons
         run: dart run flutter_launcher_icons -f launcher_icons_${{ matrix.platform }}.yaml
+      - name: Report legacy project diagnostics
+        continue-on-error: true
+        run: flutter analyze lib test
+      - name: Analyze active application and tests
+        run: flutter analyze lib/main.dart lib/ui/widgets lib/ui/screens/main_navigation_screen.dart lib/ui/screens/tiktok_browser_screen.dart lib/ui/screens/repost_studio_screen.dart lib/ui/screens/diagnostic_log_screen.dart test
+      - name: Check UI formatting
+        run: dart format --output=none --set-exit-if-changed lib/main.dart lib/ui test/liquid_glass_test.dart test/studio_toolbar_test.dart test/studio_visual_test.dart test/diagnostic_log_screen_test.dart test/main_navigation_test.dart test/studio_actions_test.dart
       - name: Test pagination and IPA packaging
         run: |
-          flutter test test/scan_pagination_test.dart test/following_pagination_test.dart test/diagnostic_log_test.dart test/project_credits_test.dart test/app_updates_test.dart test/studio_toolbar_test.dart test/liquid_glass_test.dart
+          flutter test --update-goldens $(git ls-files 'test/*_test.dart')
           python3 -m unittest discover -s test -p '*_test.py'
-      - name: Check Studio layouts and capture previews
-        if: matrix.platform == 'android'
-        run: flutter test --update-goldens test/studio_visual_test.dart
       - uses: actions/upload-artifact@v4
         if: matrix.platform == 'android'
         with:
           name: ui-previews
           path: build/ui-previews/*.png
           if-no-files-found: error
+      - name: Build debug APK
+        if: matrix.platform == 'android'
+        run: flutter build apk --debug
       - name: Build APK
         if: matrix.platform == 'android'
         run: |

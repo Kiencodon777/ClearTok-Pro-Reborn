@@ -1,0 +1,65 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:cleartok_reborn/core/remote_payload_config.dart';
+import 'package:cleartok_reborn/ui/screens/main_navigation_screen.dart';
+import 'package:cleartok_reborn/ui/widgets/liquid_glass.dart';
+import 'studio_toolbar_test.dart' show TestDatabase;
+
+class TestWebViewPlatform extends InAppWebViewPlatform {
+  int creations = 0;
+  @override
+  PlatformInAppWebViewWidget createPlatformInAppWebViewWidget(
+      PlatformInAppWebViewWidgetCreationParams params) {
+    creations++;
+    return TestWebView(params);
+  }
+}
+
+class TestWebView extends PlatformInAppWebViewWidget {
+  TestWebView(super.params) : super.implementation();
+  @override
+  Widget build(BuildContext context) =>
+      const SizedBox.expand(key: ValueKey('webview-surface'));
+  @override
+  T controllerFromPlatform<T>(PlatformInAppWebViewController controller) =>
+      throw UnimplementedError();
+  @override
+  void dispose() {}
+}
+
+void main() {
+  testWidgets('tab changes preserve the WebView and its available size',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final old = InAppWebViewPlatform.instance;
+    final platform = TestWebViewPlatform();
+    InAppWebViewPlatform.instance = platform;
+    addTearDown(() {
+      if (old != null) InAppWebViewPlatform.instance = old;
+    });
+    await tester.pumpWidget(MaterialApp(
+        theme: clearTokTheme(),
+        home: MainNavigationScreen(
+            database: TestDatabase(), remoteConfig: RemotePayloadConfig())));
+    await tester.pumpAndSettle();
+    final webViewState = tester.state(find.byType(InAppWebView));
+    final size = tester.getSize(find.byKey(const ValueKey('webview-surface')));
+    expect(find.byType(IndexedStack), findsOneWidget);
+    await tester.tap(find.text('Studio Reposts'));
+    await tester.pumpAndSettle();
+    expect(find.text('ClearTok Studio Pro'), findsOneWidget);
+    await tester.tap(find.text('Log'));
+    await tester.pumpAndSettle();
+    expect(find.text('Log chẩn đoán'), findsOneWidget);
+    await tester.tap(find.text('TikTok Web'));
+    await tester.pumpAndSettle();
+    expect(identical(tester.state(find.byType(InAppWebView)), webViewState),
+        isTrue);
+    expect(tester.getSize(find.byKey(const ValueKey('webview-surface'))), size);
+    expect(tester.takeException(), isNull);
+  });
+}

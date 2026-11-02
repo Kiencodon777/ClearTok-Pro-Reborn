@@ -6,6 +6,121 @@ class ClearTokColors {
   static const surface = Color(0xFF161926);
   static const pink = Color(0xFFFE2C55);
   static const cyan = Color(0xFF25F4EE);
+  static const raised = Color(0xFF202431);
+  static const text = Color(0xFFF5F6FA);
+  static const secondary = Color(0xFFB6BDCC);
+  static const muted = Color(0xFF9AA4B5);
+  static const border = Color(0xFF424957);
+  static const success = Color(0xFF80DCC4);
+  static const warning = Color(0xFFFFD18A);
+}
+
+class ClearTokTokens {
+  static const radius = 24.0;
+  static const largeRadius = 28.0;
+  static const gap = 8.0;
+  static const inset = 16.0;
+  static const borderWidth = .6;
+  static const touchTarget = 48.0;
+  static const title = TextStyle(
+      fontSize: 18, fontWeight: FontWeight.w700, color: ClearTokColors.text);
+  static const body =
+      TextStyle(fontSize: 14, height: 1.4, color: ClearTokColors.text);
+  static const caption =
+      TextStyle(fontSize: 12, height: 1.35, color: ClearTokColors.secondary);
+}
+
+ThemeData clearTokTheme() {
+  final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(ClearTokTokens.radius),
+      side: const BorderSide(
+          color: ClearTokColors.border, width: ClearTokTokens.borderWidth));
+  return ThemeData(
+    materialTapTargetSize: MaterialTapTargetSize.padded,
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    scaffoldBackgroundColor: Colors.transparent,
+    colorScheme: const ColorScheme.dark(
+        primary: ClearTokColors.pink,
+        secondary: ClearTokColors.cyan,
+        surface: ClearTokColors.surface,
+        onSurface: ClearTokColors.text,
+        onPrimary: Colors.white),
+    textTheme: ThemeData.dark().textTheme.apply(
+        bodyColor: ClearTokColors.text, displayColor: ClearTokColors.text),
+    appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        titleTextStyle: ClearTokTokens.title,
+        iconTheme: IconThemeData(color: ClearTokColors.secondary)),
+    iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            foregroundColor: ClearTokColors.secondary)),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            foregroundColor: ClearTokColors.text,
+            backgroundColor: ClearTokColors.raised,
+            shadowColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            shape: shape)),
+    textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            foregroundColor: ClearTokColors.cyan)),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            foregroundColor: ClearTokColors.text,
+            shape: shape)),
+    navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        indicatorColor: ClearTokColors.cyan.withOpacity(.12),
+        labelTextStyle: WidgetStateProperty.all(
+            ClearTokTokens.caption.copyWith(fontSize: 11))),
+    bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+                top: Radius.circular(ClearTokTokens.largeRadius)))),
+    dialogTheme: DialogTheme(
+        backgroundColor: ClearTokColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: shape),
+    chipTheme: ChipThemeData(
+      backgroundColor: ClearTokColors.surface.withOpacity(.8),
+      selectedColor: ClearTokColors.pink.withOpacity(.18),
+      side: const BorderSide(color: ClearTokColors.border),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      labelStyle: ClearTokTokens.caption,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: ClearTokColors.surface.withOpacity(.8),
+        hintStyle: ClearTokTokens.caption,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(ClearTokTokens.radius),
+            borderSide: const BorderSide(color: ClearTokColors.border)),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(ClearTokTokens.radius),
+            borderSide: const BorderSide(color: ClearTokColors.border)),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(ClearTokTokens.radius),
+            borderSide: const BorderSide(color: ClearTokColors.cyan))),
+    snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: ClearTokColors.raised,
+        contentTextStyle: ClearTokTokens.body,
+        shape: shape),
+  );
 }
 
 class AmbientBackground extends StatelessWidget {
@@ -14,18 +129,19 @@ class AmbientBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Stack(children: [
-    const Positioned.fill(child: ColoredBox(color: ClearTokColors.background)),
-    Positioned(top: -80, right: -60, child: _glow(320, ClearTokColors.pink, .22)),
-    Positioned(bottom: 80, left: -80, child: _glow(380, ClearTokColors.cyan, .16)),
-    child,
-  ]);
-
-  Widget _glow(double size, Color color, double opacity) => IgnorePointer(
-    child: SizedBox(width: size, height: size, child: DecoratedBox(
-      decoration: BoxDecoration(shape: BoxShape.circle,
-        gradient: RadialGradient(colors: [color.withOpacity(opacity), Colors.transparent])),
-    )),
-  );
+        const Positioned.fill(
+            child: ColoredBox(color: ClearTokColors.background)),
+        const Positioned.fill(
+            child: IgnorePointer(
+                child: DecoratedBox(
+                    decoration: BoxDecoration(
+          gradient: RadialGradient(
+              center: Alignment.topRight,
+              radius: 1.4,
+              colors: [Color(0xFF19131D), ClearTokColors.background]),
+        )))),
+        child,
+      ]);
 }
 
 class LiquidGlassContainer extends StatelessWidget {
@@ -37,38 +153,76 @@ class LiquidGlassContainer extends StatelessWidget {
   final bool blur;
   final VoidCallback? onTap;
 
-  const LiquidGlassContainer({super.key, required this.child, this.borderRadius = 20,
-    this.padding, this.margin, this.isSelected = false, this.blur = true, this.onTap});
+  const LiquidGlassContainer(
+      {super.key,
+      required this.child,
+      this.borderRadius = ClearTokTokens.radius,
+      this.padding,
+      this.margin,
+      this.isSelected = false,
+      this.blur = true,
+      this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(borderRadius);
+    final media = MediaQuery.of(context);
     Widget surface = DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: radius,
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: isSelected
-            ? [ClearTokColors.pink.withOpacity(.25), ClearTokColors.pink.withOpacity(.08), ClearTokColors.surface.withOpacity(.75)]
-            : [Colors.white.withOpacity(.14), Colors.white.withOpacity(.04), ClearTokColors.surface.withOpacity(.70), Colors.white.withOpacity(.08)],
-          stops: isSelected ? const [0, .35, 1] : const [0, .35, .70, 1]),
-        border: Border.all(color: isSelected ? ClearTokColors.pink.withOpacity(.8) : Colors.white.withOpacity(.18), width: .8),
+        color: media.highContrast
+            ? ClearTokColors.surface
+            : ClearTokColors.surface.withOpacity(blur ? .86 : .95),
+        gradient: isSelected
+            ? LinearGradient(colors: [
+                ClearTokColors.pink.withOpacity(.14),
+                Colors.transparent
+              ])
+            : null,
+        border: Border.all(
+            color: isSelected
+                ? ClearTokColors.pink.withOpacity(.5)
+                : Colors.white.withOpacity(.16),
+            width: ClearTokTokens.borderWidth),
       ),
-      child: Material(color: Colors.transparent, child: InkWell(
-        onTap: onTap, borderRadius: radius,
-        child: Padding(padding: padding ?? EdgeInsets.zero, child: child),
-      )),
+      child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: radius,
+            splashColor: ClearTokColors.cyan.withOpacity(.10),
+            highlightColor: Colors.white.withOpacity(.06),
+            child: Container(
+                constraints: onTap == null
+                    ? null
+                    : const BoxConstraints(
+                        minHeight: ClearTokTokens.touchTarget),
+                padding: padding,
+                child: child),
+          )),
     );
-    if (blur && !MediaQuery.of(context).disableAnimations) {
-      surface = BackdropFilter(filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20), child: surface);
+    if (blur && !media.disableAnimations && !media.highContrast) {
+      surface = BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12), child: surface);
     }
-    return Container(margin: margin,
-      decoration: BoxDecoration(borderRadius: radius, boxShadow: [
-        BoxShadow(color: Colors.black.withOpacity(.3), blurRadius: 20, offset: const Offset(0, 8)),
-        if (isSelected) BoxShadow(color: ClearTokColors.pink.withOpacity(.16), blurRadius: 12),
-      ]),
+    return Padding(
+      padding: margin ?? EdgeInsets.zero,
       child: ClipRRect(borderRadius: radius, child: surface),
     );
   }
+}
+
+class GlassSheet extends StatelessWidget {
+  final Widget child;
+  const GlassSheet({super.key, required this.child});
+  @override
+  Widget build(BuildContext context) => LiquidGlassContainer(
+      borderRadius: ClearTokTokens.largeRadius,
+      child: ConstrainedBox(
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * .9),
+          child: SingleChildScrollView(
+              child: SafeArea(top: false, child: child))));
 }
 
 class GlassActionButton extends StatelessWidget {
@@ -76,33 +230,41 @@ class GlassActionButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   final bool primary;
-  const GlassActionButton({super.key, required this.icon, required this.label,
-    required this.onPressed, this.primary = false});
+  const GlassActionButton(
+      {super.key,
+      required this.icon,
+      required this.label,
+      required this.onPressed,
+      this.primary = false});
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(borderRadius: BorderRadius.circular(999),
-      gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
-        colors: primary && onPressed != null
-          ? const [Color(0xFFFF3B65), Color(0xFFD60036)]
-          : const [Color(0xFF303549), ClearTokColors.surface]),
-      border: Border.all(color: Colors.white.withOpacity(onPressed == null ? .08 : .25), width: .8),
-      boxShadow: primary && onPressed != null
-        ? [BoxShadow(color: ClearTokColors.pink.withOpacity(.28), blurRadius: 18, offset: const Offset(0, 6))] : [],
-    ),
-    child: ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent,
-        disabledBackgroundColor: Colors.transparent, foregroundColor: Colors.white,
-        disabledForegroundColor: Colors.white38, shadowColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent, elevation: 0, minimumSize: const Size(0, 48),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12), shape: const StadiumBorder()),
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        IconTheme.merge(data: const IconThemeData(size: 20), child: icon),
-        const SizedBox(width: 6),
-        Flexible(child: Text(label, textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
-      ]),
-    ),
-  );
+  Widget build(BuildContext context) => ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+            backgroundColor:
+                primary ? ClearTokColors.pink : ClearTokColors.raised,
+            disabledBackgroundColor: ClearTokColors.surface,
+            foregroundColor: Colors.white,
+            disabledForegroundColor: ClearTokColors.muted,
+            shadowColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(ClearTokTokens.radius),
+                side: BorderSide(
+                    color:
+                        primary ? ClearTokColors.pink : ClearTokColors.border,
+                    width: ClearTokTokens.borderWidth))),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          IconTheme.merge(data: const IconThemeData(size: 20), child: icon),
+          const SizedBox(width: 6),
+          Flexible(
+              child: Text(label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w700))),
+        ]),
+      );
 }
