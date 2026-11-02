@@ -1029,8 +1029,9 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
                                     ),
                                   ),
                                 ),
-                              );
-                            }),
+                              ),
+                            );
+                          }),
                           ),
                         ),
                       ],
