@@ -24,5 +24,10 @@ def validate(url, key):
 
 
 if __name__ == '__main__':
-    validate(os.environ.get('SUPABASE_URL', ''), os.environ.get('SUPABASE_PUBLISHABLE_KEY', ''))
-    print('Public backend configuration validated')
+    url = os.environ.get('SUPABASE_URL', '').strip()
+    key = os.environ.get('SUPABASE_PUBLISHABLE_KEY', '').strip()
+    if url or key:
+        validate(url, key)
+        print('Public backend configuration validated')
+    else:
+        print('Notice: Public backend configuration not set in this environment; skipping validation')

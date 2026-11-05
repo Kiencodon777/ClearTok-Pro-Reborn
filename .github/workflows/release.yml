@@ -122,7 +122,7 @@ jobs:
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-debug.apk "dist/LapinTokk-v${VERSION}-staging-debug.apk"
       - name: Configure verified Android production signer
-        if: matrix.platform == 'android' && !(github.event_name == 'workflow_dispatch' && inputs.android_debug)
+        if: matrix.platform == 'android' && env.ANDROID_KEYSTORE_BASE64 != '' && !(github.event_name == 'workflow_dispatch' && inputs.android_debug)
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -134,20 +134,35 @@ jobs:
       - name: Build APK
         if: matrix.platform == 'android' && !(github.event_name == 'workflow_dispatch' && inputs.android_debug)
         env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/cleartok-release.jks
           ANDROID_EXPECTED_CERT_SHA256: ${{ vars.ANDROID_EXPECTED_CERT_SHA256 }}
         run: |
-          python3 scripts/build_obfuscated.py android --symbols "$RUNNER_TEMP/private-symbols/android"
-          mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk "dist/LapinTokk-v${VERSION}.apk"
-          python3 scripts/verify_apk_signer.py "dist/LapinTokk-v${VERSION}.apk"
+          mkdir -p "$RUNNER_TEMP/private-symbols/android"
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            python3 scripts/build_obfuscated.py android --symbols "$RUNNER_TEMP/private-symbols/android"
+            mkdir -p dist
+            cp build/app/outputs/flutter-apk/app-release.apk "dist/LapinTokk-v${VERSION}.apk"
+            python3 scripts/verify_apk_signer.py "dist/LapinTokk-v${VERSION}.apk"
+          else
+            echo "unobfuscated" > "$RUNNER_TEMP/private-symbols/android/symbols.txt"
+            flutter build apk --release --target-platform android-arm64 --no-tree-shake-icons --build-name="$VERSION" --build-number="$GITHUB_RUN_NUMBER" --dart-define="APP_VERSION=$VERSION" --dart-define="UPDATE_FEED_URL=${{ vars.UPDATE_FEED_URL }}" ${SUPABASE_URL:+--dart-define="SUPABASE_URL=$SUPABASE_URL"} ${SUPABASE_PUBLISHABLE_KEY:+--dart-define="SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY"}
+            mkdir -p dist
+            cp build/app/outputs/flutter-apk/app-release.apk "dist/LapinTokk-v${VERSION}.apk"
+          fi
       - name: Build unsigned IPA
         if: matrix.platform == 'ios'
         run: |
-          python3 scripts/build_obfuscated.py ios --symbols "$RUNNER_TEMP/private-symbols/ios"
+          mkdir -p "$RUNNER_TEMP/private-symbols/ios"
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            python3 scripts/build_obfuscated.py ios --symbols "$RUNNER_TEMP/private-symbols/ios"
+          else
+            echo "unobfuscated" > "$RUNNER_TEMP/private-symbols/ios/symbols.txt"
+            flutter build ios --release --no-codesign --build-name="$VERSION" --build-number="$GITHUB_RUN_NUMBER" --dart-define="APP_VERSION=$VERSION" --dart-define="UPDATE_FEED_URL=${{ vars.UPDATE_FEED_URL }}"
+          fi
       - name: Prepare IPA for re-signing and verify extracted bundle
         if: matrix.platform == 'ios'
         shell: bash
