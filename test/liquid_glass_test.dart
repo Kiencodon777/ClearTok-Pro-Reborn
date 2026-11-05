@@ -99,4 +99,24 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('reduced motion disables glass button stretching', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: GlassActionButton(
+            icon: const Icon(Icons.login),
+            label: 'Login',
+            onPressed: () {},
+          ),
+        ),
+      ),
+    );
+    expect(
+      tester.widget<glass.GlassButton>(find.byType(glass.GlassButton)).stretch,
+      0,
+    );
+  });
 }

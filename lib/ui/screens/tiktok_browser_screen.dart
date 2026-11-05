@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'tiktok_navigation_policy.dart';
 import '../../api/tiktok_client.dart';
 import '../../core/remote_payload_config.dart';
 import '../../services/diagnostic_log.dart';
@@ -179,30 +181,33 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
               domStorageEnabled: true,
               databaseEnabled: true,
               thirdPartyCookiesEnabled: true,
-              allowFileAccess: true,
-              allowContentAccess: true,
+              allowFileAccess: false,
+              allowContentAccess: false,
               useWideViewPort: true,
               loadWithOverviewMode: true,
               supportMultipleWindows: false,
               javaScriptCanOpenWindowsAutomatically: true,
               cacheEnabled: true,
-              mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
-              safeBrowsingEnabled: false,
+              mixedContentMode: MixedContentMode.MIXED_CONTENT_NEVER_ALLOW,
+              safeBrowsingEnabled: true,
+              useShouldOverrideUrlLoading: true,
               hardwareAcceleration: true,
               allowsInlineMediaPlayback: true,
               mediaPlaybackRequiresUserGesture: false,
             ),
             onCreateWindow: (controller, createWindowAction) async {
               final targetUrl = createWindowAction.request.url;
-              if (targetUrl != null) {
+              if (classifyTikTokNavigation(targetUrl) ==
+                  TikTokNavigation.internal) {
                 controller.loadUrl(urlRequest: URLRequest(url: targetUrl));
+              } else if (classifyTikTokNavigation(targetUrl) ==
+                  TikTokNavigation.external) {
+                await launchUrl(
+                  targetUrl!,
+                  mode: LaunchMode.externalApplication,
+                );
               }
               return false;
-            },
-            onReceivedServerTrustAuthRequest: (controller, challenge) async {
-              return ServerTrustAuthResponse(
-                action: ServerTrustAuthResponseAction.PROCEED,
-              );
             },
             onWebViewCreated: (controller) {
               _webViewController = controller;
@@ -231,21 +236,27 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
             },
             shouldOverrideUrlLoading: (controller, navigationAction) async {
               final uri = navigationAction.request.url;
-              if (uri == null) return NavigationActionPolicy.ALLOW;
+              if (uri == null) return NavigationActionPolicy.CANCEL;
 
               // Prevent Net::ERR_UNKNOWN_URL_SCHEME on Android
               if (uri.scheme == 'tiktok' || uri.scheme.startsWith('snssdk')) {
-                final targetUrl = uri.queryParameters['url'];
-                if (targetUrl != null && targetUrl.isNotEmpty) {
+                final targetUrl = resolveTikTokDeepLink(uri);
+                if (targetUrl != null) {
                   controller.loadUrl(
-                    urlRequest: URLRequest(url: WebUri(targetUrl)),
+                    urlRequest: URLRequest(url: WebUri(targetUrl.toString())),
                   );
                 }
                 return NavigationActionPolicy.CANCEL;
               }
 
-              if (uri.scheme == 'http' || uri.scheme == 'https') {
+              if (classifyTikTokNavigation(uri) == TikTokNavigation.internal) {
                 return NavigationActionPolicy.ALLOW;
+              }
+
+              if (navigationAction.isForMainFrame &&
+                  navigationAction.hasGesture == true &&
+                  classifyTikTokNavigation(uri) == TikTokNavigation.external) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
               }
 
               return NavigationActionPolicy.CANCEL;

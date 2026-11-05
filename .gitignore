@@ -29,6 +29,10 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+.env
+.env.*
+!.env.example
+node_modules/
 
 # Android related
 **/android/**/gradle-wrapper.jar

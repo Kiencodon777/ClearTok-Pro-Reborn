@@ -61,6 +61,21 @@ class TikTokClient {
 
   TikTokClient({required this.webViewController, required this.remoteConfig});
 
+  Future<CallAsyncJavaScriptResult?> _callTrustedJavaScript({
+    required String functionBody,
+    Map<String, dynamic> arguments = const {},
+  }) async {
+    final uri = await webViewController.getUrl();
+    if (uri == null || uri.scheme != 'https' || uri.host != 'www.tiktok.com' ||
+        uri.userInfo.isNotEmpty || (uri.hasPort && uri.port != 443)) {
+      throw StateError('WebView is not on the trusted TikTok origin');
+    }
+    return webViewController.callAsyncJavaScript(
+      functionBody: "if (window !== window.top || location.origin !== 'https://www.tiktok.com') throw new Error('Untrusted context');\n$functionBody",
+      arguments: arguments,
+    );
+  }
+
   Future<TikTokUserProfile?> extractLiveUserProfile() async {
     try {
       const functionBody = r'''
@@ -105,7 +120,7 @@ class TikTokClient {
         }
       ''';
 
-      final asyncResult = await webViewController.callAsyncJavaScript(functionBody: functionBody);
+      final asyncResult = await _callTrustedJavaScript(functionBody: functionBody);
       if (asyncResult == null || asyncResult.value == null) return null;
 
       final data = jsonDecode(asyncResult.value.toString()) as Map<String, dynamic>;
@@ -145,7 +160,7 @@ class TikTokClient {
       }
     ''';
 
-    final asyncResult = await webViewController.callAsyncJavaScript(
+    final asyncResult = await _callTrustedJavaScript(
       functionBody: functionBody,
       arguments: {
         'scanEndpoint': remoteConfig.scanEndpoint,
@@ -210,7 +225,7 @@ class TikTokClient {
       }
     ''';
 
-    final asyncResult = await webViewController.callAsyncJavaScript(
+    final asyncResult = await _callTrustedJavaScript(
       functionBody: functionBody,
       arguments: {
         'aid': remoteConfig.aid,
@@ -263,7 +278,7 @@ class TikTokClient {
       }
     ''';
 
-    final asyncResult = await webViewController.callAsyncJavaScript(
+    final asyncResult = await _callTrustedJavaScript(
       functionBody: functionBody,
       arguments: {
         'aid': remoteConfig.aid,
@@ -325,7 +340,7 @@ class TikTokClient {
         try {
           const jsonHeaders = Object.assign({}, baseHeaders, { 'Content-Type': 'application/json' });
           const resp = await fetch(urlWithAid, {
-            method: 'POST',
+            method: 'POST', redirect: 'error',
             credentials: 'include',
             headers: jsonHeaders,
             body: JSON.stringify({
@@ -347,7 +362,7 @@ class TikTokClient {
         try {
           const formHeaders = Object.assign({}, baseHeaders, { 'Content-Type': 'application/x-www-form-urlencoded' });
           const resp = await fetch(urlWithAid, {
-            method: 'POST',
+            method: 'POST', redirect: 'error',
             credentials: 'include',
             headers: formHeaders,
             body: 'item_id=' + encodeURIComponent(itemId) + '&type=1'
@@ -366,7 +381,7 @@ class TikTokClient {
         try {
           const queryUrl = urlWithAid + '&item_id=' + encodeURIComponent(itemId) + '&type=1';
           const resp = await fetch(queryUrl, {
-            method: 'POST',
+            method: 'POST', redirect: 'error',
             credentials: 'include',
             headers: baseHeaders
           });
@@ -392,7 +407,7 @@ class TikTokClient {
         // Format 4 (Fallback query with same-origin credentials)
         const finalUrl = urlWithAid + '&item_id=' + encodeURIComponent(itemId) + '&type=1';
         const finalResp = await fetch(finalUrl, {
-          method: 'POST',
+          method: 'POST', redirect: 'error',
           credentials: 'same-origin',
           headers: baseHeaders
         });
@@ -419,7 +434,7 @@ class TikTokClient {
       }
     ''';
 
-    final asyncResult = await webViewController.callAsyncJavaScript(
+    final asyncResult = await _callTrustedJavaScript(
       functionBody: functionBody,
       arguments: {
         'deleteEndpoint': remoteConfig.deleteEndpoint,
@@ -512,7 +527,7 @@ class TikTokClient {
         const timer = setTimeout(() => abort.abort(), 20000);
         try {
           const response = await window.fetch(url.toString(), {
-            method: 'POST', credentials: 'include', body: '', signal: abort.signal,
+            method: 'POST', redirect: 'error', credentials: 'include', body: '', signal: abort.signal,
             headers: {'tt-csrf-token': app.csrfToken,
               'Content-Type': 'application/x-www-form-urlencoded'}
           });
@@ -582,7 +597,7 @@ class TikTokClient {
           : String(e));
       }
     ''';
-    final result = await webViewController.callAsyncJavaScript(
+    final result = await _callTrustedJavaScript(
       functionBody: functionBody,
       arguments: {'path': path, 'params': params, 'aid': remoteConfig.aid},
     );

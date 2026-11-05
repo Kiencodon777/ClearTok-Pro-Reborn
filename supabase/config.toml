@@ -1,0 +1,5 @@
+project_id = "cleartok"
+
+[functions.account]
+# Auth.getUser verifies the bearer token; the gateway legacy-secret check rejects modern signing keys.
+verify_jwt = false

@@ -1,0 +1,15 @@
+<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ClearTok Admin</title><style>
+body{font:16px system-ui;background:#07080c;color:#eee;margin:0}main{max-width:1100px;margin:auto;padding:24px}input,button,select{font:inherit;padding:10px;margin:4px;border-radius:10px;border:1px solid #445;background:#171b25;color:white}button{cursor:pointer}button:hover{border-color:#25f4ee}nav{display:flex;flex-wrap:wrap}article{background:#171b25;border-radius:16px;padding:16px;margin:12px 0;overflow:auto}pre{white-space:pre-wrap}#notice{color:#25f4ee}form{display:flex;flex-wrap:wrap;align-items:center}</style>
+<style>[hidden]{display:none!important}</style>
+<main><h1>ClearTok Admin</h1><p id="notice" role="status"></p>
+<form id="connect"><input id="url" type="url" placeholder="Supabase URL" required><input id="key" placeholder="Publishable key" required><button>Kết nối</button></form>
+<form id="login" hidden><input name="email" type="email" placeholder="Email" required><input name="password" type="password" placeholder="Password" required><button>Đăng nhập</button></form>
+<section id="panel" hidden><nav id="navigation"></nav><button id="logout">Đăng xuất</button><h2 id="heading"></h2>
+<form id="search"><input name="query" placeholder="Tìm email"><button>Tìm</button></form>
+<article id="summary"></article><div id="records"></div>
+<h2>Thao tác quản trị</h2><form id="action"><select name="action"><option value="details">Chi tiết user</option><option value="status">Trạng thái user</option><option value="premium">Free/Premium</option><option value="revoke_device">Thu hồi thiết bị</option><option value="flag">Feature flag</option></select>
+<input name="user_id" placeholder="User UUID"><input name="id" placeholder="Device row UUID">
+<select name="status"><option>active</option><option>suspended</option><option>banned</option></select>
+<select name="plan"><option>free</option><option>premium</option></select><input name="expires_at" type="datetime-local" aria-label="Premium expiry">
+<input name="feature_key" placeholder="Feature key"><select name="minimum_plan"><option>free</option><option>premium</option></select><label><input name="enabled" type="checkbox">Bật</label><button>Thực hiện</button></form>
+<pre id="detail"></pre><form id="password"><input name="password" type="password" minlength="12" required placeholder="Mật khẩu mới"><button>Đổi mật khẩu</button></form></section></main><script type="module" src="app.js"></script></html>

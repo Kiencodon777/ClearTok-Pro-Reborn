@@ -329,7 +329,7 @@ class GlassActionButton extends StatelessWidget {
         : glass.LiquidGlassSettings.ios27Dark,
     quality: glass.GlassQuality.premium,
     useOwnLayer: true,
-    stretch: .18,
+    stretch: MediaQuery.disableAnimationsOf(context) ? 0 : .18,
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Row(

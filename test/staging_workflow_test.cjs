@@ -1,0 +1,24 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),yaml=require('yaml');
+test('manual staging builds cannot publish Releases or mix symbols with installers',()=>{
+  const document=yaml.parse(fs.readFileSync('.github/workflows/release.yml','utf8'));
+  assert.ok(Object.hasOwn(document.on,'workflow_dispatch'));
+  assert.equal(document.on.workflow_dispatch.inputs.android_debug.default,false);
+  assert.equal(document.jobs.release.if,"github.event_name == 'push'");
+  assert.equal(document.permissions.contents,'read');
+  const build=document.jobs.build;
+  assert.match(build.environment,/workflow_dispatch.*staging/);
+  assert.ok(build.steps.some(x=>x.run==='python3 scripts/validate_backend_config.py'));
+  const symbols=build.steps.find(x=>x.with?.name?.startsWith('private-symbols-'));
+  assert.ok(symbols);assert.equal(symbols.with['retention-days'],30);
+  assert.ok(symbols.with.name.includes('github.run_number'));
+  assert.ok(symbols.with.name.includes('github.sha'));
+  const installers=build.steps.find(x=>x.with?.name==='release-${{ matrix.platform }}');
+  assert.equal(installers.with.path,'dist/*');
+  assert.ok(installers.if.includes('inputs.android_debug'));
+  const debug=build.steps.find(x=>x.with?.name==='staging-debug-android');
+  assert.ok(debug.if.includes("github.event_name == 'workflow_dispatch' && inputs.android_debug"));
+  assert.ok(!debug.with.name.startsWith('release-'));
+  assert.ok(build.steps.find(x=>x.name==='Configure verified Android production signer').if.includes('!(github.event_name'));
+  assert.ok(build.steps.find(x=>x.name==='Build debug APK').run.includes('--dart-define="SUPABASE_URL='));
+  assert.ok(document.jobs['diagnostic-web'].steps.some(x=>x.run==='npm ci'));
+});

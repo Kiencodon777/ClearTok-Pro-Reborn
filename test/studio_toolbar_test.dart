@@ -107,6 +107,7 @@ void main() {
       expect(find.byIcon(Icons.file_download_outlined), findsOneWidget);
       expect(find.byIcon(Icons.system_update_rounded), findsOneWidget);
       expect(find.text('Tổng quan tương tác của bạn'), findsOneWidget);
+      expect(find.text('Tài khoản ClearTok'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

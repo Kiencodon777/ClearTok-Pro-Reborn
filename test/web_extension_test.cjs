@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm');
 const {pathToFileURL}=require('node:url');
 const path=require('node:path');
-const load=name=>import(pathToFileURL(path.resolve('build/cleartok-web/'+name)).href);
+const load=name=>import(pathToFileURL(path.resolve((process.env.EXTENSION_DIR||'build/cleartok-web')+'/'+name)).href);
 test('pagination handles zero aliases and honors end flag',async()=>{
   const {nextCursor,morePages,mergeItems}=await load('core.mjs');
   assert.equal(nextCursor({cursor:0,minCursor:'999'},0),999);
@@ -66,7 +66,7 @@ test('web unlike uses exact mobile POST with query and no body',async()=>{
   assert.equal(value.success,true);assert.ok(!value.raw.includes('test-token'));
 });
 test('manifest grants only TikTok hosts and uses strict extension CSP',()=>{
-  const m=JSON.parse(fs.readFileSync('build/cleartok-web/manifest.json','utf8'));
+  const m=JSON.parse(fs.readFileSync(path.join(process.env.EXTENSION_DIR||'build/cleartok-web','manifest.json'),'utf8'));
   assert.deepEqual(m.host_permissions,['https://www.tiktok.com/*']);
   assert.ok(!m.permissions.includes('cookies'));
   assert.ok(!m.content_security_policy.extension_pages.includes('unsafe-eval'));
