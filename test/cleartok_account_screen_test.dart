@@ -241,18 +241,15 @@ void main() {
   testWidgets('auth screenshot at phone size', (tester) async {
     await tester.runAsync(() async {
       final root = Platform.environment['FLUTTER_ROOT']!;
-      for (final entry in {
-        'Roboto': 'roboto-regular.ttf',
-        'MaterialIcons': 'materialicons-regular.otf',
-      }.entries) {
-        final loader = FontLoader(entry.key)
-          ..addFont(
+      await (FontLoader('Roboto')..addFont(
             File(
-              '$root/bin/cache/artifacts/material_fonts/${entry.value}',
+              '$root/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf',
             ).readAsBytes().then((bytes) => ByteData.sublistView(bytes)),
-          );
-        await loader.load();
-      }
+          ))
+          .load();
+      await (FontLoader(
+        'MaterialIcons',
+      )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
     });
     await render(tester);
     final boundary = find.byType(ClearTokAccountGate);
