@@ -11,6 +11,7 @@ import '../../services/export_analytics_service.dart';
 import '../../services/tiktok_deletion_engine.dart';
 import '../../services/app_updates.dart';
 import '../widgets/liquid_glass.dart';
+import 'cleartok_account_screen.dart';
 
 class RepostStudioScreen extends StatefulWidget {
   final LocalDatabase database;
@@ -1917,6 +1918,20 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                               children: [
                                 _studioGlassMenuRow(
                                   ctx,
+                                  'account',
+                                  Icons.account_circle_outlined,
+                                  ClearTokColors.cyan,
+                                  'Tài khoản ClearTok',
+                                  'Gói sử dụng và thiết bị',
+                                ),
+                                Divider(
+                                  height: 6,
+                                  indent: 14,
+                                  endIndent: 14,
+                                  color: Colors.white.withValues(alpha: 0.07),
+                                ),
+                                _studioGlassMenuRow(
+                                  ctx,
                                   'analytics',
                                   Icons.insights_rounded,
                                   ClearTokColors.cyan,
@@ -2002,7 +2017,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
       },
     );
     if (!mounted || selected == null) return;
-    if (selected == 'analytics') {
+    if (selected == 'account') {
+      ClearTokAccountGate.openAccount(context);
+    } else if (selected == 'analytics') {
       _showAnalyticsModal();
     } else if (selected == 'export') {
       _showExportModal();

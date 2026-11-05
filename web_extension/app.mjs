@@ -1,4 +1,6 @@
 import {pageExecute} from './page-api.mjs';
+import {clearTokAuth} from './cleartok-auth.mjs';
+const clearTok=clearTokAuth(CLEARTOK_SUPABASE_URL,CLEARTOK_SUPABASE_KEY);
 import {modes,nextCursor,morePages,mergeItems,filterItems,analytics,csv,TaskControl} from './core.mjs';
 const $=id=>document.getElementById(id);
 let mode='repost',profile=null,tabId=null,items=[],selected=new Set(),history=[],logs=[],busy=false,control=null;
@@ -42,6 +44,7 @@ function buttons(){
   $('pause').textContent=control?.paused?'Tiếp tục':'Tạm dừng';
 }
 async function execute(command,input={}){
+  await clearTok.check(mode);
   const watch=performance.now();
   try{
     const tab=await chrome.tabs.get(tabId);

@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>LapinTokk · ClearTok Admin</title>
+  <style>
+    :root {
+      --bg: #07080c;
+      --surface: rgba(22, 25, 38, 0.78);
+      --surface-solid: #161926;
+      --raised: rgba(32, 36, 49, 0.85);
+      --border: rgba(255, 255, 255, 0.11);
+      --border-strong: rgba(37, 244, 238, 0.38);
+      --text: #f5f6fa;
+      --secondary: #b6bdcc;
+      --muted: #7f899f;
+      --cyan: #25f4ee;
+      --pink: #fe2c55;
+      --emerald: #32d74b;
+      --amber: #ff9f0a;
+      --danger: #ff453a;
+      --radius-lg: 24px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+      --shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(37, 244, 238, 0.14), transparent 36%),
+        radial-gradient(circle at 88% 14%, rgba(254, 44, 85, 0.14), transparent 38%),
+        radial-gradient(circle at 50% 92%, rgba(50, 215, 75, 0.08), transparent 42%),
+        var(--bg);
+      background-attachment: fixed;
+    }
+    .shell {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px 20px 64px;
+    }
+    .glass {
+      background: var(--surface);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+    }
+    /* Top Header */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 22px;
+      margin-bottom: 22px;
+      flex-wrap: wrap;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--cyan), var(--pink));
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 18px;
+      color: #07080c;
+      box-shadow: 0 8px 22px rgba(37, 244, 238, 0.25);
+    }
+    .brand-title h1 {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .brand-title p {
+      margin: 2px 0 0;
+      font-size: 12px;
+      color: var(--secondary);
+    }
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(37, 244, 238, 0.1);
+      border: 1px solid rgba(37, 244, 238, 0.3);
+      color: var(--cyan);
+    }
+    /* Inputs & Buttons */
+    input, select, button {
+      font: inherit;
+      color: var(--text);
+      background: rgba(12, 15, 24, 0.85);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      transition: all 0.18s ease;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px rgba(37, 244, 238, 0.16);
+    }
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: var(--raised);
+    }
+    button:hover:not(:disabled) {
+      border-color: var(--cyan);
+      transform: translateY(-1px);
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, rgba(37, 244, 238, 0.22), rgba(37, 244, 238, 0.08));
+      border-color: rgba(37, 244, 238, 0.45);
+      color: var(--cyan);
+    }
+    .btn-pink {
+      background: linear-gradient(135deg, rgba(254, 44, 85, 0.26), rgba(254, 44, 85, 0.1));
+      border-color: rgba(254, 44, 85, 0.5);
+      color: #ff6987;
+    }
+    .btn-danger {
+      background: rgba(255, 69, 58, 0.14);
+      border-color: rgba(255, 69, 58, 0.4);
+      color: #ff6961;
+    }
+    .btn-sm {
+      padding: 6px 10px;
+      font-size: 12px;
+      border-radius: 9px;
+    }
+    /* Auth Cards */
+    .auth-card {
+      max-width: 480px;
+      margin: 48px auto;
+      padding: 32px;
+    }
+    .auth-card h2 {
+      margin: 0 0 8px;
+      font-size: 22px;
+    }
+    .auth-card p.sub {
+      margin: 0 0 22px;
+      color: var(--secondary);
+      font-size: 13px;
+    }
+    .field-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .field-group label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--secondary);
+    }
+    .preset-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    /* Navigation Pills */
+    .nav-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    #navigation {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .nav-tab {
+      padding: 9px 16px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--secondary);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .nav-tab.active {
+      background: linear-gradient(135deg, rgba(37, 244, 238, 0.2), rgba(254, 44, 85, 0.16));
+      border-color: var(--border-strong);
+      color: var(--text);
+      box-shadow: 0 6px 18px rgba(37, 244, 238, 0.15);
+    }
+    .toolbar-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .toolbar-row h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+    #search {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    #search input {
+      min-width: 260px;
+    }
+    /* Metric Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .metric-card {
+      padding: 18px 20px;
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .metric-card .m-label {
+      font-size: 12px;
+      color: var(--secondary);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .metric-card .m-val {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .metric-card .m-sub {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    /* Data Tables */
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      background: rgba(10, 12, 20, 0.65);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    th, td {
+      padding: 13px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      vertical-align: middle;
+    }
+    th {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.025);
+      font-weight: 700;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255, 255, 255, 0.025); }
+    .user-cell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(37, 244, 238, 0.25), rgba(254, 44, 85, 0.25));
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      color: var(--text);
+      flex-shrink: 0;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      color: var(--secondary);
+    }
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .badge-active { background: rgba(50, 215, 75, 0.16); color: #56e36d; border: 1px solid rgba(50, 215, 75, 0.35); }
+    .badge-pending { background: rgba(255, 159, 10, 0.16); color: #ffb340; border: 1px solid rgba(255, 159, 10, 0.35); }
+    .badge-locked { background: rgba(255, 69, 58, 0.16); color: #ff6961; border: 1px solid rgba(255, 69, 58, 0.35); }
+    .badge-premium { background: linear-gradient(135deg, rgba(254, 44, 85, 0.24), rgba(37, 244, 238, 0.2)); color: #ff85a1; border: 1px solid rgba(254, 44, 85, 0.45); }
+    .badge-free { background: rgba(255, 255, 255, 0.07); color: var(--secondary); border: 1px solid var(--border); }
+    .badge-admin { background: rgba(37, 244, 238, 0.16); color: var(--cyan); border: 1px solid rgba(37, 244, 238, 0.4); }
+    .row-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    /* Feature Flags Grid */
+    .flags-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .flag-card {
+      padding: 18px;
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    /* Collapsible Advanced Drawer & Modal */
+    details.drawer {
+      margin-top: 22px;
+      padding: 16px 20px;
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid var(--border);
+    }
+    details.drawer summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--secondary);
+      user-select: none;
+    }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 6, 12, 0.72);
+      backdrop-filter: blur(10px);
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      z-index: 100;
+    }
+    .modal-box {
+      width: 100%;
+      max-width: 620px;
+      max-height: 88vh;
+      overflow-y: auto;
+      padding: 26px;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .modal-header h3 { margin: 0; font-size: 18px; }
+    pre {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      overflow-x: auto;
+      white-space: pre-wrap;
+      font-size: 12px;
+      color: #c8d1e6;
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <!-- Top Header -->
+    <header class="topbar glass">
+      <div class="brand">
+        <div class="brand-logo">LT</div>
+        <div class="brand-title">
+          <h1>ClearTok · LapinTokk Admin</h1>
+          <p>Quản trị người dùng, gói Premium, thiết bị &amp; phân quyền bảo mật</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span id="notice" role="status" class="status-pill">Sẵn sàng kết nối</span>
+        <button id="open-password-btn" class="btn-sm" hidden>Đổi mật khẩu Admin</button>
+        <button id="logout" class="btn-sm btn-danger" hidden>Đăng xuất</button>
+      </div>
+    </header>
+
+    <!-- Step 1: Connect to Supabase -->
+    <form id="connect" class="auth-card glass">
+      <h2>Kết nối máy chủ Supabase</h2>
+      <p class="sub">Sử dụng HTTPS Project URL và Publishable Key công khai. Tuyệt đối không nhập Service Role Key.</p>
+      <div class="field-stack">
+        <div class="field-group">
+          <label for="url">Supabase Project URL</label>
+          <input id="url" type="url" placeholder="https://jsxxxbspjmpbaomotgcj.supabase.co" required>
+          <div class="preset-row">
+            <button type="button" id="fill-staging" class="btn-sm">Điền nhanh Staging URL</button>
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="key">Publishable / Anon Key</label>
+          <input id="key" placeholder="sb_publishable_... hoặc eyJ..." required>
+        </div>
+        <button type="submit" class="btn-primary">Kết nối máy chủ</button>
+      </div>
+    </form>
+
+    <!-- Step 2: Admin Sign In -->
+    <form id="login" class="auth-card glass" hidden>
+      <h2>Đăng nhập Quản trị viên</h2>
+      <p class="sub">Quyền Admin được xác minh trực tiếp bởi PostgreSQL RLS &amp; RPC trên máy chủ.</p>
+      <div class="field-stack">
+        <div class="field-group">
+          <label>Email Admin</label>
+          <input name="email" type="email" placeholder="admin@cleartok.io" required>
+        </div>
+        <div class="field-group">
+          <label>Mật khẩu</label>
+          <input name="password" type="password" placeholder="••••••••••••" required>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button type="button" id="back-connect" style="flex:1">Đổi máy chủ</button>
+          <button type="submit" class="btn-primary" style="flex:2">Đăng nhập Admin</button>
+        </div>
+      </div>
+    </form>
+
+    <!-- Step 3: Main Admin Workspace -->
+    <section id="panel" hidden>
+      <div class="nav-bar glass">
+        <nav id="navigation"></nav>
+        <form id="search">
+          <input name="query" placeholder="Tìm nhanh theo email người dùng...">
+          <button type="submit" class="btn-primary">Tìm</button>
+          <button type="button" id="refresh-btn">Làm mới</button>
+        </form>
+      </div>
+
+      <div class="glass" style="padding: 22px;">
+        <div class="toolbar-row">
+          <h2 id="heading">Dashboard</h2>
+          <div id="summary" style="color:var(--secondary);font-size:13px"></div>
+        </div>
+
+        <div id="records"></div>
+      </div>
+
+      <!-- Quick Manual / Advanced Action Drawer (Backward-compatible with raw form) -->
+      <details class="drawer" id="advanced-drawer">
+        <summary>Công cụ thao tác thủ công / Tra cứu UUID &amp; JSON phản hồi</summary>
+        <div style="margin-top:16px">
+          <form id="action" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+            <select name="action">
+              <option value="details">Chi tiết user</option>
+              <option value="status">Trạng thái user</option>
+              <option value="premium">Free/Premium</option>
+              <option value="revoke_device">Thu hồi thiết bị</option>
+              <option value="flag">Feature flag</option>
+            </select>
+            <input name="user_id" placeholder="User UUID">
+            <input name="id" placeholder="Device row UUID">
+            <select name="status">
+              <option>active</option>
+              <option>suspended</option>
+              <option>banned</option>
+            </select>
+            <select name="plan">
+              <option>free</option>
+              <option>premium</option>
+            </select>
+            <input name="expires_at" type="datetime-local" aria-label="Premium expiry">
+            <input name="feature_key" placeholder="Feature key">
+            <select name="minimum_plan">
+              <option>free</option>
+              <option>premium</option>
+            </select>
+            <label style="display:inline-flex;align-items:center;gap:6px;padding:0 8px">
+              <input name="enabled" type="checkbox"> Bật
+            </label>
+            <button type="submit" class="btn-primary">Thực hiện</button>
+          </form>
+          <pre id="detail" hidden></pre>
+        </div>
+      </details>
+
+      <!-- Admin Password Form Drawer -->
+      <details class="drawer" id="password-drawer">
+        <summary>Đổi mật khẩu tài khoản Admin hiện tại</summary>
+        <form id="password" style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap">
+          <input name="password" type="password" minlength="12" required placeholder="Nhập mật khẩu mới (tối thiểu 12 ký tự)" style="min-width:300px">
+          <button type="submit" class="btn-primary">Đổi mật khẩu</button>
+        </form>
+      </details>
+    </section>
+
+    <!-- Quick Action Modal (User Details, Grant Premium, Device Management) -->
+    <div id="modal-backdrop" class="modal-backdrop" hidden>
+      <div class="modal-box glass">
+        <div class="modal-header">
+          <h3 id="modal-title">Chi tiết người dùng</h3>
+          <button type="button" id="modal-close" class="btn-sm">Đóng ✕</button>
+        </div>
+        <div id="modal-body"></div>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

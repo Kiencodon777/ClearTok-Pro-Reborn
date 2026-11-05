@@ -1,0 +1,27 @@
+import { createClient } from 'npm:@supabase/supabase-js@2.118.0';
+
+const headers = {'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info'};
+Deno.serve(async request => {
+  if (request.method === 'OPTIONS') return new Response('', {headers});
+  if (request.method !== 'POST') return new Response('', {status:405,headers});
+  try {
+    const authorization = request.headers.get('authorization');
+    if (!authorization?.startsWith('Bearer ')) return new Response('', {status:401,headers});
+    const client = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!,
+      {global:{headers:{Authorization:authorization}},auth:{persistSession:false}});
+    const {data:{user},error:authError} = await client.auth.getUser();
+    if (authError || !user) return new Response('', {status:401,headers});
+    const body = await request.text();
+    if (body.length > 4096) return new Response('', {status:413,headers});
+    const input = JSON.parse(body);
+    if (typeof input.action !== 'string' || !input.payload || typeof input.payload !== 'object' || Array.isArray(input.payload))
+      return new Response('', {status:400,headers});
+    const {data,error} = await client.rpc(input.admin === true ? 'admin_api' : 'account_api',
+      {action:input.action,payload:input.payload});
+    if (error) return Response.json({error:'Request denied'}, {status:403,headers});
+    return Response.json(data, {headers});
+  } catch {
+    return Response.json({error:'Invalid request'}, {status:400,headers});
+  }
+});

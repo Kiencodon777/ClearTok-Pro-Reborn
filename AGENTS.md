@@ -1,3 +1,8 @@
+# Project workflow
+
+- Read and follow `CLAUDE.md` for project context, implementation boundaries and validation.
+- Track authorized work in Kanzo project `cleartok-pro`: check existing tasks, use `doing` while working, add validation notes, then move to `review`. Leave `done` and human tasks to the user.
+
 # Release requirements
 
 - Every push to main must build a separate versioned GitHub Release; never overwrite a previous version for new source changes.

@@ -6,6 +6,7 @@ import '../models/tiktok_follow_user.dart';
 import '../models/tiktok_video.dart';
 import 'background_notification_service.dart';
 import 'diagnostic_log.dart';
+import 'cleartok_account.dart';
 
 enum DeletionStatus { idle, running, paused, deepResting, completed, stopped, error }
 
@@ -43,9 +44,22 @@ class TikTokDeletionEngine {
 
   final _progressController = StreamController<BatchDeletionProgress>.broadcast();
   Stream<BatchDeletionProgress> get progressStream => _progressController.stream;
+  StreamSubscription? _accountSubscription;
+  Timer? _accountTimer;
 
   TikTokDeletionEngine({required this.client, required this.database}) {
+    ClearTokAccount.accessInvalidated.addListener(stop);
     _notifService.init();
+    _accountSubscription = ClearTokAccount.client?.auth.onAuthStateChange.listen((event) {
+      if (event.session == null) stop();
+    }, onError: (Object _) => stop());
+    if (ClearTokAccount.client != null) {
+      _accountTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+        if (_isRunning) {
+          try { await ClearTokAccount.check(); } catch (_) { stop(); }
+        }
+      });
+    }
   }
 
   void stop() {
@@ -68,6 +82,7 @@ class TikTokDeletionEngine {
     final int total = videos.length;
     int deleted = 0;
     int failed = 0;
+    final clearTokOwner = ClearTokAccount.client?.auth.currentUser?.id;
     int batchStreak = 0;
 
     _emit(BatchDeletionProgress(
@@ -85,6 +100,9 @@ class TikTokDeletionEngine {
     );
 
     for (int i = 0; i < total; i++) {
+      if (ClearTokAccount.client != null) {
+        try { await ClearTokAccount.check(); } catch (_) { _isCancelled = true; }
+      }
       if (_isCancelled) {
         _emit(BatchDeletionProgress(
           total: total,
@@ -159,6 +177,10 @@ class TikTokDeletionEngine {
       );
 
       try {
+        if (ClearTokAccount.client != null) {
+          if (clearTokOwner != ClearTokAccount.client!.auth.currentUser?.id) throw StateError('ClearTok account changed');
+          await ClearTokAccount.check(feature: isUnlike ? 'unlike' : 'repost');
+        }
         final result = isUnlike
             ? await client.unlikeVideo(awemeId: video.id, author: video.authorUsername)
             : await client.deleteSingleRepost(itemId: video.id);
@@ -247,6 +269,7 @@ class TikTokDeletionEngine {
     final int total = users.length;
     int deleted = 0;
     int failed = 0;
+    final clearTokOwner = ClearTokAccount.client?.auth.currentUser?.id;
     int batchStreak = 0;
 
     _emit(BatchDeletionProgress(
@@ -325,6 +348,10 @@ class TikTokDeletionEngine {
       ));
 
       try {
+        if (ClearTokAccount.client != null) {
+          if (clearTokOwner != ClearTokAccount.client!.auth.currentUser?.id) throw StateError('ClearTok account changed');
+          await ClearTokAccount.check(feature: 'unfollow');
+        }
         final result = await client.unfollowUser(userId: user.id, secUid: user.secUid);
 
         if (result.success) {
@@ -407,6 +434,9 @@ class TikTokDeletionEngine {
   }
 
   void dispose() {
+    ClearTokAccount.accessInvalidated.removeListener(stop);
+    _accountSubscription?.cancel();
+    _accountTimer?.cancel();
     _isCancelled = true;
     _notifService.cancelAll();
     _progressController.close();

@@ -3,10 +3,20 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      android_debug:
+        description: 'Android DEBUG test APK only; no production signing or obfuscation'
+        type: boolean
+        default: false
 permissions:
-  contents: write
+  contents: read
 jobs:
   build:
+    environment: ${{ github.event_name == 'workflow_dispatch' && 'staging' || 'production' }}
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+      UPDATE_FEED_URL: ${{ vars.UPDATE_FEED_URL }}
     strategy:
       fail-fast: false
       matrix:
@@ -18,6 +28,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Validate public backend configuration
+        shell: bash
+        run: python3 scripts/validate_backend_config.py
       - name: Free Android runner space for debug and release builds
         if: matrix.platform == 'android'
         run: |
@@ -84,7 +97,7 @@ jobs:
         continue-on-error: true
         run: flutter analyze lib test
       - name: Analyze active application and tests
-        run: flutter analyze lib/main.dart lib/ui/widgets lib/ui/screens/main_navigation_screen.dart lib/ui/screens/tiktok_browser_screen.dart lib/ui/screens/repost_studio_screen.dart lib/ui/screens/processed_history_screen.dart lib/ui/screens/diagnostic_log_screen.dart test
+        run: flutter analyze lib/main.dart lib/services/cleartok_account.dart lib/services/cleartok_account_session.dart lib/ui/widgets lib/ui/screens/cleartok_account_screen.dart lib/ui/screens/main_navigation_screen.dart lib/ui/screens/tiktok_browser_screen.dart lib/ui/screens/repost_studio_screen.dart lib/ui/screens/processed_history_screen.dart lib/ui/screens/diagnostic_log_screen.dart test
       - name: Check UI formatting
         run: |
           dart format lib/main.dart lib/ui test/liquid_glass_test.dart test/studio_toolbar_test.dart test/studio_visual_test.dart test/diagnostic_log_screen_test.dart test/main_navigation_test.dart test/studio_actions_test.dart test/flutter_test_config.dart test/liquid_glass_optics_test.dart
@@ -100,16 +113,41 @@ jobs:
           name: ui-previews
           path: build/ui-previews/*.png
           if-no-files-found: error
-      - name: Build APK
+      - name: Build debug APK
         if: matrix.platform == 'android'
+        run: flutter build apk --debug --build-name="$VERSION" --build-number="$GITHUB_RUN_NUMBER" --dart-define="SUPABASE_URL=$SUPABASE_URL" --dart-define="SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY" --dart-define="APP_VERSION=$VERSION"
+      - name: Package explicitly requested staging debug APK
+        if: matrix.platform == 'android' && github.event_name == 'workflow_dispatch' && inputs.android_debug
         run: |
-          flutter build apk --release --target-platform android-arm64 --no-tree-shake-icons --build-name="$VERSION" --build-number="$GITHUB_RUN_NUMBER" --dart-define="APP_VERSION=$VERSION" --dart-define="UPDATE_FEED_URL=${{ vars.UPDATE_FEED_URL }}"
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-debug.apk "dist/LapinTokk-v${VERSION}-staging-debug.apk"
+      - name: Configure verified Android production signer
+        if: matrix.platform == 'android' && !(github.event_name == 'workflow_dispatch' && inputs.android_debug)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_EXPECTED_CERT_SHA256: ${{ vars.ANDROID_EXPECTED_CERT_SHA256 }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/cleartok-release.jks
+        run: python3 scripts/configure_android_signing.py
+      - name: Build APK
+        if: matrix.platform == 'android' && !(github.event_name == 'workflow_dispatch' && inputs.android_debug)
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/cleartok-release.jks
+          ANDROID_EXPECTED_CERT_SHA256: ${{ vars.ANDROID_EXPECTED_CERT_SHA256 }}
+        run: |
+          python3 scripts/build_obfuscated.py android --symbols "$RUNNER_TEMP/private-symbols/android"
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-release.apk "dist/LapinTokk-v${VERSION}.apk"
+          python3 scripts/verify_apk_signer.py "dist/LapinTokk-v${VERSION}.apk"
       - name: Build unsigned IPA
         if: matrix.platform == 'ios'
         run: |
-          flutter build ios --release --no-codesign --build-name="$VERSION" --build-number="$GITHUB_RUN_NUMBER" --dart-define="APP_VERSION=$VERSION" --dart-define="UPDATE_FEED_URL=${{ vars.UPDATE_FEED_URL }}"
+          python3 scripts/build_obfuscated.py ios --symbols "$RUNNER_TEMP/private-symbols/ios"
       - name: Prepare IPA for re-signing and verify extracted bundle
         if: matrix.platform == 'ios'
         shell: bash
@@ -129,37 +167,67 @@ jobs:
           ditto -x -k "dist/LapinTokk-v${VERSION}.ipa" "$CHECK_DIR"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$CHECK_DIR/Payload/Runner.app/Info.plist"
           codesign --verify --deep --strict --verbose=2 "$CHECK_DIR/Payload/Runner.app"
+      - run: python3 scripts/check_release_files.py
       - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'android' && github.event_name == 'workflow_dispatch' && inputs.android_debug
+        with:
+          name: staging-debug-android
+          path: dist/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform != 'android' || !(github.event_name == 'workflow_dispatch' && inputs.android_debug)
         with:
           name: release-${{ matrix.platform }}
           path: dist/*
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform != 'android' || !(github.event_name == 'workflow_dispatch' && inputs.android_debug)
+        with:
+          name: private-symbols-${{ matrix.platform }}-v2.3.${{ github.run_number }}-${{ github.sha }}
+          path: ${{ runner.temp }}/private-symbols/${{ matrix.platform }}
+          retention-days: 30
+          if-no-files-found: error
   diagnostic-web:
+    environment: ${{ github.event_name == 'workflow_dispatch' && 'staging' || 'production' }}
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: python3 scripts/validate_backend_config.py
+      - run: npm ci
       - run: node --test test/tiktok_transport_test.cjs
       - run: node --test test/following_request_test.cjs
       - run: node scripts/build_diagnostic_web.cjs
       - run: node --test test/diagnostic_web_test.cjs
       - name: Build full web dashboard and Chrome/Edge extension
         run: |
-          node scripts/build_web_extension.cjs
-          node --test test/web_extension_test.cjs
+          node scripts/build_extension_production.cjs
+          EXTENSION_DIR=build/cleartok-web-production node --test test/web_extension_test.cjs
+          node --test test/backend_rls_test.cjs
+          node --test test/account_function_test.cjs
+          node --test test/staging_workflow_test.cjs
+          node scripts/build_admin.cjs
       - name: Package web companion
         run: |
           mkdir -p dist
           python3 -c "import shutil; shutil.make_archive('dist/LapinTokk-Diagnostic-Web-v2.3.${{ github.run_number }}', 'zip', 'build/diagnostic-web')"
-          python3 -c "import shutil; shutil.make_archive('dist/LapinTokk-Web-v2.3.${{ github.run_number }}', 'zip', 'build/cleartok-web')"
+          python3 -c "import shutil; shutil.make_archive('dist/LapinTokk-Web-v2.3.${{ github.run_number }}', 'zip', 'build/cleartok-web-production')"
+          python3 -c "import shutil; shutil.make_archive('dist/LapinTokk-Admin-v2.3.${{ github.run_number }}', 'zip', 'build/admin')"
+      - run: python3 scripts/check_release_files.py
       - uses: actions/upload-artifact@v4
         with:
           name: release-web
-          path: dist/*.zip
+          path: dist/*
           if-no-files-found: error
   release:
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
     needs: [build, diagnostic-web]
     runs-on: ubuntu-latest
     concurrency:
