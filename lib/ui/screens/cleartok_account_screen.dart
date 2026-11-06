@@ -634,16 +634,16 @@ class _AccountLayout extends StatelessWidget {
                         ),
                       ],
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 20),
+                    const Padding(
+                      padding: EdgeInsets.only(top: 20),
                       child: Column(
                         children: [
                           LiquidGlassContainer(
-                            padding: const EdgeInsets.symmetric(
+                            padding: EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 12,
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
                                 _FeatureBadge(
@@ -661,8 +661,8 @@ class _AccountLayout extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          const ProjectCreditFooter(),
+                          SizedBox(height: 16),
+                          ProjectCreditFooter(),
                         ],
                       ),
                     ),
