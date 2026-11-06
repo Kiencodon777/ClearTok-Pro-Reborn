@@ -16,6 +16,10 @@ class ClearTokAccount {
     final id = await _installationId();
     final isIos = defaultTargetPlatform == TargetPlatform.iOS;
     final shortTag = id.length >= 4 ? id.substring(id.length - 4) : id;
+    const appVersion = String.fromEnvironment(
+      'APP_VERSION',
+      defaultValue: '2.3.37',
+    );
     final response = await api.functions
         .invoke(
           'account',
@@ -27,7 +31,7 @@ class ClearTokAccount {
               'platform': isIos ? 'ios' : 'android',
               'device_name':
                   'LapinTokk ${isIos ? "iOS" : "Android"} (#$shortTag)',
-              'app_version': const String.fromEnvironment('APP_VERSION'),
+              'app_version': appVersion,
             },
           },
         )

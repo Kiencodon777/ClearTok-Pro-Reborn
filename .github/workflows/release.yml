@@ -14,8 +14,8 @@ jobs:
   build:
     environment: ${{ github.event_name == 'workflow_dispatch' && 'staging' || 'production' }}
     env:
-      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-      SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://jsxxxbspjmpbaomotgcj.supabase.co' }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_OgS5NTFXDFZ0OTB1DTxDFA_Bh7YDyQ5' }}
       UPDATE_FEED_URL: ${{ vars.UPDATE_FEED_URL }}
     strategy:
       fail-fast: false
@@ -205,8 +205,8 @@ jobs:
   diagnostic-web:
     environment: ${{ github.event_name == 'workflow_dispatch' && 'staging' || 'production' }}
     env:
-      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-      SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://jsxxxbspjmpbaomotgcj.supabase.co' }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_OgS5NTFXDFZ0OTB1DTxDFA_Bh7YDyQ5' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -1508,6 +1508,19 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                               pressedScale: 0.88,
                               onTap: () {},
                               child: IconButton(
+                                tooltip: 'Mở tài khoản ClearTok',
+                                icon: const Icon(
+                                  Icons.account_circle_outlined,
+                                  color: ClearTokColors.cyan,
+                                ),
+                                onPressed: () =>
+                                    ClearTokAccountGate.openAccount(context),
+                              ),
+                            ),
+                            BouncyTapWrapper(
+                              pressedScale: 0.88,
+                              onTap: () {},
+                              child: IconButton(
                                 tooltip: _toolsExpanded
                                     ? 'Thu gọn công cụ'
                                     : 'Mở rộng công cụ',

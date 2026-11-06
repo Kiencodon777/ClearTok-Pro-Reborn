@@ -9,10 +9,15 @@ import 'ui/screens/cleartok_account_screen.dart';
 import 'ui/screens/main_navigation_screen.dart';
 import 'ui/widgets/liquid_glass.dart';
 
+const _defaultSupabaseUrl = 'https://jsxxxbspjmpbaomotgcj.supabase.co';
+const _defaultSupabaseKey = 'sb_publishable_OgS5NTFXDFZ0OTB1DTxDFA_Bh7YDyQ5';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  const url = String.fromEnvironment('SUPABASE_URL');
-  const key = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+  const envUrl = String.fromEnvironment('SUPABASE_URL');
+  const envKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+  final url = envUrl.isNotEmpty ? envUrl : _defaultSupabaseUrl;
+  final key = envKey.isNotEmpty ? envKey : _defaultSupabaseKey;
   ClearTokAccountSession? accountSession;
   if (url.isNotEmpty && key.isNotEmpty) {
     try {
@@ -32,7 +37,6 @@ void main() async {
       ClearTokAccount.client = Supabase.instance.client;
       accountSession ??= ClearTokAccountSession(Supabase.instance.client);
     } catch (_) {
-      // Supabase initialization fallback to allow unblocked app access
       ClearTokAccount.client = null;
       accountSession = null;
     }
@@ -79,12 +83,10 @@ class ClearTokApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: clearTokTheme(),
       builder: (context, child) => AmbientBackground(child: child!),
-      home: accountSession != null
-          ? ClearTokAccountGate(
-              session: accountSession,
-              child: mainScreen,
-            )
-          : mainScreen,
+      home: ClearTokAccountGate(
+        session: accountSession,
+        child: mainScreen,
+      ),
     );
   }
 }
