@@ -85,6 +85,7 @@ class ClearTokApp extends StatelessWidget {
       builder: (context, child) => AmbientBackground(child: child!),
       home: ClearTokAccountGate(
         session: accountSession,
+        allowGuest: true,
         child: mainScreen,
       ),
     );

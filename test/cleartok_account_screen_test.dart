@@ -166,7 +166,7 @@ void main() {
     expect(find.text('protected'), findsOneWidget);
   });
   testWidgets(
-    'profile route preserves child, revokes own device and logs out',
+    'profile route preserves child, keeps devices read-only and logs out',
     (tester) async {
       var builds = 0;
       final child = StatefulBuilder(
@@ -184,15 +184,12 @@ void main() {
       final before = builds;
       await tapText(tester, 'Open profile');
       expect(find.text('Thiết bị test'), findsOneWidget);
+      expect(find.text('Thu hồi'), findsNothing);
       expect(builds, before);
       await tester.pageBack();
       await tester.pumpAndSettle();
       expect(builds, before);
       await tapText(tester, 'Open profile');
-      await tapText(tester, 'Thu hồi');
-      await tapText(tester, 'Thu hồi');
-      expect(fixture.revoked, 1);
-      expect(find.text('Chưa thể vào Studio').last, findsOneWidget);
       await tapText(tester, 'Đăng xuất ClearTok');
       expect(fixture.api.auth.currentSession, isNull);
     },

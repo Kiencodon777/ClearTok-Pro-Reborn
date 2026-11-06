@@ -55,7 +55,7 @@ class TikTokDeletionEngine {
     }, onError: (Object _) => stop());
     if (ClearTokAccount.client != null) {
       _accountTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
-        if (_isRunning) {
+        if (_isRunning && ClearTokAccount.client?.auth.currentSession != null) {
           try { await ClearTokAccount.check(); } catch (_) { stop(); }
         }
       });
@@ -100,7 +100,7 @@ class TikTokDeletionEngine {
     );
 
     for (int i = 0; i < total; i++) {
-      if (ClearTokAccount.client != null) {
+      if (ClearTokAccount.client != null && clearTokOwner != null) {
         try { await ClearTokAccount.check(); } catch (_) { _isCancelled = true; }
       }
       if (_isCancelled) {
@@ -179,7 +179,12 @@ class TikTokDeletionEngine {
       try {
         if (ClearTokAccount.client != null) {
           if (clearTokOwner != ClearTokAccount.client!.auth.currentUser?.id) throw StateError('ClearTok account changed');
-          await ClearTokAccount.check(feature: isUnlike ? 'unlike' : 'repost');
+          if (clearTokOwner != null) {
+            await ClearTokAccount.check(feature: isUnlike ? 'unlike' : 'repost');
+          } else if (i >= 5) {
+            _isCancelled = true;
+            throw StateError('Đã đạt giới hạn 5 mục dùng thử cho Khách');
+          }
         }
         final result = isUnlike
             ? await client.unlikeVideo(awemeId: video.id, author: video.authorUsername)
@@ -350,7 +355,12 @@ class TikTokDeletionEngine {
       try {
         if (ClearTokAccount.client != null) {
           if (clearTokOwner != ClearTokAccount.client!.auth.currentUser?.id) throw StateError('ClearTok account changed');
-          await ClearTokAccount.check(feature: 'unfollow');
+          if (clearTokOwner != null) {
+            await ClearTokAccount.check(feature: 'unfollow');
+          } else if (i >= 5) {
+            _isCancelled = true;
+            throw StateError('Đã đạt giới hạn 5 mục dùng thử cho Khách');
+          }
         }
         final result = await client.unfollowUser(userId: user.id, secUid: user.secUid);
 

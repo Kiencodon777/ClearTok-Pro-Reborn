@@ -7,7 +7,14 @@ import '../widgets/project_credits.dart';
 class ClearTokAccountGate extends StatefulWidget {
   final Widget child;
   final ClearTokAccountSession? session;
-  const ClearTokAccountGate({super.key, required this.child, this.session});
+  final bool allowGuest;
+  const ClearTokAccountGate({
+    super.key,
+    required this.child,
+    this.session,
+    this.allowGuest = false,
+  });
+
   static Future<void> openAccount(BuildContext context) async {
     final state = context.findAncestorStateOfType<_ClearTokAccountGateState>();
     final session = state?.session;
@@ -52,6 +59,7 @@ class _ClearTokAccountGateState extends State<ClearTokAccountGate> {
   Widget build(BuildContext context) {
     final value = session;
     if (value == null) {
+      if (widget.allowGuest) return widget.child;
       return const _AccountLayout(
         title: 'Chưa thể kết nối',
         children: [
@@ -62,6 +70,9 @@ class _ClearTokAccountGateState extends State<ClearTokAccountGate> {
     return AnimatedBuilder(
       animation: value,
       builder: (_, _) {
+        if (widget.allowGuest && value.phase != AccountPhase.recovery) {
+          return widget.child;
+        }
         if (value.phase == AccountPhase.ready) return widget.child;
         return _AccountPage(session: value);
       },
@@ -293,6 +304,7 @@ class _AccountPageState extends State<_AccountPage> {
       if (phase == AccountPhase.verifyEmail) {
         return _AccountLayout(
           title: 'Xác minh email',
+          back: widget.profile,
           children: [
             const Icon(
               Icons.mark_email_read_outlined,
@@ -348,7 +360,7 @@ class _AccountPageState extends State<_AccountPage> {
         back: widget.profile && !recovery,
         children: [
           const Text(
-            'Tài khoản ClearTok dành cho ứng dụng.\nĐăng nhập TikTok riêng trong TikTok Web.',
+            'Tài khoản ClearTok dành cho ứng dụng.\nĐăng nhập để mở khóa toàn bộ hạn mức quét và dọn dẹp.',
             textAlign: TextAlign.center,
             style: TextStyle(color: ClearTokColors.secondary),
           ),
@@ -440,7 +452,9 @@ class _AccountPageState extends State<_AccountPage> {
       back: true,
       children: [
         Icon(
-          isPremium ? Icons.workspace_premium_rounded : Icons.account_circle_outlined,
+          isPremium
+              ? Icons.workspace_premium_rounded
+              : Icons.account_circle_outlined,
           size: 44,
           color: isPremium ? ClearTokColors.pink : ClearTokColors.cyan,
         ),
@@ -475,66 +489,57 @@ class _AccountPageState extends State<_AccountPage> {
         if (session.message.isNotEmpty) notice(),
         const SizedBox(height: 24),
         const Text('Thiết bị của bạn', style: ClearTokTokens.title),
+        const SizedBox(height: 4),
+        const Text(
+          'Thiết bị được quản lý và bảo vệ bởi Admin hệ thống.',
+          style: TextStyle(color: ClearTokColors.secondary, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
         for (final device in (data['devices'] as List? ?? []))
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 6),
             child: LiquidGlassContainer(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              padding: const EdgeInsets.all(14),
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        device['platform'] == 'ios'
-                            ? Icons.phone_iphone
-                            : Icons.devices,
-                        color: ClearTokColors.cyan,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
+                  Icon(
+                    device['platform'] == 'ios'
+                        ? Icons.phone_iphone
+                        : Icons.devices,
+                    color: ClearTokColors.cyan,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
                           '${device['device_name'] ?? device['platform']}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          device['is_active'] == true
+                              ? 'Đang hoạt động'
+                              : 'Đã khóa bởi Admin',
+                          style: TextStyle(
+                            color: device['is_active'] == true
+                                ? ClearTokColors.cyan
+                                : ClearTokColors.secondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  Text(
+                  Icon(
                     device['is_active'] == true
-                        ? 'Đang hoạt động'
-                        : 'Đã thu hồi',
-                    style: const TextStyle(color: ClearTokColors.secondary),
-                  ),
-                  TextButton(
-                    onPressed: session.busy || device['is_active'] != true
-                        ? null
-                        : () async {
-                            final agreed = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Thu hồi thiết bị?'),
-                                content: const Text(
-                                  'Nếu đây là thiết bị hiện tại, quyền vào Studio sẽ bị dừng. Dữ liệu TikTok vẫn được giữ nguyên.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, false),
-                                    child: const Text('Hủy'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, true),
-                                    child: const Text('Thu hồi'),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (agreed == true) {
-                              await session.revoke('${device['id']}');
-                            }
-                          },
-                    child: const Text('Thu hồi'),
+                        ? Icons.verified_rounded
+                        : Icons.lock_outline_rounded,
+                    size: 18,
+                    color: device['is_active'] == true
+                        ? ClearTokColors.cyan
+                        : ClearTokColors.secondary,
                   ),
                 ],
               ),
@@ -572,45 +577,95 @@ class _AccountLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: ClearTokColors.background,
-    appBar: back ? AppBar(title: const Text('Tài khoản ClearTok')) : null,
+    extendBodyBehindAppBar: true,
+    appBar: back
+        ? AppBar(
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            title: const Text('Tài khoản ClearTok'),
+          )
+        : null,
     body: AmbientBackground(
       child: SafeArea(
         child: LayoutBuilder(
           builder: (context, bounds) => SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Align(
-              alignment: Alignment.topCenter,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
+                constraints: BoxConstraints(
+                  maxWidth: 440,
+                  minHeight: (bounds.maxHeight - 40).clamp(
+                    0.0,
+                    double.infinity,
+                  ),
+                ),
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const SizedBox(height: 24),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: Image.asset(
-                        'assets/brand/app_icon.jpg',
-                        width: 72,
-                        height: 72,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    LiquidGlassContainer(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            title,
-                            textAlign: TextAlign.center,
-                            style: ClearTokTokens.title.copyWith(fontSize: 25),
+                    Column(
+                      children: [
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: Image.asset(
+                            'assets/brand/app_icon.jpg',
+                            width: 72,
+                            height: 72,
                           ),
-                          const SizedBox(height: 24),
-                          ...children,
+                        ),
+                        const SizedBox(height: 20),
+                        LiquidGlassContainer(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                title,
+                                textAlign: TextAlign.center,
+                                style: ClearTokTokens.title.copyWith(
+                                  fontSize: 24,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              ...children,
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 20),
+                      child: Column(
+                        children: [
+                          LiquidGlassContainer(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _FeatureBadge(
+                                  icon: Icons.bolt_rounded,
+                                  label: 'Mở khóa hạn mức',
+                                ),
+                                _FeatureBadge(
+                                  icon: Icons.shield_outlined,
+                                  label: 'Anti-Ban Pro',
+                                ),
+                                _FeatureBadge(
+                                  icon: Icons.cloud_done_outlined,
+                                  label: 'Đồng bộ thiết bị',
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const ProjectCreditFooter(),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
-                    const ProjectCreditFooter(),
                   ],
                 ),
               ),
@@ -618,6 +673,30 @@ class _AccountLayout extends StatelessWidget {
           ),
         ),
       ),
+    ),
+  );
+}
+
+class _FeatureBadge extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _FeatureBadge({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) => Flexible(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: ClearTokColors.cyan),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: ClearTokColors.secondary, fontSize: 11),
+        ),
+      ],
     ),
   );
 }

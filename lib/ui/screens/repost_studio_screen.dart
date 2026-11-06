@@ -11,6 +11,7 @@ import '../../services/export_analytics_service.dart';
 import '../../services/tiktok_deletion_engine.dart';
 import '../../services/app_updates.dart';
 import '../widgets/liquid_glass.dart';
+import '../../services/cleartok_account.dart';
 import 'cleartok_account_screen.dart';
 
 class RepostStudioScreen extends StatefulWidget {
@@ -177,7 +178,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     int previousCursor = -1;
     final seenIds = <String>{};
     final seenCursors = <int>{0};
-    final int targetLimit = _scanBatchLimit;
+    final int targetLimit = _isGuestMode ? 50 : _scanBatchLimit;
 
     try {
       if (_currentHub == 'unfollow') {
@@ -359,6 +360,113 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     );
   }
 
+  static const int _guestTrialBatchLimit = 5;
+
+  bool get _isGuestMode =>
+      ClearTokAccount.client != null &&
+      ClearTokAccount.client!.auth.currentSession == null;
+
+  void _showGuestUpgradeDialog(String featureTitle) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ClearTokColors.raised,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: const Icon(
+          Icons.lock_person_rounded,
+          color: ClearTokColors.cyan,
+          size: 36,
+        ),
+        title: const Text('Tính Năng Thành Viên', style: ClearTokTokens.title),
+        content: Text(
+          'Tính năng "$featureTitle" bị giới hạn ở chế độ Khách.\n\nĐăng nhập tài khoản ClearTok để mở khóa toàn bộ hạn mức quét, dọn dẹp hàng loạt và sao lưu dữ liệu!',
+          style: const TextStyle(color: ClearTokColors.secondary, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Để sau',
+              style: TextStyle(color: ClearTokColors.secondary),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ClearTokColors.cyan,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              ClearTokAccountGate.openAccount(context);
+            },
+            child: const Text(
+              'Đăng nhập ClearTok',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showGuestBatchLimitDialog(int selectedCount) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ClearTokColors.raised,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: const Icon(
+          Icons.workspace_premium_rounded,
+          color: ClearTokColors.pink,
+          size: 36,
+        ),
+        title: const Text('Giới Hạn Chế Độ Khách', style: ClearTokTokens.title),
+        content: Text(
+          'Bạn đang chọn $selectedCount mục ở chế độ Khách (chưa đăng nhập).\n\n• Chế độ Khách: Dùng thử tối đa $_guestTrialBatchLimit mục/lần.\n• Đăng nhập ClearTok: Mở khóa dọn dẹp hàng loạt và bảo vệ Anti-Ban.',
+          style: const TextStyle(color: ClearTokColors.secondary, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              final keep = _selectedIds.take(_guestTrialBatchLimit).toList();
+              setState(() {
+                _selectedIds
+                  ..clear()
+                  ..addAll(keep);
+              });
+              _triggerBatchAction();
+            },
+            child: const Text(
+              'Dùng thử 5 mục',
+              style: TextStyle(color: ClearTokColors.cyan),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ClearTokColors.pink,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              ClearTokAccountGate.openAccount(context);
+            },
+            child: const Text(
+              'Đăng nhập ClearTok',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _triggerBatchAction() {
     if (widget.client == null) {
       _showSnack(
@@ -371,6 +479,11 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     final int selectedCount = _selectedIds.length;
     if (selectedCount == 0) {
       _showSnack('Chưa chọn mục nào để xử lý cơ mà!', isError: true);
+      return;
+    }
+
+    if (_isGuestMode && selectedCount > _guestTrialBatchLimit) {
+      _showGuestBatchLimitDialog(selectedCount);
       return;
     }
 
@@ -1087,6 +1200,10 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   }
 
   void _showExportModal() {
+    if (_isGuestMode) {
+      _showGuestUpgradeDialog('Sao lưu & Xuất báo cáo CSV/JSON');
+      return;
+    }
     final isFollow = _currentHub == 'unfollow';
     final totalCount = isFollow ? _followingUsers.length : _videos.length;
     final hubTitle = _currentHub == 'unfollow'
@@ -1504,19 +1621,22 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                                 ],
                               ),
                             ),
-                            BouncyTapWrapper(
-                              pressedScale: 0.88,
-                              onTap: () {},
-                              child: IconButton(
-                                tooltip: 'Mở tài khoản ClearTok',
-                                icon: const Icon(
-                                  Icons.account_circle_outlined,
-                                  color: ClearTokColors.cyan,
+                            if (ClearTokAccount.client != null)
+                              BouncyTapWrapper(
+                                pressedScale: 0.88,
+                                onTap: () {},
+                                child: IconButton(
+                                  tooltip: 'Mở tài khoản ClearTok',
+                                  icon: Icon(
+                                    _isGuestMode
+                                        ? Icons.login_rounded
+                                        : Icons.account_circle_outlined,
+                                    color: ClearTokColors.cyan,
+                                  ),
+                                  onPressed: () =>
+                                      ClearTokAccountGate.openAccount(context),
                                 ),
-                                onPressed: () =>
-                                    ClearTokAccountGate.openAccount(context),
                               ),
-                            ),
                             BouncyTapWrapper(
                               pressedScale: 0.88,
                               onTap: () {},
@@ -1623,7 +1743,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                               const SizedBox(width: 10),
                               _buildMetricCard(
                                 title: 'Hạn Mức',
-                                value: 'VÔ HẠN ∞',
+                                value: _isGuestMode ? 'KHÁCH (5)' : 'VÔ HẠN ∞',
                                 color: ClearTokColors.pink,
                                 icon: Icons.all_inclusive_rounded,
                               ),
@@ -2782,6 +2902,10 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
         label: Text(label),
         selected: _scanBatchLimit == limit,
         onSelected: (_) {
+          if (_isGuestMode && limit != 50) {
+            _showGuestUpgradeDialog('Quét đợt lớn ($label mục)');
+            return;
+          }
           setState(() => _scanBatchLimit = limit);
           widget.database.setScanBatchLimit(limit);
         },

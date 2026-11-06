@@ -3,3 +3,11 @@ project_id = "cleartok"
 [functions.account]
 # Auth.getUser verifies the bearer token; the gateway legacy-secret check rejects modern signing keys.
 verify_jwt = false
+
+[auth.email.template.confirmation]
+subject = "[LapinTokk] Xác nhận tài khoản ứng dụng của bạn"
+content_path = "./supabase/email_templates/confirm_signup.html"
+
+[auth.email.template.recovery]
+subject = "[LapinTokk] Đặt lại mật khẩu tài khoản của bạn"
+content_path = "./supabase/email_templates/recovery.html"
