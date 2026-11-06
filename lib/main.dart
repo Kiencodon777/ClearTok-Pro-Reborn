@@ -15,21 +15,27 @@ void main() async {
   const key = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
   ClearTokAccountSession? accountSession;
   if (url.isNotEmpty && key.isNotEmpty) {
-    await Supabase.initialize(
-      url: url,
-      publishableKey: key,
-      authOptions: FlutterAuthClientOptions(
-        detectSessionInUriPredicate: (uri) {
-          if (!isClearTokAuthCallback(uri)) return false;
-          ClearTokAccount.client = Supabase.instance.client;
-          accountSession ??= ClearTokAccountSession(Supabase.instance.client);
-          accountSession!.beginCallback();
-          return true;
-        },
-      ),
-    );
-    ClearTokAccount.client = Supabase.instance.client;
-    accountSession ??= ClearTokAccountSession(Supabase.instance.client);
+    try {
+      await Supabase.initialize(
+        url: url,
+        publishableKey: key,
+        authOptions: FlutterAuthClientOptions(
+          detectSessionInUriPredicate: (uri) {
+            if (!isClearTokAuthCallback(uri)) return false;
+            ClearTokAccount.client = Supabase.instance.client;
+            accountSession ??= ClearTokAccountSession(Supabase.instance.client);
+            accountSession!.beginCallback();
+            return true;
+          },
+        ),
+      );
+      ClearTokAccount.client = Supabase.instance.client;
+      accountSession ??= ClearTokAccountSession(Supabase.instance.client);
+    } catch (_) {
+      // Supabase initialization fallback to allow unblocked app access
+      ClearTokAccount.client = null;
+      accountSession = null;
+    }
   }
 
   await Hive.initFlutter();
@@ -63,18 +69,22 @@ class ClearTokApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mainScreen = MainNavigationScreen(
+      database: database,
+      remoteConfig: remoteConfig,
+    );
+
     return MaterialApp(
       title: 'LapinTokk',
       debugShowCheckedModeBanner: false,
       theme: clearTokTheme(),
       builder: (context, child) => AmbientBackground(child: child!),
-      home: ClearTokAccountGate(
-        session: accountSession,
-        child: MainNavigationScreen(
-          database: database,
-          remoteConfig: remoteConfig,
-        ),
-      ),
+      home: accountSession != null
+          ? ClearTokAccountGate(
+              session: accountSession,
+              child: mainScreen,
+            )
+          : mainScreen,
     );
   }
 }

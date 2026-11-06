@@ -11,7 +11,17 @@ class ClearTokAccountGate extends StatefulWidget {
   static Future<void> openAccount(BuildContext context) async {
     final state = context.findAncestorStateOfType<_ClearTokAccountGateState>();
     final session = state?.session;
-    if (session == null) return;
+    if (session == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Chưa cấu hình tài khoản ClearTok trên bản build này. Tính năng quét và dọn dẹp TikTok hoạt động bình thường.',
+          ),
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => _AccountPage(session: session, profile: true),
