@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -5,6 +6,7 @@ import 'core/remote_payload_config.dart';
 import 'database/local_database.dart';
 import 'services/cleartok_account.dart';
 import 'services/cleartok_account_session.dart';
+import 'services/diagnostic_log.dart';
 import 'ui/screens/cleartok_account_screen.dart';
 import 'ui/screens/main_navigation_screen.dart';
 import 'ui/widgets/liquid_glass.dart';
@@ -19,6 +21,7 @@ void main() async {
   final url = envUrl.isNotEmpty ? envUrl : _defaultSupabaseUrl;
   final key = envKey.isNotEmpty ? envKey : _defaultSupabaseKey;
   ClearTokAccountSession? accountSession;
+  ClearTokAccount.initFailed = false;
   if (url.isNotEmpty && key.isNotEmpty) {
     try {
       await Supabase.initialize(
@@ -36,7 +39,13 @@ void main() async {
       );
       ClearTokAccount.client = Supabase.instance.client;
       accountSession ??= ClearTokAccountSession(Supabase.instance.client);
-    } catch (_) {
+    } catch (e) {
+      DiagnosticLog.instance.record(
+        'supabase.init',
+        -1,
+        details: {'error': e.toString()},
+      );
+      ClearTokAccount.initFailed = true;
       ClearTokAccount.client = null;
       accountSession = null;
     }
@@ -48,7 +57,7 @@ void main() async {
   LiquidSoundHaptics.enabled = database.soundEffectsEnabled;
 
   final remoteConfig = RemotePayloadConfig();
-  await remoteConfig.syncConfig();
+  unawaited(remoteConfig.syncConfig());
 
   runApp(
     ClearTokApp(

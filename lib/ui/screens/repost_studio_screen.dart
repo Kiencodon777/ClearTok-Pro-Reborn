@@ -362,9 +362,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
 
   static const int _guestTrialBatchLimit = 5;
 
-  bool get _isGuestMode =>
-      ClearTokAccount.client != null &&
-      ClearTokAccount.client!.auth.currentSession == null;
+  bool get _isGuestMode => ClearTokAccount.isGuestMode;
+
+  int get _guestRemaining => widget.database.guestTrialRemaining;
 
   void _showGuestUpgradeDialog(String featureTitle) {
     showDialog(
@@ -413,6 +413,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   }
 
   void _showGuestBatchLimitDialog(int selectedCount) {
+    final remaining = _guestRemaining;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -425,26 +426,37 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
         ),
         title: const Text('Giới Hạn Chế Độ Khách', style: ClearTokTokens.title),
         content: Text(
-          'Bạn đang chọn $selectedCount mục ở chế độ Khách (chưa đăng nhập).\n\n• Chế độ Khách: Dùng thử tối đa $_guestTrialBatchLimit mục/lần.\n• Đăng nhập ClearTok: Mở khóa dọn dẹp hàng loạt và bảo vệ Anti-Ban.',
+          remaining > 0
+              ? 'Bạn đang chọn $selectedCount mục ở chế độ Khách (chưa đăng nhập).\n\n• Chế độ Khách: Còn $remaining/$_guestTrialBatchLimit mục dùng thử.\n• Đăng nhập ClearTok: Mở khóa dọn dẹp hàng loạt và bảo vệ Anti-Ban.'
+              : 'Bạn đã dùng hết $_guestTrialBatchLimit mục dùng thử ở chế độ Khách.\n\n• Đăng nhập ClearTok ngay để mở khóa dọn dẹp hàng loạt và bảo vệ Anti-Ban!',
           style: const TextStyle(color: ClearTokColors.secondary, fontSize: 14),
         ),
         actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              final keep = _selectedIds.take(_guestTrialBatchLimit).toList();
-              setState(() {
-                _selectedIds
-                  ..clear()
-                  ..addAll(keep);
-              });
-              _triggerBatchAction();
-            },
-            child: const Text(
-              'Dùng thử 5 mục',
-              style: TextStyle(color: ClearTokColors.cyan),
+          if (remaining > 0)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                final keep = _selectedIds.take(remaining).toList();
+                setState(() {
+                  _selectedIds
+                    ..clear()
+                    ..addAll(keep);
+                });
+                _triggerBatchAction();
+              },
+              child: Text(
+                'Dùng thử $remaining mục',
+                style: const TextStyle(color: ClearTokColors.cyan),
+              ),
+            )
+          else
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                'Để sau',
+                style: TextStyle(color: ClearTokColors.secondary),
+              ),
             ),
-          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: ClearTokColors.pink,
@@ -482,7 +494,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
       return;
     }
 
-    if (_isGuestMode && selectedCount > _guestTrialBatchLimit) {
+    if (_isGuestMode &&
+        (_guestRemaining <= 0 || selectedCount > _guestRemaining)) {
       _showGuestBatchLimitDialog(selectedCount);
       return;
     }
@@ -1743,7 +1756,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                               const SizedBox(width: 10),
                               _buildMetricCard(
                                 title: 'Hạn Mức',
-                                value: _isGuestMode ? 'KHÁCH (5)' : 'VÔ HẠN ∞',
+                                value: _isGuestMode ? 'KHÁCH ($_guestRemaining/5)' : 'VÔ HẠN ∞',
                                 color: ClearTokColors.pink,
                                 icon: Icons.all_inclusive_rounded,
                               ),

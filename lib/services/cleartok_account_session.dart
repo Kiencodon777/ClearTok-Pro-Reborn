@@ -125,10 +125,21 @@ class ClearTokAccountSession extends ChangeNotifier {
         phase = AccountPhase.ready;
       } catch (error) {
         if (!_disposed && generation == _generation) {
-          deny(accountErrorMessage(error));
-          // A failed refresh also stops batches when the server cannot be reached.
-          ClearTokAccount.accessInvalidated.value++;
-          message = accountErrorMessage(error);
+          final isTransient =
+              error is SocketException ||
+              error is TimeoutException ||
+              error is http.ClientException ||
+              error is AuthRetryableFetchException ||
+              (error is FunctionException && error.status == 429);
+          if (isTransient && account != null) {
+            phase = AccountPhase.ready;
+            message = accountErrorMessage(error);
+          } else {
+            deny(accountErrorMessage(error));
+            // A failed refresh also stops batches when the server cannot be reached.
+            ClearTokAccount.accessInvalidated.value++;
+            message = accountErrorMessage(error);
+          }
         }
       } finally {
         if (identical(_checking, task)) _checking = null;
@@ -227,7 +238,6 @@ class ClearTokAccountSession extends ChangeNotifier {
     account = null;
     phase = AccountPhase.signedOut;
     ClearTokAccount.accessInvalidated.value++;
-    phase = AccountPhase.signedOut;
     _emit();
     try {
       await api.auth.signOut(scope: SignOutScope.local);

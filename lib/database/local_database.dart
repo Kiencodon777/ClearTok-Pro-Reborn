@@ -46,6 +46,7 @@ class LocalDatabase {
   static const String settingsBoxName = 'settings_box';
   static const String likesBoxName = 'likes_box';
   static const String followsBoxName = 'follows_box';
+  static const int maxGuestTrialItems = 5;
 
   Box? _repostBox;
   Box? _historyBox;
@@ -313,7 +314,22 @@ class LocalDatabase {
   Future<void> setSoundEffectsEnabled(bool enabled) async =>
       await _settingsBox?.put('sound_effects_enabled', enabled);
 
-  // ─── Scan Batch Limit Settings ────────────────────────────────────────────
+  // ─── Scan Batch Limit & Freemium Guest Settings ───────────────────────────
+  int get guestTrialUsedCount =>
+      (_settingsBox?.get('guest_trial_used_count', defaultValue: 0) as int?) ??
+      0;
+
+  int get guestTrialRemaining =>
+      (maxGuestTrialItems - guestTrialUsedCount).clamp(0, maxGuestTrialItems);
+
+  Future<void> incrementGuestTrialUsed([int count = 1]) async {
+    if (_settingsBox == null || count <= 0) return;
+    await _settingsBox!.put(
+      'guest_trial_used_count',
+      guestTrialUsedCount + count,
+    );
+  }
+
   int get scanBatchLimit =>
       (_settingsBox?.get('scan_batch_limit', defaultValue: 100) as int?) ?? 100;
   Future<void> setScanBatchLimit(int limit) async =>
@@ -321,9 +337,10 @@ class LocalDatabase {
 
   // ─── Safety & Anti-Ban Settings ───────────────────────────────────────────
   int get customDelayMs =>
-      (_settingsBox?.get('custom_delay_ms', defaultValue: 700) as int?) ?? 700;
+      ((_settingsBox?.get('custom_delay_ms', defaultValue: 700) as int?) ?? 700)
+          .clamp(150, 10000);
   Future<void> setCustomDelayMs(int delay) async =>
-      await _settingsBox?.put('custom_delay_ms', delay);
+      await _settingsBox?.put('custom_delay_ms', delay.clamp(150, 10000));
 
   bool get pulseJitterEnabled =>
       (_settingsBox?.get('pulse_jitter', defaultValue: true) as bool?) ?? true;

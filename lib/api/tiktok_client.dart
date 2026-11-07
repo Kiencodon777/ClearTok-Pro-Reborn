@@ -193,37 +193,46 @@ class TikTokClient {
         if (app.odinId) params.append('odinId', String(app.odinId));
 
         const targetUrl = endpoint + '?' + params.toString();
-        const response = await fetch(targetUrl, {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Accept': 'application/json, text/plain, */*'
-          }
-        });
-
-        let raw = await response.text();
-        if (!raw || !raw.trim()) {
-          raw = await new Promise((resolve) => {
-            try {
-              const xhr = new XMLHttpRequest();
-              xhr.open('GET', targetUrl, true);
-              xhr.withCredentials = true;
-              xhr.setRequestHeader('Accept', 'application/json, text/plain, */*');
-              xhr.onload = () => resolve(xhr.responseText || '');
-              xhr.onerror = () => resolve('');
-              xhr.send();
-            } catch (_) {
-              resolve('');
+        const abort = new AbortController();
+        const timer = setTimeout(() => abort.abort(), 20000);
+        try {
+          const response = await fetch(targetUrl, {
+            method: 'GET',
+            credentials: 'include',
+            signal: abort.signal,
+            headers: {
+              'Accept': 'application/json, text/plain, */*'
             }
           });
-        }
-        if (!raw || !raw.trim()) {
-          if (response.status === 200) {
-            return JSON.stringify({status_code: 0, itemList: [], hasMore: false, cursor: 0});
+
+          let raw = await response.text();
+          if (!raw || !raw.trim()) {
+            raw = await new Promise((resolve) => {
+              try {
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', targetUrl, true);
+                xhr.timeout = 15000;
+                xhr.withCredentials = true;
+                xhr.setRequestHeader('Accept', 'application/json, text/plain, */*');
+                xhr.onload = () => resolve(xhr.responseText || '');
+                xhr.onerror = () => resolve('');
+                xhr.ontimeout = () => resolve('');
+                xhr.send();
+              } catch (_) {
+                resolve('');
+              }
+            });
           }
-          return JSON.stringify({status_code: -1, error: 'HTTP ' + response.status + ' empty response'});
+          if (!raw || !raw.trim()) {
+            return JSON.stringify({
+              status_code: -2,
+              error: 'HTTP ' + response.status + ' empty response (chưa xác nhận được danh sách)'
+            });
+          }
+          return raw;
+        } finally {
+          clearTimeout(timer);
         }
-        return raw;
       } catch (e) {
         return JSON.stringify({status_code: -1, error: e.toString()});
       }
@@ -301,19 +310,27 @@ class TikTokClient {
         params.append('secUid', String(secUid));
         params.append('coverFormat', '2');
 
-        const response = await fetch(endpoint + '?' + params.toString(), {
-          method: 'GET',
-          credentials: 'include',
-          headers: { 'Accept': 'application/json, text/plain, */*' }
-        });
+        const abort = new AbortController();
+        const timer = setTimeout(() => abort.abort(), 20000);
+        try {
+          const response = await fetch(endpoint + '?' + params.toString(), {
+            method: 'GET',
+            credentials: 'include',
+            signal: abort.signal,
+            headers: { 'Accept': 'application/json, text/plain, */*' }
+          });
 
-        const raw = await response.text();
-        if (!raw || !raw.trim()) {
-          if (response.status === 200) {
-            return JSON.stringify({status_code: 0, itemList: [], hasMore: false, cursor: 0});
+          const raw = await response.text();
+          if (!raw || !raw.trim()) {
+            return JSON.stringify({
+              status_code: -2,
+              error: 'HTTP ' + response.status + ' empty response (chưa xác nhận được danh sách)'
+            });
           }
+          return raw;
+        } finally {
+          clearTimeout(timer);
         }
-        return raw;
       } catch (e) {
         return JSON.stringify({status_code: -1, error: e.toString()});
       }
@@ -380,6 +397,12 @@ class TikTokClient {
         });
 
         const raw = await response.text();
+        if (!raw || !raw.trim()) {
+          return JSON.stringify({
+            status_code: -2,
+            error: 'HTTP ' + (response.status ?? 200) + ' empty response (chưa xác nhận được danh sách)'
+          });
+        }
         return raw;
       } catch (e) {
         return JSON.stringify({status_code: -1, error: e.toString()});
@@ -452,6 +475,13 @@ class TikTokClient {
     const functionBody = r'''
       try {
         const getCsrf = () => {
+          try {
+            const rawHydration = document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__')?.textContent;
+            const hydrationToken = rawHydration
+              ? JSON.parse(rawHydration)?.__DEFAULT_SCOPE__?.['webapp.app-context']?.csrfToken
+              : null;
+            if (hydrationToken) return String(hydrationToken);
+          } catch (_) {}
           const m = document.cookie.match(/(?:^|;\s*)(?:tt_csrf_token|csrf_token|passport_csrf_token)=([^;]+)/);
           return m ? decodeURIComponent(m[1]) : '';
         };
@@ -461,8 +491,21 @@ class TikTokClient {
           'Accept': 'application/json, text/plain, */*'
         };
         if (csrf) {
+          baseHeaders['tt-csrf-token'] = csrf;
           baseHeaders['x-secsdk-csrf-token'] = csrf;
         }
+        const isTerminalCode = (code, status) =>
+          [401, 403, 429, 10402, 3002226].includes(Number(code)) ||
+          [401, 403, 429].includes(Number(status));
+        const fetchWithTimeout = async (url, opts) => {
+          const abort = new AbortController();
+          const timer = setTimeout(() => abort.abort(), 20000);
+          try {
+            return await fetch(url, Object.assign({}, opts, { signal: abort.signal }));
+          } finally {
+            clearTimeout(timer);
+          }
+        };
 
         const urlWithAid = deleteEndpoint.includes('?') 
           ? (deleteEndpoint + '&aid=' + String(aid)) 
@@ -471,7 +514,7 @@ class TikTokClient {
         // Format 1 (Standard Web JSON with item_id and type: 1)
         try {
           const jsonHeaders = Object.assign({}, baseHeaders, { 'Content-Type': 'application/json' });
-          const resp = await fetch(urlWithAid, {
+          const resp = await fetchWithTimeout(urlWithAid, {
             method: 'POST',
             credentials: 'include',
             headers: jsonHeaders,
@@ -488,12 +531,20 @@ class TikTokClient {
           if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
             return JSON.stringify({ success: true, status_code: 0, message: 'ok (json-type1)', raw: raw });
           }
+          if (isTerminalCode(parsed?.status_code, resp.status)) {
+            return JSON.stringify({
+              success: false,
+              status_code: parsed?.status_code ?? resp.status,
+              message: parsed?.status_msg ?? parsed?.error ?? ('HTTP ' + resp.status),
+              raw: raw
+            });
+          }
         } catch (_) {}
 
         // Format 2 (Form URL Encoded with item_id and type=1)
         try {
           const formHeaders = Object.assign({}, baseHeaders, { 'Content-Type': 'application/x-www-form-urlencoded' });
-          const resp = await fetch(urlWithAid, {
+          const resp = await fetchWithTimeout(urlWithAid, {
             method: 'POST',
             credentials: 'include',
             headers: formHeaders,
@@ -507,12 +558,20 @@ class TikTokClient {
           if (parsed && (parsed.status_code === 0 || parsed.status_code === '0')) {
             return JSON.stringify({ success: true, status_code: 0, message: 'ok (form-type1)', raw: raw });
           }
+          if (isTerminalCode(parsed?.status_code, resp.status)) {
+            return JSON.stringify({
+              success: false,
+              status_code: parsed?.status_code ?? resp.status,
+              message: parsed?.status_msg ?? parsed?.error ?? ('HTTP ' + resp.status),
+              raw: raw
+            });
+          }
         } catch (_) {}
 
         // Format 3 (Query Parameters with aid, item_id, and type=1)
         try {
           const queryUrl = urlWithAid + '&item_id=' + encodeURIComponent(itemId) + '&type=1';
-          const resp = await fetch(queryUrl, {
+          const resp = await fetchWithTimeout(queryUrl, {
             method: 'POST',
             credentials: 'include',
             headers: baseHeaders
@@ -538,7 +597,7 @@ class TikTokClient {
 
         // Format 4 (Fallback query with same-origin credentials)
         const finalUrl = urlWithAid + '&item_id=' + encodeURIComponent(itemId) + '&type=1';
-        const finalResp = await fetch(finalUrl, {
+        const finalResp = await fetchWithTimeout(finalUrl, {
           method: 'POST',
           credentials: 'same-origin',
           headers: baseHeaders
@@ -802,11 +861,6 @@ class TikTokClient {
                       }
                     }
                   } catch (_) {}
-                  if (response.status === 200 && !detail.login_redirect && !detail.verification_hint && Boolean(expectedUser)) {
-                    detail.readback_confirmed = true;
-                    return JSON.stringify({success: true, status_code: 0,
-                      message: 'Đã gửi lệnh bỏ thích (HTTP 200).', raw: JSON.stringify(detail)});
-                  }
                 }
               } catch (_) { detail.readback_exception = true; }
             }

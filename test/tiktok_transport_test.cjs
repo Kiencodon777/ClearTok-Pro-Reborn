@@ -30,6 +30,53 @@ for (const [liked, sameAccount, expected] of [[false,true,0],[true,true,-2],[fal
     assert.equal(posts,1); assert.equal(gets,1);
   });
 }
+
+// H5 test: SPA shell fallback (!readback_hydration_present) must never return false-positive success when digged=true
+for (const [apiDigged, expectedCode] of [[false, 0], [true, -2]]) {
+  test(`SPA shell API readback digged=${apiDigged} returns status_code=${expectedCode}`, async () => {
+    const app = {csrfToken: 'web-token', user: {id: 'account'}};
+    const fetch = async (url, options = {}) => {
+      if (options.method === 'HEAD') {
+        return {ok: true, status: 200, url, headers: {get: () => ''}, text: async () => ''};
+      }
+      if (options.method === 'POST') {
+        return {ok: true, status: 200, url, headers: {get: () => null}, text: async () => ''};
+      }
+      if (String(url).includes('/api/item/detail/')) {
+        return {
+          ok: true,
+          status: 200,
+          url,
+          headers: {get: () => 'application/json'},
+          json: async () => ({itemInfo: {itemStruct: {id: '123', digged: apiDigged}}}),
+        };
+      }
+      return {ok: true, status: 200, url, headers: {get: () => 'text/html'}, text: async () => '<html>spa-shell</html>'};
+    };
+    class EmptyHydrationParser {
+      parseFromString() {
+        return {getElementById: () => null};
+      }
+    }
+    const run = new AsyncFunction('window', 'document', 'location', 'navigator', 'path', 'params', 'aid', 'DOMParser', body);
+    const result = JSON.parse(await run(
+      {fetch},
+      {
+        createElement: () => ({}),
+        getElementById: () => ({textContent: JSON.stringify({__DEFAULT_SCOPE__: {'webapp.app-context': app}})}),
+      },
+      {origin: 'https://www.tiktok.com'},
+      {language: 'vi', platform: 'iPhone', userAgent: 'test'},
+      '/api/commit/item/digg/',
+      {aweme_id: '123', type: '0', _author: 'creator'},
+      1988,
+      EmptyHydrationParser,
+    ));
+    assert.equal(result.status_code, expectedCode);
+    assert.equal(result.success, expectedCode === 0);
+  });
+}
+
 for (const path of ['/api/commit/item/digg/', '/api/commit/follow/user/']) {
   for (const [raw, status, code, token] of [
     ['{"status_code":0}',200,0,true], ['{"status_code":"0"}',200,0,true],

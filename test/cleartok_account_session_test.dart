@@ -138,6 +138,19 @@ void main() {
       expect(session!.message, isNot(contains('cookie')));
     },
   );
+  test(
+    '429 rate limit during refresh preserves existing ready session',
+    () async {
+      await fixture.signedIn();
+      session = ClearTokAccountSession(fixture.api);
+      await session!.verify();
+      expect(session!.phase, AccountPhase.ready);
+      fixture.rateLimited = true;
+      await session!.verify();
+      expect(session!.phase, AccountPhase.ready);
+      expect(session!.account, isNotNull);
+    },
+  );
   test('own-device revocation revalidates access and denies Studio', () async {
     await fixture.signedIn();
     session = ClearTokAccountSession(fixture.api);

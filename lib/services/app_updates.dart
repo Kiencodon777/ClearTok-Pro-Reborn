@@ -39,8 +39,8 @@ class AppRelease {
       version,
       notes.substring(0, notes.length > 6000 ? 6000 : notes.length),
       url,
-      apkUrl: (apk != null && apk.scheme == 'https') ? apk : null,
-      ipaUrl: (ipa != null && ipa.scheme == 'https') ? ipa : null,
+      apkUrl: _isTrustedDownloadUri(apk) ? apk : null,
+      ipaUrl: _isTrustedDownloadUri(ipa) ? ipa : null,
     );
   }
 
@@ -65,7 +65,7 @@ class AppRelease {
           final dl = Uri.tryParse(
             item['browser_download_url']?.toString() ?? '',
           );
-          if (dl != null && dl.scheme == 'https') {
+          if (_isTrustedDownloadUri(dl)) {
             if (name.endsWith('.apk')) apkUri = dl;
             if (name.endsWith('.ipa')) ipaUri = dl;
           }
@@ -88,6 +88,21 @@ class AppRelease {
     );
   }
 
+  static bool _isTrustedDownloadUri(Uri? uri) {
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.userInfo.isNotEmpty ||
+        (uri.hasPort && uri.port != 443)) {
+      return false;
+    }
+    final host = uri.host.toLowerCase();
+    if (host == 'github.com') {
+      return uri.path.startsWith('/Kiencodon777/ClearTok-Pro-Reborn/releases/');
+    }
+    return host == 'objects.githubusercontent.com' ||
+        host == 'release-assets.githubusercontent.com';
+  }
+
   bool newerThan(String current) {
     final a = version.split('.').map(int.parse).toList();
     final b = current.split('.').map(int.tryParse).toList();
@@ -102,7 +117,7 @@ class AppRelease {
 class AppUpdates {
   static const currentVersion = String.fromEnvironment(
     'APP_VERSION',
-    defaultValue: '2.3.36',
+    defaultValue: '2.4.0',
   );
   static const feedUrl = String.fromEnvironment('UPDATE_FEED_URL');
   static bool _checking = false;

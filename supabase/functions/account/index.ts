@@ -13,13 +13,20 @@ Deno.serve(async request => {
     const {data:{user},error:authError} = await client.auth.getUser();
     if (authError || !user) return new Response('', {status:401,headers});
     const body = await request.text();
-    if (body.length > 4096) return new Response('', {status:413,headers});
+    const byteLength = typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(body).byteLength : body.length;
+    if (byteLength > 4096) return new Response('', {status:413,headers});
     const input = JSON.parse(body);
     if (typeof input.action !== 'string' || !input.payload || typeof input.payload !== 'object' || Array.isArray(input.payload))
       return new Response('', {status:400,headers});
     const {data,error} = await client.rpc(input.admin === true ? 'admin_api' : 'account_api',
       {action:input.action,payload:input.payload});
-    if (error) return Response.json({error:'Request denied'}, {status:403,headers});
+    if (error) {
+      const isRateLimit = String(error.message || '').includes('Rate limit exceeded') || error.code === '429';
+      return Response.json(
+        {error: isRateLimit ? 'Rate limit exceeded' : 'Request denied'},
+        {status: isRateLimit ? 429 : 403, headers},
+      );
+    }
     return Response.json(data, {headers});
   } catch {
     return Response.json({error:'Invalid request'}, {status:400,headers});

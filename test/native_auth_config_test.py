@@ -13,6 +13,8 @@ class NativeAuthConfigTest(unittest.TestCase):
     def test_android_keeps_callback_and_disables_duplicate_flutter_handler(self):
         manifest=ET.parse(root/'android/app/src/main/AndroidManifest.xml')
         ns='{http://schemas.android.com/apk/res/android}'
+        app=manifest.find('.//application')
+        self.assertEqual(app.get(ns+'allowBackup'),'false')
         activity=manifest.find('.//activity')
         metadata={item.get(ns+'name'):item.get(ns+'value') for item in activity.findall('meta-data')}
         self.assertEqual(metadata['flutter_deeplinking_enabled'],'false')
@@ -20,6 +22,10 @@ class NativeAuthConfigTest(unittest.TestCase):
         data=activity.find("intent-filter/data")
         self.assertEqual(data.get(ns+'scheme'),'cleartok')
         self.assertEqual(data.get(ns+'host'),'auth-callback')
+        view_filter=[f for f in activity.findall('intent-filter') if f.find('data') is not None][0]
+        categories=[c.get(ns+'name') for c in view_filter.findall('category')]
+        self.assertIn('android.intent.category.DEFAULT',categories)
+        self.assertIn('android.intent.category.BROWSABLE',categories)
     def test_ios_callback_is_idempotent_and_preserves_bundle_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             plist=Path(directory)/'Info.plist'

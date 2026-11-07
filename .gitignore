@@ -42,3 +42,10 @@ node_modules/
 **/android/gradlew.bat
 **/android/local.properties
 **/android/**/GeneratedPluginRegistrant.java
+
+# Signing keys and certificates
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+key.properties

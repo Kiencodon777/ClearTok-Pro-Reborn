@@ -5,7 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ClearTokAccount {
   static SupabaseClient? client;
+  static bool initFailed = false;
   static final accessInvalidated = ValueNotifier<int>(0);
+
+  static bool get isGuestMode =>
+      initFailed || (client != null && client!.auth.currentSession == null);
 
   static Future<Map<String, dynamic>> check({String? feature}) async {
     final api = client;
@@ -18,7 +22,7 @@ class ClearTokAccount {
     final shortTag = id.length >= 4 ? id.substring(id.length - 4) : id;
     const appVersion = String.fromEnvironment(
       'APP_VERSION',
-      defaultValue: '2.3.37',
+      defaultValue: '2.4.0',
     );
     final response = await api.functions
         .invoke(

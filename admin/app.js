@@ -5,6 +5,7 @@ let client;
 let section = 'dashboard';
 let currentAdminId = null;
 let searchDebounce = null;
+let renderSeq = 0;
 
 const sections = {
   dashboard: 'Dashboard',
@@ -708,21 +709,24 @@ function renderLogs(rows) {
 }
 
 async function render() {
-  $('heading').textContent = sections[section] || section;
+  const seq = ++renderSeq;
+  const activeSection = section;
+  $('heading').textContent = sections[activeSection] || activeSection;
   for (const btn of $('navigation').querySelectorAll('button')) {
-    btn.classList.toggle('active', btn.dataset.key === section);
+    btn.classList.toggle('active', btn.dataset.key === activeSection);
   }
-  const data = await rpc(section, {search: $('search').query.value.trim()});
-  if (section === 'dashboard') {
+  const data = await rpc(activeSection, {search: $('search').query.value.trim()});
+  if (seq !== renderSeq || activeSection !== section) return;
+  if (activeSection === 'dashboard') {
     renderDashboard(data || {});
     return;
   }
   const rows = Array.isArray(data) ? data : [data];
-  if (section === 'users') renderUsers(rows);
-  else if (section === 'devices') renderDevices(rows);
-  else if (section === 'entitlements') renderEntitlements(rows);
-  else if (section === 'flags') renderFlags(rows);
-  else if (section === 'logs') renderLogs(rows);
+  if (activeSection === 'users') renderUsers(rows);
+  else if (activeSection === 'devices') renderDevices(rows);
+  else if (activeSection === 'entitlements') renderEntitlements(rows);
+  else if (activeSection === 'flags') renderFlags(rows);
+  else if (activeSection === 'logs') renderLogs(rows);
 }
 
 function switchSection(next) {

@@ -22,6 +22,7 @@ class AccountFixture {
   int logins = 0;
   int revoked = 0;
   bool denied = false;
+  bool rateLimited = false;
   bool invalidPassword = false;
   Completer<void>? hold;
   final requestBodies = <Map<String, dynamic>>[];
@@ -70,6 +71,9 @@ class AccountFixture {
           }
           checks++;
           await hold?.future;
+          if (rateLimited) {
+            return reply({'error': 'Rate limit exceeded'}, 429);
+          }
           if (denied) {
             return reply({'error': 'raw response cookie=never-render'}, 403);
           }

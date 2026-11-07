@@ -11,6 +11,8 @@
         android:label="LapinTokk"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
         android:usesCleartextTraffic="false">
         
         <activity
@@ -33,7 +35,7 @@
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.action.DEFAULT" />
+                <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="cleartok" android:host="auth-callback" />
             </intent-filter>
