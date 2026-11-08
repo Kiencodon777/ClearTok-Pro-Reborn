@@ -83,4 +83,18 @@ void main() {
       expect(db.guestTrialRemaining, 0);
     },
   );
+
+  test('isCaptchaChallenge detects TikTok captcha codes and challenge strings', () {
+    expect(TikTokDeletionEngine.isCaptchaChallenge(10402, 'Error', '{}'), true);
+    expect(TikTokDeletionEngine.isCaptchaChallenge(3002226, 'Error', '{}'), true);
+    expect(
+      TikTokDeletionEngine.isCaptchaChallenge(
+        -1,
+        'TikTok yêu cầu xác minh hoặc trang đã làm mới',
+        '{"verify_check":true}',
+      ),
+      true,
+    );
+    expect(TikTokDeletionEngine.isCaptchaChallenge(403, 'Forbidden', '{}'), false);
+  });
 }

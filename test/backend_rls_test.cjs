@@ -27,6 +27,13 @@ test('PostgreSQL migrations enforce ownership, privileges, device limits and adm
     await assert.rejects(db.query("select admin_api('users')"));
     await db.query("select account_api('register_device',$1)",[JSON.stringify({device_id:a,platform:'android'})]);
     await assert.rejects(db.query("select account_api('register_device',$1)",[JSON.stringify({device_id:b,platform:'ios'})]));
+    // Simulate reinstall after >7 days of inactivity on Free plan: stale device is auto-replaced
+    await db.exec('reset role');
+    await db.query("update public.user_devices set last_seen_at = now() - interval '8 days' where user_id = $1 and device_id = $2", [a, a]);
+    await as(a);
+    const staleReplaced = (await db.query("select account_api('register_device',$1) as data",[JSON.stringify({device_id:b,platform:'ios'})])).rows[0].data;
+    assert.equal(staleReplaced.devices.filter(d => d.is_active).length, 1);
+    assert.equal(staleReplaced.devices.find(d => d.is_active).device_id, b);
     await as(admin);
     await db.query("select admin_api('premium',$1)",[JSON.stringify({user_id:a,plan:'premium'})]);
     assert.equal((await db.query("select admin_api('users') as data")).rows[0].data.length,3);

@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../api/tiktok_client.dart';
 import '../../database/local_database.dart';
@@ -98,33 +97,47 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     return _engine!;
   }
 
+  List<TikTokVideo>? _cachedFilteredVideos;
+  Object? _videosFilterKey;
+  List<TikTokFollowUser>? _cachedFilteredFollowing;
+  Object? _followingFilterKey;
+
   List<TikTokVideo> get _filteredVideos {
-    List<TikTokVideo> list = List.from(_videos);
-
-    if (_searchQuery.isNotEmpty) {
-      final q = _searchQuery.toLowerCase();
-      list = list.where((v) {
-        return v.authorUsername.toLowerCase().contains(q) ||
-            v.authorNickname.toLowerCase().contains(q) ||
-            v.description.toLowerCase().contains(q);
-      }).toList();
+    final key = (
+      identityHashCode(_videos),
+      _videos.length,
+      _searchQuery,
+      _filterAuthor,
+      _filterYear,
+      _selectedFilter,
+      _selectedFilter == 'selected' ? _selectedIds.length : 0,
+    );
+    if (_selectedFilter != 'selected' && _videosFilterKey == key && _cachedFilteredVideos != null) {
+      return _cachedFilteredVideos!;
     }
 
-    if (_filterAuthor != null) {
-      list = list.where((v) => v.authorUsername == _filterAuthor).toList();
-    }
+    final hasQuery = _searchQuery.isNotEmpty;
+    final q = hasQuery ? _searchQuery.toLowerCase() : '';
+    final filterAuthor = _filterAuthor;
+    final filterYearInt = _filterYear != null ? int.tryParse(_filterYear!) : null;
+    final onlySelected = _selectedFilter == 'selected';
 
-    if (_filterYear != null) {
-      final dfYear = DateFormat('yyyy');
-      list = list
-          .where((v) => dfYear.format(v.repostDateTime) == _filterYear)
-          .toList();
+    final list = <TikTokVideo>[];
+    for (int i = 0; i < _videos.length; i++) {
+      final v = _videos[i];
+      if (onlySelected && !_selectedIds.contains(v.id)) continue;
+      if (filterAuthor != null && v.authorUsername != filterAuthor) continue;
+      if (filterYearInt != null && v.repostDateTime.year != filterYearInt) continue;
+      if (hasQuery &&
+          !v.authorUsername.toLowerCase().contains(q) &&
+          !v.authorNickname.toLowerCase().contains(q) &&
+          !v.description.toLowerCase().contains(q)) {
+        continue;
+      }
+      list.add(v);
     }
 
     switch (_selectedFilter) {
-      case 'selected':
-        list = list.where((v) => _selectedIds.contains(v.id)).toList();
-        break;
       case 'most_liked':
         list.sort((a, b) => b.diggCount.compareTo(a.diggCount));
         break;
@@ -136,25 +149,42 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
         break;
     }
 
+    _videosFilterKey = key;
+    _cachedFilteredVideos = list;
     return list;
   }
 
   List<TikTokFollowUser> get _filteredFollowing {
-    List<TikTokFollowUser> list = List.from(_followingUsers);
-
-    if (_searchQuery.isNotEmpty) {
-      final q = _searchQuery.toLowerCase();
-      list = list.where((u) {
-        return u.uniqueId.toLowerCase().contains(q) ||
-            u.nickname.toLowerCase().contains(q) ||
-            u.bio.toLowerCase().contains(q);
-      }).toList();
+    final key = (
+      identityHashCode(_followingUsers),
+      _followingUsers.length,
+      _searchQuery,
+      _selectedFilter,
+      _selectedFilter == 'selected' ? _selectedIds.length : 0,
+    );
+    if (_selectedFilter != 'selected' && _followingFilterKey == key && _cachedFilteredFollowing != null) {
+      return _cachedFilteredFollowing!;
     }
 
-    if (_selectedFilter == 'selected') {
-      list = list.where((u) => _selectedIds.contains(u.id)).toList();
+    final hasQuery = _searchQuery.isNotEmpty;
+    final q = hasQuery ? _searchQuery.toLowerCase() : '';
+    final onlySelected = _selectedFilter == 'selected';
+
+    final list = <TikTokFollowUser>[];
+    for (int i = 0; i < _followingUsers.length; i++) {
+      final u = _followingUsers[i];
+      if (onlySelected && !_selectedIds.contains(u.id)) continue;
+      if (hasQuery &&
+          !u.uniqueId.toLowerCase().contains(q) &&
+          !u.nickname.toLowerCase().contains(q) &&
+          !u.bio.toLowerCase().contains(q)) {
+        continue;
+      }
+      list.add(u);
     }
 
+    _followingFilterKey = key;
+    _cachedFilteredFollowing = list;
     return list;
   }
 
@@ -706,10 +736,12 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                     prog.status == DeletionStatus.paused ||
                     prog.status == DeletionStatus.deepResting);
             final isDeepResting = prog?.status == DeletionStatus.deepResting;
+            final isCaptcha = prog?.status == DeletionStatus.captchaRequired;
             final isDone =
                 prog != null &&
                 (prog.status == DeletionStatus.completed ||
                     prog.status == DeletionStatus.stopped ||
+                    prog.status == DeletionStatus.captchaRequired ||
                     prog.status == DeletionStatus.error);
 
             final titleText = hubMode == 'unfollow'
@@ -920,6 +952,52 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                               ),
                               onPressed: () => engine.stop(),
                               child: const Text('Dừng Hẳn'),
+                            ),
+                          ),
+                        ] else if (isCaptcha) ...[
+                          Expanded(
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: const BorderSide(color: Colors.white30),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                setState(() => _loadItems());
+                              },
+                              child: const Text('Để sau'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: ClearTokColors.cyan,
+                                foregroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              icon: const Icon(Icons.verified_user_rounded, size: 18),
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                setState(() => _loadItems());
+                                widget.onSwitchToBrowser();
+                              },
+                              label: const Text(
+                                'Mở xác minh TikTok ngay',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
                             ),
                           ),
                         ] else ...[
@@ -2307,6 +2385,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     }
 
     return ListView.builder(
+      cacheExtent: 480,
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
       padding: EdgeInsets.fromLTRB(
         16,
         16,
@@ -2427,6 +2508,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     }
 
     return GridView.builder(
+      cacheExtent: 600,
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
       padding: EdgeInsets.fromLTRB(
         16,
         16,
@@ -2469,6 +2553,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                     child: Image.network(
                       v.coverUrl,
                       fit: BoxFit.cover,
+                      cacheWidth: 360,
                       filterQuality: FilterQuality.low,
                       errorBuilder: (_, __, ___) => Container(
                         color: ClearTokColors.surface,

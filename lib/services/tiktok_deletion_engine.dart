@@ -14,6 +14,7 @@ enum DeletionStatus {
   running,
   paused,
   deepResting,
+  captchaRequired,
   completed,
   stopped,
   error,
@@ -100,6 +101,14 @@ class TikTokDeletionEngine {
 
   void pause() => _isPaused = true;
   void resume() => _isPaused = false;
+
+  static bool isCaptchaChallenge(int statusCode, String message, String raw) {
+    if (statusCode == 10402 || statusCode == 3002226) return true;
+    final combined = '${message.toLowerCase()} ${raw.toLowerCase()}';
+    return combined.contains('captcha') ||
+        combined.contains('verify_check') ||
+        combined.contains('xác minh');
+  }
 
   Future<void> _finishStopped(
     int total,
@@ -308,6 +317,50 @@ class TikTokDeletionEngine {
                 lastErrorDetail: errDetail,
               ),
             );
+
+            if (isCaptchaChallenge(
+              result.statusCode,
+              result.message,
+              result.rawResponse,
+            )) {
+              _emit(
+                BatchDeletionProgress(
+                  total: total,
+                  deleted: deleted,
+                  failed: failed,
+                  currentTitle: '@${video.authorUsername}',
+                  status: DeletionStatus.captchaRequired,
+                  message:
+                      '🛡️ TikTok yêu cầu xác minh bảo mật (Captcha). Hãy bấm "Mở xác minh TikTok ngay" để giải Captcha rồi tiếp tục nhé!',
+                  lastErrorDetail: errDetail,
+                ),
+              );
+              await _notifService.cancelAll();
+              return;
+            }
+
+            if (isCaptchaChallenge(
+              result.statusCode,
+              result.message,
+              result.rawResponse,
+            )) {
+              _emit(
+                BatchDeletionProgress(
+                  total: total,
+                  deleted: deleted,
+                  failed: failed,
+                  currentTitle: '@${user.uniqueId}',
+                  status: DeletionStatus.captchaRequired,
+                  message:
+                      '🛡️ TikTok yêu cầu xác minh bảo mật (Captcha). Hãy bấm "Mở xác minh TikTok ngay" để giải Captcha rồi tiếp tục nhé!',
+                  lastErrorDetail: result.rawResponse.length > 200
+                      ? result.rawResponse.substring(0, 200)
+                      : result.rawResponse,
+                ),
+              );
+              await _notifService.cancelAll();
+              return;
+            }
 
             if ([-2, 401, 403, 10402, 3002226, 429].contains(
               result.statusCode,
@@ -647,6 +700,7 @@ class TikTokDeletionEngine {
 
   void _emit(BatchDeletionProgress progress) {
     if ([
+      DeletionStatus.captchaRequired,
       DeletionStatus.completed,
       DeletionStatus.stopped,
       DeletionStatus.error,
