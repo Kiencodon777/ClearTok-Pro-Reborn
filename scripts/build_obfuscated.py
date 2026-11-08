@@ -58,7 +58,7 @@ def main():
         command.append('--no-codesign')
     command.extend('--dart-define=' + key + '=' + value for key, value in configuration.items())
     if os.environ.get('VERSION'):
-        command.extend(['--build-name=' + os.environ['VERSION'],
+        command.extend(['--build-name=' + os.environ['VERSION'].split('-', 1)[0],
                         '--dart-define=APP_VERSION=' + os.environ['VERSION']])
     if os.environ.get('GITHUB_RUN_NUMBER'):
         command.append('--build-number=' + os.environ['GITHUB_RUN_NUMBER'])
