@@ -339,29 +339,6 @@ class TikTokDeletionEngine {
               return;
             }
 
-            if (isCaptchaChallenge(
-              result.statusCode,
-              result.message,
-              result.rawResponse,
-            )) {
-              _emit(
-                BatchDeletionProgress(
-                  total: total,
-                  deleted: deleted,
-                  failed: failed,
-                  currentTitle: '@${user.uniqueId}',
-                  status: DeletionStatus.captchaRequired,
-                  message:
-                      '🛡️ TikTok yêu cầu xác minh bảo mật (Captcha). Hãy bấm "Mở xác minh TikTok ngay" để giải Captcha rồi tiếp tục nhé!',
-                  lastErrorDetail: result.rawResponse.length > 200
-                      ? result.rawResponse.substring(0, 200)
-                      : result.rawResponse,
-                ),
-              );
-              await _notifService.cancelAll();
-              return;
-            }
-
             if ([-2, 401, 403, 10402, 3002226, 429].contains(
               result.statusCode,
             )) {
@@ -616,6 +593,29 @@ class TikTokDeletionEngine {
                     : result.rawResponse,
               ),
             );
+
+            if (isCaptchaChallenge(
+              result.statusCode,
+              result.message,
+              result.rawResponse,
+            )) {
+              _emit(
+                BatchDeletionProgress(
+                  total: total,
+                  deleted: deleted,
+                  failed: failed,
+                  currentTitle: '@${user.uniqueId}',
+                  status: DeletionStatus.captchaRequired,
+                  message:
+                      '🛡️ TikTok yêu cầu xác minh bảo mật (Captcha). Hãy bấm "Mở xác minh TikTok ngay" để giải Captcha rồi tiếp tục nhé!',
+                  lastErrorDetail: result.rawResponse.length > 200
+                      ? result.rawResponse.substring(0, 200)
+                      : result.rawResponse,
+                ),
+              );
+              await _notifService.cancelAll();
+              return;
+            }
 
             if ([-2, 401, 403, 10402, 3002226, 429].contains(
               result.statusCode,
