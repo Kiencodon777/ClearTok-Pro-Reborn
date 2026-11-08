@@ -22,7 +22,7 @@ class ClearTokAccount {
     final shortTag = id.length >= 4 ? id.substring(id.length - 4) : id;
     const appVersion = String.fromEnvironment(
       'APP_VERSION',
-      defaultValue: '2.4.0',
+      defaultValue: '2.5.0',
     );
     final response = await api.functions
         .invoke(

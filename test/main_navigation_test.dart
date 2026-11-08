@@ -56,7 +56,7 @@ void main() {
         home: ClearTokAccountGate(
           child: MainNavigationScreen(
             database: TestDatabase(),
-            remoteConfig: RemotePayloadConfig(),
+            remoteConfig: const RemotePayloadConfig(),
           ),
         ),
       ),
@@ -100,7 +100,7 @@ void main() {
         theme: clearTokTheme(),
         home: MainNavigationScreen(
           database: TestDatabase(),
-          remoteConfig: RemotePayloadConfig(),
+          remoteConfig: const RemotePayloadConfig(),
         ),
       ),
     );

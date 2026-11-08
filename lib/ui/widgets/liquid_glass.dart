@@ -303,10 +303,7 @@ class _BouncyTapWrapperState extends State<BouncyTapWrapper>
   @override
   void initState() {
     super.initState();
-    _scaleController = AnimationController.unbounded(
-      value: 1.0,
-      vsync: this,
-    );
+    _scaleController = AnimationController.unbounded(value: 1.0, vsync: this);
   }
 
   void _onDown() {
@@ -579,8 +576,7 @@ class _WaterDropletPillPainter extends CustomPainter {
     //   streamlining vertically (`-vel * 0.08`) like a flying liquid droplet!
     // - On edge impact (`edgeOvershoot > 0`): squashes horizontally (`-edgeOvershoot * 0.24`)
     //   and bulges vertically (`+edgeOvershoot * 7.5px`)!
-    final widthStretch =
-        (swell * 0.16) + (vel * 0.24) - (edgeOvershoot * 0.24);
+    final widthStretch = (swell * 0.16) + (vel * 0.24) - (edgeOvershoot * 0.24);
     final pillW = (itemWidth * (1.0 + widthStretch))
         .clamp(itemWidth * 0.78, size.width * 0.94)
         .toDouble();
@@ -798,10 +794,7 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
       value: widget.selectedIndex.toDouble(),
       vsync: this,
     );
-    _lensController = AnimationController.unbounded(
-      value: 0.0,
-      vsync: this,
-    );
+    _lensController = AnimationController.unbounded(value: 0.0, vsync: this);
     _dockRecoilController = AnimationController.unbounded(
       value: 0.0,
       vsync: this,
@@ -938,14 +931,14 @@ class _GBoxLiquidDockState extends State<GBoxLiquidDock>
         : 0.0;
     int nextIndex = _controller.value.round().clamp(0, maxIdx);
     if (vx.abs() > 1.6) {
-      nextIndex = (vx > 0 ? _controller.value.ceil() : _controller.value.floor())
-          .clamp(0, maxIdx);
+      nextIndex =
+          (vx > 0 ? _controller.value.ceil() : _controller.value.floor()).clamp(
+            0,
+            maxIdx,
+          );
     }
     LiquidSoundHaptics.tapPop();
-    _animateToIndex(
-      nextIndex,
-      dragVelocity: vx.clamp(-5.5, 5.5).toDouble(),
-    );
+    _animateToIndex(nextIndex, dragVelocity: vx.clamp(-5.5, 5.5).toDouble());
     if (nextIndex != widget.selectedIndex) {
       widget.onTabSelected(nextIndex);
     }
@@ -1181,10 +1174,7 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
       value: widget.selectedIndex.toDouble(),
       vsync: this,
     );
-    _lensController = AnimationController.unbounded(
-      value: 0.0,
-      vsync: this,
-    );
+    _lensController = AnimationController.unbounded(value: 0.0, vsync: this);
     _barRecoilController = AnimationController.unbounded(
       value: 0.0,
       vsync: this,
@@ -1347,10 +1337,11 @@ class _GBoxSegmentedControlState extends State<GBoxSegmentedControl>
                       : 0.0;
                   int nextIdx = _controller.value.round().clamp(0, maxIdx);
                   if (vx.abs() > 1.6) {
-                    nextIdx = (vx > 0
-                            ? _controller.value.ceil()
-                            : _controller.value.floor())
-                        .clamp(0, maxIdx);
+                    nextIdx =
+                        (vx > 0
+                                ? _controller.value.ceil()
+                                : _controller.value.floor())
+                            .clamp(0, maxIdx);
                   }
                   LiquidSoundHaptics.tapPop();
                   _animateToIndex(

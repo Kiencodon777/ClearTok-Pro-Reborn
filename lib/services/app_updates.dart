@@ -14,13 +14,7 @@ class AppRelease {
   final Uri? apkUrl;
   final Uri? ipaUrl;
 
-  AppRelease(
-    this.version,
-    this.notes,
-    this.url, {
-    this.apkUrl,
-    this.ipaUrl,
-  });
+  AppRelease(this.version, this.notes, this.url, {this.apkUrl, this.ipaUrl});
 
   factory AppRelease.fromJson(Map<String, dynamic> json) {
     final version = json['version']?.toString() ?? '';
@@ -117,7 +111,7 @@ class AppRelease {
 class AppUpdates {
   static const currentVersion = String.fromEnvironment(
     'APP_VERSION',
-    defaultValue: '2.4.0',
+    defaultValue: '2.5.0',
   );
   static const feedUrl = String.fromEnvironment('UPDATE_FEED_URL');
   static bool _checking = false;

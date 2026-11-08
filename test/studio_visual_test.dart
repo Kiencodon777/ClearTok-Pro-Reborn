@@ -86,9 +86,7 @@ void main() {
       }
       await expectLater(
         find.byKey(const ValueKey('preview')),
-        matchesGoldenFile(
-          '../build/ui-previews/studio-${size.width.toInt()}.png',
-        ),
+        matchesGoldenFile('goldens/studio-${size.width.toInt()}.png'),
       );
     });
   }

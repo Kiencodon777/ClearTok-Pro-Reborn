@@ -19,7 +19,11 @@ void main() {
       var pages = 0;
       while (limit == 0 || found < limit) {
         pages++;
-        final data = {'cursor': 0, 'minCursor': pages * 30, 'hasMore': pages < 8};
+        final data = {
+          'cursor': 0,
+          'minCursor': pages * 30,
+          'hasMore': pages < 8,
+        };
         final next = scanNextCursor(data, cursor);
         found += limit > 0 && limit - found < 30 ? limit - found : 30;
         if (!scanHasMore(data, 30, next != cursor)) break;

@@ -33,7 +33,10 @@ class TikTokVideo {
         : DateTime.fromMillisecondsSinceEpoch(repostTimestamp * 1000);
   }
 
-  factory TikTokVideo.fromJson(Map<String, dynamic> json, {String secUid = ''}) {
+  factory TikTokVideo.fromJson(
+    Map<String, dynamic> json, {
+    String secUid = '',
+  }) {
     final author = json['author'] as Map<String, dynamic>? ?? {};
     final video = json['video'] as Map<String, dynamic>? ?? {};
     final stats = json['stats'] as Map<String, dynamic>? ?? {};

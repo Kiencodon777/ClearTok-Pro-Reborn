@@ -49,3 +49,5 @@ node_modules/
 *.p12
 *.mobileprovision
 key.properties
+
+.tools/

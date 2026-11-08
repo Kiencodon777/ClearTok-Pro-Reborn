@@ -3,11 +3,29 @@ import 'package:cleartok_reborn/api/following_pagination.dart';
 
 void main() {
   test('keeps opaque Following cursor and skips stale/zero aliases', () {
-    expect(followingNextCursor({'maxCursor': 0, 'minCursor': 'page-token'}, '0'), '0');
-    expect(followingNextMinCursor({'maxCursor': 0, 'minCursor': 'page-token'}, '0'), 'page-token');
-    expect(followingNextCursor({'maxCursor': 'old', 'minCursor': 'new'}, 'old'), 'old');
-    expect(followingNextMinCursor({'maxCursor': 'old', 'minCursor': 'new'}, 'before'), 'new');
-    expect(followingNextCursor({'nextCursor': '9223372036854775808'}, '0'), '9223372036854775808');
+    expect(
+      followingNextCursor({'maxCursor': 0, 'minCursor': 'page-token'}, '0'),
+      '0',
+    );
+    expect(
+      followingNextMinCursor({'maxCursor': 0, 'minCursor': 'page-token'}, '0'),
+      'page-token',
+    );
+    expect(
+      followingNextCursor({'maxCursor': 'old', 'minCursor': 'new'}, 'old'),
+      'old',
+    );
+    expect(
+      followingNextMinCursor({
+        'maxCursor': 'old',
+        'minCursor': 'new',
+      }, 'before'),
+      'new',
+    );
+    expect(
+      followingNextCursor({'nextCursor': '9223372036854775808'}, '0'),
+      '9223372036854775808',
+    );
     expect(followingNextCursor({'maxCursor': 123.0}, '0'), '123');
   });
   test('no invented cursor or timestamp when server omits continuation', () {
@@ -24,7 +42,10 @@ void main() {
       final result = followingNextCursor(data, cursor);
       final nextMin = followingNextMinCursor(data, minCursor);
       expect(nextMin, isNot(minCursor));
-      expect(followingHasMore(data, 30, result != cursor || nextMin != minCursor), true);
+      expect(
+        followingHasMore(data, 30, result != cursor || nextMin != minCursor),
+        true,
+      );
       total += 30;
       cursor = result;
       minCursor = nextMin;

@@ -24,10 +24,17 @@ class TikTokFollowUser {
     return TikTokFollowUser(
       id: user['id']?.toString() ?? user['uid']?.toString() ?? '',
       secUid: user['secUid']?.toString() ?? user['sec_uid']?.toString() ?? '',
-      uniqueId: user['uniqueId']?.toString() ?? user['unique_id']?.toString() ?? 'anonymous',
+      uniqueId:
+          user['uniqueId']?.toString() ??
+          user['unique_id']?.toString() ??
+          'anonymous',
       nickname: user['nickname']?.toString() ?? '',
-      avatarThumb: user['avatarThumb']?.toString() ?? user['avatar_thumb']?.toString() ?? '',
-      followerCount: int.tryParse(stats['followerCount']?.toString() ?? '0') ?? 0,
+      avatarThumb:
+          user['avatarThumb']?.toString() ??
+          user['avatar_thumb']?.toString() ??
+          '',
+      followerCount:
+          int.tryParse(stats['followerCount']?.toString() ?? '0') ?? 0,
       bio: user['signature']?.toString() ?? '',
     );
   }
@@ -63,5 +70,10 @@ class FollowingScanResult {
   final String nextMinCursor;
   final bool hasMore;
 
-  FollowingScanResult({required this.users, required this.nextCursor, this.nextMinCursor = '0', required this.hasMore});
+  FollowingScanResult({
+    required this.users,
+    required this.nextCursor,
+    this.nextMinCursor = '0',
+    required this.hasMore,
+  });
 }

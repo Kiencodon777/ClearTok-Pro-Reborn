@@ -9,7 +9,11 @@ class AuthorStat {
   final int count;
   final int totalLikes;
 
-  AuthorStat({required this.username, required this.count, required this.totalLikes});
+  AuthorStat({
+    required this.username,
+    required this.count,
+    required this.totalLikes,
+  });
 }
 
 class StudioAnalytics {
@@ -62,8 +66,7 @@ class StudioAnalytics {
         count: e.value,
         totalLikes: authorLikes[e.key] ?? 0,
       );
-    }).toList()
-      ..sort((a, b) => b.count.compareTo(a.count));
+    }).toList()..sort((a, b) => b.count.compareTo(a.count));
 
     return StudioAnalytics(
       totalVideos: videos.length,

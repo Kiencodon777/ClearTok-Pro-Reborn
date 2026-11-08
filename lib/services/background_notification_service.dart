@@ -1,24 +1,31 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class BackgroundNotificationService {
-  static final BackgroundNotificationService _instance = BackgroundNotificationService._internal();
+  static final BackgroundNotificationService _instance =
+      BackgroundNotificationService._internal();
   factory BackgroundNotificationService() => _instance;
   BackgroundNotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
   Future<void> init() async {
     if (_initialized) return;
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: false,
     );
 
-    const initSettings = InitializationSettings(android: androidSettings, iOS: iosSettings);
+    const initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+    );
 
     try {
       await _notifications.initialize(initSettings);
@@ -49,7 +56,10 @@ class BackgroundNotificationService {
 
     const iosDetails = DarwinNotificationDetails();
 
-    final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+    final details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
 
     try {
       await _notifications.show(
@@ -61,7 +71,10 @@ class BackgroundNotificationService {
     } catch (_) {}
   }
 
-  Future<void> showCompletionNotification({required int deleted, required int failed}) async {
+  Future<void> showCompletionNotification({
+    required int deleted,
+    required int failed,
+  }) async {
     if (!_initialized) return;
 
     const androidDetails = AndroidNotificationDetails(
@@ -75,7 +88,10 @@ class BackgroundNotificationService {
 
     const iosDetails = DarwinNotificationDetails();
 
-    final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
 
     try {
       await _notifications.cancel(888);

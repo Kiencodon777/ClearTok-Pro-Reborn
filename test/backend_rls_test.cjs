@@ -27,6 +27,12 @@ test('PostgreSQL migrations enforce ownership, privileges, device limits and adm
     await assert.rejects(db.query("select admin_api('users')"));
     await db.query("select account_api('register_device',$1)",[JSON.stringify({device_id:a,platform:'android'})]);
     await assert.rejects(db.query("select account_api('register_device',$1)",[JSON.stringify({device_id:b,platform:'ios'})]));
+    await db.exec('begin; reset role');
+    await db.query("update user_devices set last_seen_at=now()-interval '7 days' where user_id=$1",[a]);
+    await as(a);
+    await db.exec('savepoint seven_days');
+    await assert.rejects(db.query("select account_api('register_device',$1)",[JSON.stringify({device_id:b,platform:'ios'})]));
+    await db.exec('rollback to seven_days; commit');
     // Simulate reinstall after >7 days of inactivity on Free plan: stale device is auto-replaced
     await db.exec('reset role');
     await db.query("update public.user_devices set last_seen_at = now() - interval '8 days' where user_id = $1 and device_id = $2", [a, a]);
@@ -48,6 +54,22 @@ test('PostgreSQL migrations enforce ownership, privileges, device limits and adm
     await db.query("select admin_api('flag',$1)",[JSON.stringify({feature_key:'unlike',enabled:false,minimum_plan:'free'})]);
     await as(b);
     await assert.rejects(db.query("select account_api('current',$1)",[JSON.stringify({feature:'unlike'})]));
+    await db.exec('reset role');
+    const competing='00000000-0000-0000-0000-000000000005';
+    await db.query('insert into auth.users values($1,$2,now())',[competing,'competing@test.invalid']);
+    await as(competing);
+    const enrollment=await Promise.allSettled([a,b].map(device_id=>db.query("select account_api('register_device',$1)",[JSON.stringify({device_id,platform:'android'})])));
+    assert.equal(enrollment.filter(x=>x.status==='fulfilled').length,1);
+    assert.equal((await db.query('select count(*)::int as n from user_devices where is_active')).rows[0].n,1);
+    await db.exec('reset role');
+    const rateUser='00000000-0000-0000-0000-000000000004';
+    await db.query('insert into auth.users values($1,$2,now())',[rateUser,'rate@test.invalid']);
+    await as(rateUser);
+    await db.exec('begin');
+    for(let n=0;n<120;n++)await db.query("select account_api('current')");
+    await db.exec('savepoint boundary');
+    await assert.rejects(db.query("select account_api('current')"),/Rate limit exceeded/);
+    await db.exec('rollback to boundary; commit');
     await as(admin);
     await db.query("select admin_api('status',$1)",[JSON.stringify({user_id:a,status:'suspended'})]);
     await as(a);await assert.rejects(db.query("select account_api('current')"));

@@ -84,7 +84,7 @@ void main() {
           ),
           home: MainNavigationScreen(
             database: OpticsDatabase(),
-            remoteConfig: RemotePayloadConfig(),
+            remoteConfig: const RemotePayloadConfig(),
           ),
         ),
       );
@@ -112,7 +112,7 @@ void main() {
       expect(tester.takeException(), isNull);
       await expectLater(
         find.byKey(const ValueKey('optics-preview')),
-        matchesGoldenFile('../build/ui-previews/dock-liquid-glass.png'),
+        matchesGoldenFile('goldens/dock-liquid-glass.png'),
       );
       final press = await tester.startGesture(
         tester.getCenter(find.text('Studio Reposts').hitTestable().first),
@@ -122,7 +122,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 80));
       await expectLater(
         find.byKey(const ValueKey('optics-preview')),
-        matchesGoldenFile('../build/ui-previews/dock-liquid-glass-pressed.png'),
+        matchesGoldenFile('goldens/dock-liquid-glass-pressed.png'),
       );
       await press.up();
       await tester.pumpAndSettle();

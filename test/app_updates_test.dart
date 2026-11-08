@@ -50,7 +50,8 @@ void main() {
           'https://github.com/Kiencodon777/ClearTok-Pro-Reborn/releases/tag/v2.4.1',
       'apkUrl':
           'https://github.com/Kiencodon777/ClearTok-Pro-Reborn/releases/download/v2.4.1/LapinTokk-v2.4.1.apk',
-      'ipaUrl': 'https://objects.githubusercontent.com/github-production/app.ipa',
+      'ipaUrl':
+          'https://objects.githubusercontent.com/github-production/app.ipa',
     });
     expect(trusted.apkUrl, isNotNull);
     expect(trusted.ipaUrl, isNotNull);
