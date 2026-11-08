@@ -412,6 +412,9 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
         ),
       );
       await controller.evaluateJavascript(source: _loginInputStabilizerJs);
+      await controller.evaluateJavascript(
+        source: TikTokClient.mainWorldBridgeJs,
+      );
     } catch (_) {}
   }
 

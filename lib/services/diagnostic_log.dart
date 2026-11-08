@@ -7,7 +7,7 @@ class DiagnosticLog extends ChangeNotifier {
   List<Map<String, dynamic>> get entries => List.unmodifiable(_entries);
   static const allowed = {'http_status', 'redirected', 'content_type',
     'response_length', 'response_kind', 'csrf_present', 'elapsed_ms',
-    'login_redirect', 'verification_hint', 'browser_mode',
+    'login_redirect', 'verification_hint', 'browser_mode', 'secsdk_retry_status', 'secsdk_retry_length',
     'readback_attempted', 'readback_confirmed', 'readback_liked',
     'readback_http_status', 'readback_response_length', 'readback_redirected',
     'readback_verification_hint', 'readback_hydration_present',

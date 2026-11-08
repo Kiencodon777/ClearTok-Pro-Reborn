@@ -86,6 +86,195 @@ class TikTokClient {
 
   /// Ensures the WebView is on a main TikTok Desktop page (not stuck on `/login`)
   /// so `webmssdk.js` and `__UNIVERSAL_DATA_FOR_REHYDRATION__` are active.
+  static const String mainWorldBridgeJs = r'''
+(function() {
+  if (window.__lapinMwInstalled && document.getElementById('__lapin_mw_bus')) {
+    if (document.documentElement) document.documentElement.setAttribute('data-lapin-mw', '1');
+    return;
+  }
+  window.__lapinMwInstalled = true;
+  var bus = document.getElementById('__lapin_mw_bus');
+  if (!bus) {
+    bus = document.createElement('div');
+    bus.id = '__lapin_mw_bus';
+    bus.style.display = 'none';
+    (document.documentElement || document.body).appendChild(bus);
+  }
+  if (document.documentElement) document.documentElement.setAttribute('data-lapin-mw', '1');
+
+  function getCookie(name) {
+    var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]+)'));
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+
+  async function ensureSecToken(targetUrl) {
+    if (window.__lapinSecToken) return window.__lapinSecToken;
+    var hsMethods = ['HEAD', 'GET'];
+    for (var i = 0; i < hsMethods.length; i++) {
+      try {
+        var hs = await window.fetch(targetUrl, {
+          method: hsMethods[i],
+          credentials: 'include',
+          headers: {
+            'x-secsdk-csrf-request': '1',
+            'x-secsdk-csrf-version': '1.2.8',
+            'x-secsdk-csrf-token': 'DOWNGRADE'
+          }
+        });
+        var ware = hs.headers.get('x-ware-csrf-token') || hs.headers.get('X-Ware-Csrf-Token') || '';
+        if (ware.indexOf(',') !== -1) {
+          var tok = (ware.split(',')[1] || '').trim();
+          if (tok) {
+            window.__lapinSecToken = tok;
+            return tok;
+          }
+        }
+      } catch (_) {}
+    }
+    return '';
+  }
+
+  function runXhr(method, targetUrl, headers, bodyStr) {
+    return new Promise(function(resolve) {
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.open(method, targetUrl, true);
+        xhr.timeout = 15000;
+        xhr.withCredentials = true;
+        var hdrs = headers || {};
+        for (var k in hdrs) {
+          if (Object.prototype.hasOwnProperty.call(hdrs, k) && hdrs[k]) {
+            xhr.setRequestHeader(k, hdrs[k]);
+          }
+        }
+        xhr.onload = function() {
+          var ware = '';
+          try { ware = xhr.getResponseHeader('x-ware-csrf-token') || ''; } catch (_) {}
+          if (ware && ware.indexOf(',') !== -1) {
+            var nextTok = (ware.split(',')[1] || '').trim();
+            if (nextTok) window.__lapinSecToken = nextTok;
+          }
+          resolve({
+            ok: xhr.status >= 200 && xhr.status < 300,
+            status: xhr.status || 200,
+            url: xhr.responseURL || targetUrl,
+            redirected: Boolean(xhr.responseURL && xhr.responseURL !== targetUrl),
+            contentType: (function() { try { return xhr.getResponseHeader('content-type') || ''; } catch (_) { return ''; } })(),
+            raw: xhr.responseText || ''
+          });
+        };
+        xhr.onerror = function() { resolve({ ok: false, status: 0, url: targetUrl, redirected: false, contentType: '', raw: '' }); };
+        xhr.ontimeout = function() { resolve({ ok: false, status: 0, url: targetUrl, redirected: false, contentType: '', raw: '' }); };
+        xhr.send(bodyStr != null ? bodyStr : '');
+      } catch (e) {
+        resolve({ ok: false, status: 0, url: targetUrl, redirected: false, contentType: '', raw: '' });
+      }
+    });
+  }
+
+  async function runFetch(method, targetUrl, headers, bodyStr) {
+    try {
+      var opts = {
+        method: method,
+        credentials: 'include',
+        headers: headers || {}
+      };
+      if (method !== 'GET' && method !== 'HEAD') {
+        opts.body = bodyStr != null ? bodyStr : '';
+      }
+      var resp = await window.fetch(targetUrl, opts);
+      var ware = resp.headers.get('x-ware-csrf-token') || resp.headers.get('X-Ware-Csrf-Token') || '';
+      if (ware && ware.indexOf(',') !== -1) {
+        var nextTok = (ware.split(',')[1] || '').trim();
+        if (nextTok) window.__lapinSecToken = nextTok;
+      }
+      var raw = await resp.text();
+      return {
+        ok: resp.ok,
+        status: resp.status,
+        url: resp.url || targetUrl,
+        redirected: Boolean(resp.redirected),
+        contentType: resp.headers.get('content-type') || '',
+        raw: raw
+      };
+    } catch (e) {
+      return { ok: false, status: 0, url: targetUrl, redirected: false, contentType: '', raw: '' };
+    }
+  }
+
+  async function handleNode(node) {
+    node.setAttribute('data-state', 'running');
+    try {
+      var req = JSON.parse(node.getAttribute('data-req') || '{}');
+      var targetUrl = req.url;
+      var method = req.method || 'POST';
+      var csrf = req.csrf || getCookie('tt_csrf_token') || getCookie('csrf_token') || getCookie('passport_csrf_token');
+      var msToken = getCookie('msToken');
+      if (msToken && targetUrl.indexOf('msToken=') === -1) {
+        var u = new URL(targetUrl, location.origin);
+        u.searchParams.set('msToken', msToken);
+        targetUrl = u.toString();
+      }
+      var headers = Object.assign({}, req.headers || {});
+      if (csrf) headers['tt-csrf-token'] = csrf;
+      if (method === 'POST') {
+        var secToken = await ensureSecToken(targetUrl);
+        if (secToken) headers['x-secsdk-csrf-token'] = secToken;
+      }
+
+      var res = await runXhr(method, targetUrl, headers, req.body || '');
+      if (!res.raw || !res.raw.trim()) {
+        var fRes = await runFetch(method, targetUrl, headers, req.body || '');
+        if (fRes.raw && fRes.raw.trim()) res = fRes;
+      }
+      if ((!res.raw || !res.raw.trim()) && method === 'POST' && req.formBody) {
+        var baseUrl = req.baseUrl || targetUrl;
+        if (msToken && baseUrl.indexOf('msToken=') === -1) {
+          var bu = new URL(baseUrl, location.origin);
+          bu.searchParams.set('msToken', msToken);
+          baseUrl = bu.toString();
+        }
+        var formHeaders = Object.assign({}, headers, {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json, text/plain, */*'
+        });
+        var xForm = await runXhr('POST', baseUrl, formHeaders, req.formBody);
+        if (xForm.raw && xForm.raw.trim()) {
+          res = xForm;
+        } else {
+          var fForm = await runFetch('POST', baseUrl, formHeaders, req.formBody);
+          if (fForm.raw && fForm.raw.trim()) res = fForm;
+        }
+      }
+      node.setAttribute('data-res', JSON.stringify(res));
+    } catch (err) {
+      node.setAttribute('data-res', JSON.stringify({
+        ok: false, status: -1, url: '', redirected: false, contentType: '', raw: '', error: String(err)
+      }));
+    }
+    node.setAttribute('data-state', 'done');
+    document.dispatchEvent(new Event('__lapin_mw_res'));
+  }
+
+  function scanBus() {
+    var nodes = bus.querySelectorAll('[data-state="pending"]');
+    for (var i = 0; i < nodes.length; i++) {
+      handleNode(nodes[i]);
+    }
+  }
+
+  document.addEventListener('__lapin_mw_req', scanBus);
+  var obs = new MutationObserver(scanBus);
+  obs.observe(bus, { childList: true, attributes: true, subtree: true });
+})();
+''';
+
+  Future<void> ensureMainWorldBridge() async {
+    try {
+      await webViewController.evaluateJavascript(source: mainWorldBridgeJs);
+    } catch (_) {}
+  }
+
   Future<void> ensureActiveWebappPage({String? uniqueId}) async {
     try {
       final url = (await webViewController.getUrl())?.toString() ?? '';
@@ -684,6 +873,8 @@ class TikTokClient {
     final action = path.contains('digg') ? 'unlike' : 'unfollow';
     DiagnosticLog.instance.record('$action.start', 0);
     try {
+      await ensureActiveWebappPage();
+      await ensureMainWorldBridge();
       final result = await _performWebAction(path, params);
       Map<String, dynamic> details = {};
       try {
@@ -771,18 +962,97 @@ class TikTokClient {
           };
           let data;
           try { data = JSON.parse(raw); } catch (_) {
-            // In real WebView (where document.createElement exists), a blank 200 on /item/digg/
-            // means SecSDK intercepted the request for a CSRF handshake. Perform SecSDK handshake + POST:
-            if (typeof document.createElement === 'function' && path.includes('/item/digg/')) {
+            // In real WebView (where document.createElement exists), a blank 200 on /item/digg/ or /follow/user/
+            // means either WKContentWorld isolated fetch bypassed webmssdk.js (missing X-Bogus/X-Gnarly)
+            // or SecSDK intercepted the request for a CSRF handshake. Execute via Main-Page-World Bridge + SecSDK + XHR:
+            if (typeof document.createElement === 'function' && !raw.trim()) {
               try {
+                const baseUrl = new URL(path, location.origin);
+                baseUrl.searchParams.set('aid', String(aid));
+                baseUrl.searchParams.set('app_name', 'tiktok_web');
+                baseUrl.searchParams.set('device_platform', 'web_pc');
+                baseUrl.searchParams.set('channel', 'tiktok_web');
+                for (const [key, value] of Object.entries({
+                  device_id: app.wid, odinId: app.odinId, WebIdLastTime: app.webIdCreatedTime
+                })) {
+                  if (value != null && value !== '') baseUrl.searchParams.set(key, String(value));
+                }
+                const formBody = path.includes('/item/digg/')
+                  ? ('aweme_id=' + encodeURIComponent(params.aweme_id || '') + '&type=0')
+                  : ('user_id=' + encodeURIComponent(params.user_id || '') + '&sec_user_id=' + encodeURIComponent(params.sec_user_id || '') + '&type=0&action_type=0&channel_id=0&from=18&fromWeb=1&from_pre=0');
+
+                // 1. If Main-Page-World Bridge (#__lapin_mw_bus) is active, execute in WKContentWorld.page
+                const mwBus = typeof document.documentElement?.getAttribute === 'function' &&
+                  document.documentElement.getAttribute('data-lapin-mw') === '1'
+                  ? document.getElementById('__lapin_mw_bus')
+                  : null;
+                if (mwBus && typeof mwBus.appendChild === 'function') {
+                  const mwRes = await new Promise((resolve) => {
+                    const node = document.createElement('div');
+                    node.setAttribute('data-state', 'pending');
+                    node.setAttribute('data-req', JSON.stringify({
+                      url: url.toString(),
+                      baseUrl: baseUrl.toString(),
+                      method: 'POST',
+                      csrf: app.csrfToken,
+                      headers: {
+                        'tt-csrf-token': app.csrfToken,
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept': 'application/json, text/plain, */*'
+                      },
+                      body: '',
+                      formBody
+                    }));
+                    let finished = false; let timeoutId = null;
+                    const done = () => {
+                      if (finished) return;
+                      if (node.getAttribute('data-state') !== 'done') return;
+                      finished = true;
+                      clearInterval(poll); if (timeoutId != null) clearTimeout(timeoutId);
+                      try { document.removeEventListener('__lapin_mw_res', done); } catch (_) {}
+                      const payload = node.getAttribute('data-res') || '{}';
+                      try { node.remove(); } catch (_) {}
+                      try { resolve(JSON.parse(payload)); } catch (_) { resolve({}); }
+                    };
+                    try { document.addEventListener('__lapin_mw_res', done); } catch (_) {}
+                    const poll = setInterval(done, 40);
+                    timeoutId = setTimeout(() => {
+                      if (!finished) {
+                        finished = true;
+                        clearInterval(poll);
+                        try { document.removeEventListener('__lapin_mw_res', done); } catch (_) {}
+                        try { node.remove(); } catch (_) {}
+                        resolve({});
+                      }
+                    }, 15000);
+                    mwBus.appendChild(node); done();
+                    try { document.dispatchEvent(new Event('__lapin_mw_req')); } catch (_) {}
+                  });
+                  if (mwRes && typeof mwRes.raw === 'string') {
+                    detail.secsdk_retry_status = mwRes.status ?? 200;
+                    detail.secsdk_retry_length = mwRes.raw.length;
+                    if (mwRes.raw.trim()) {
+                      const mwData = JSON.parse(mwRes.raw);
+                      if (mwData && (mwData.status_code === 0 || mwData.status_code === '0')) {
+                        return JSON.stringify({success: true, status_code: 0, message: 'ok', raw: JSON.stringify(detail)});
+                      }
+                    }
+                  }
+                }
+
+                // 2. Direct SecSDK handshake + XHR/fetch fallback
                 let secToken = '';
                 try {
                   const headResp = await window.fetch(url.toString(), {
                     method: 'HEAD', credentials: 'include', signal: abort.signal,
-                    headers: {'x-secsdk-csrf-token': '1', 'x-secsdk-csrf-version': '1.2.22'}
+                    headers: {
+                      'x-secsdk-csrf-request': '1',
+                      'x-secsdk-csrf-version': '1.2.8',
+                      'x-secsdk-csrf-token': 'DOWNGRADE'
+                    }
                   });
                   const ware = headResp.headers.get('x-ware-csrf-token') || '';
-                  if (ware.includes(',')) secToken = ware.split(',')[1] || '';
+                  if (ware.includes(',')) secToken = (ware.split(',')[1] || '').trim();
                 } catch (_) {}
                 const retryHeaders = {
                   'tt-csrf-token': app.csrfToken,
@@ -790,9 +1060,34 @@ class TikTokClient {
                   'Accept': 'application/json, text/plain, */*'
                 };
                 if (secToken) retryHeaders['x-secsdk-csrf-token'] = secToken;
+                if (typeof XMLHttpRequest === 'function') {
+                  const xhrRaw = await new Promise((resolve) => {
+                    try {
+                      const xhr = new XMLHttpRequest();
+                      xhr.open('POST', url.toString(), true);
+                      xhr.timeout = 12000;
+                      xhr.withCredentials = true;
+                      for (const [hk, hv] of Object.entries(retryHeaders)) {
+                        if (hv) xhr.setRequestHeader(hk, hv);
+                      }
+                      xhr.onload = () => resolve(xhr.responseText || '');
+                      xhr.onerror = () => resolve('');
+                      xhr.ontimeout = () => resolve('');
+                      xhr.send('');
+                    } catch (_) { resolve(''); }
+                  });
+                  if (xhrRaw.trim()) {
+                    detail.secsdk_retry_status = 200;
+                    detail.secsdk_retry_length = xhrRaw.length;
+                    const xhrData = JSON.parse(xhrRaw);
+                    if (xhrData && (xhrData.status_code === 0 || xhrData.status_code === '0')) {
+                      return JSON.stringify({success: true, status_code: 0, message: 'ok', raw: JSON.stringify(detail)});
+                    }
+                  }
+                }
                 const retryResp = await window.fetch(url.toString(), {
                   method: 'POST', credentials: 'include',
-                  body: 'aweme_id=' + encodeURIComponent(params.aweme_id || '') + '&type=0',
+                  body: formBody,
                   signal: abort.signal, headers: retryHeaders
                 });
                 const retryRaw = await retryResp.text();
@@ -832,6 +1127,7 @@ class TikTokClient {
                 detail.readback_same_session = Boolean(sameSession);
                 detail.readback_video_present = Boolean(video);
                 detail.readback_video_matches = Boolean(video && String(video.id) === String(params.aweme_id));
+                if (detail.readback_video_matches) detail.readback_verification_hint = false;
                 detail.readback_liked_present = typeof video?.digged === 'boolean';
                 if (page.ok && sameSession && String(video?.id) === String(params.aweme_id) && typeof video.digged === 'boolean') {
                   detail.readback_confirmed = true;

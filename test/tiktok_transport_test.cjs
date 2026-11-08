@@ -106,3 +106,55 @@ for (const path of ['/api/commit/item/digg/', '/api/commit/follow/user/']) {
     assert.ok(!result.raw.includes('web-token'));
   });
 }
+
+test('main-world bridge recovers empty-200 WKContentWorld fetch via hooked page XHR', async () => {
+  const app = {csrfToken: 'web-token', wid: 'device', user: {id: 'account'}};
+  let mwDispatched = false;
+  const mwBus = {
+    appendChild(node) {
+      const payload = JSON.parse(node.getAttribute('data-req'));
+      assert.ok(payload.url.includes('/api/commit/item/digg/'));
+      assert.equal(payload.headers['tt-csrf-token'], 'web-token');
+      mwDispatched = true;
+      node.setAttribute('data-res', JSON.stringify({
+        status: 200,
+        raw: JSON.stringify({status_code: 0, status_msg: ''}),
+      }));
+      node.setAttribute('data-state', 'done');
+    },
+  };
+  const document = {
+    documentElement: {getAttribute: (k) => (k === 'data-lapin-mw' ? '1' : null)},
+    createElement: () => ({
+      attrs: {},
+      setAttribute(k, v) { this.attrs[k] = String(v); },
+      getAttribute(k) { return this.attrs[k] || null; },
+      remove() {},
+    }),
+    getElementById: (id) => {
+      if (id === '__lapin_mw_bus') return mwBus;
+      return {textContent: JSON.stringify({__DEFAULT_SCOPE__: {'webapp.app-context': app}})};
+    },
+  };
+  const fetch = async (url) => ({
+    ok: true,
+    status: 200,
+    url,
+    headers: {get: () => null},
+    text: async () => '',
+  });
+  const run = new AsyncFunction('window', 'document', 'location', 'navigator', 'path', 'params', 'aid', body);
+  const result = JSON.parse(await run(
+    {fetch},
+    document,
+    {origin: 'https://www.tiktok.com'},
+    {language: 'vi-VN', platform: 'iPhone', userAgent: 'browser'},
+    '/api/commit/item/digg/',
+    {aweme_id: '123', type: '0'},
+    1988,
+  ));
+  assert.equal(mwDispatched, true);
+  assert.equal(result.status_code, 0);
+  assert.equal(result.success, true);
+});
+
