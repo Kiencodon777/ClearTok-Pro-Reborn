@@ -4,7 +4,7 @@ const source = require('node:fs').readFileSync('lib/api/tiktok_mutation_transpor
 const bridge = source.match(/mainWorldBridgeJs = r'''([\s\S]*?)''';/)[1];
 const body = source.match(/const functionBody = r'''([\s\S]*?)''';/)[1];
 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-async function request({raw='{"status_code":0}',status=200,liked=false,same=true,spa=false,timeout=false,path='/api/commit/item/digg/'}={}) {
+async function request({raw='{"status_code":0}',status=200,liked=false,same=true,spa=false,timeout=false,cancelHandshake=false,path='/api/commit/item/digg/'}={}) {
   let posts=0;
   const app={csrfToken:'secret',wid:'device',user:{id:'account'}};
   const nodes=[];
@@ -20,7 +20,7 @@ async function request({raw='{"status_code":0}',status=200,liked=false,same=true
   const location={origin:'https://www.tiktok.com'};
   const window={fetch:async(url,opts={})=>{
     if(opts.method==='POST') throw Error('isolated-world POST forbidden');
-    if(opts.method==='HEAD'||opts.method==='GET')return {headers:{get:()=>null}};
+    if(opts.method==='HEAD'||opts.method==='GET'){if(cancelHandshake)await new Promise(r=>setTimeout(r,30));return {headers:{get:()=>null}};}
     return {ok:true,status:200,redirected:false,text:async()=>'<html>',json:async()=>({itemInfo:{itemStruct:{id:'123',digged:liked}}})};
   }};
   class XHR {
@@ -30,14 +30,16 @@ async function request({raw='{"status_code":0}',status=200,liked=false,same=true
     send(){posts++;this.status=status;this.responseText=raw;timeout?this.ontimeout():this.onload();}
   }
   class Observer {observe(){}}
-  new Function('window','document','location','XMLHttpRequest','MutationObserver',bridge)(window,document,location,XHR,Observer);
+  const deadline = (fn, ms) => setTimeout(fn,cancelHandshake ? (ms===18000?5:10) : ms);
+  new Function('window','document','location','XMLHttpRequest','MutationObserver','setTimeout',bridge)(window,document,location,XHR,Observer,deadline);
   class Parser {parseFromString(){return {getElementById:()=>spa?null:{textContent:JSON.stringify({__DEFAULT_SCOPE__:{
     'webapp.app-context':{user:{id:same?'account':'other'}},
     'webapp.video-detail':{itemInfo:{itemStruct:{id:'123',digged:liked}}}}})}};}}
-  const result=JSON.parse(await new AsyncFunction('window','document','location','navigator','path','params','aid','DOMParser',body)(
+  const result=JSON.parse(await new AsyncFunction('window','document','location','navigator','path','params','aid','DOMParser','setTimeout',body)(
     window,document,location,{language:'vi',platform:'iPhone',userAgent:'test'},path,
-    {aweme_id:'123',type:'0',_author:'creator'},1988,Parser));
-  assert.equal(posts,1);
+    {aweme_id:'123',type:'0',_author:'creator'},1988,Parser,deadline));
+  if(cancelHandshake)await new Promise(r=>setTimeout(r,70));
+  assert.equal(posts,cancelHandshake?0:1);
   assert.ok(!result.raw.includes('secret'));
   assert.equal(nodes.length,0);
   return result;
@@ -55,4 +57,7 @@ test('HTTP 429 stops',async()=>assert.equal((await request({status:429,raw:''}))
 for(const status of [401,403,500])test('HTTP rejection '+status,async()=>assert.equal((await request({status,raw:''})).success,false));
 test('repost is sent exactly once',async()=>assert.equal((await request({path:'/tiktok/v1/upvote/delete'})).success,true));
 test('malformed JSON stays unverified',async()=>assert.equal((await request({raw:'{'})).success,false));
+
+
+test('expired handshake never sends a delayed POST',async()=>assert.equal((await request({cancelHandshake:true})).success,false));
 

@@ -27,13 +27,13 @@ class TikTokMutationTransport {
     return m ? decodeURIComponent(m[1]) : '';
   }
 
-  async function ensureSecToken(targetUrl) {
+  async function ensureSecToken(targetUrl, signal) {
     if (window.__lapinSecToken) return window.__lapinSecToken;
     var hsMethods = ['HEAD', 'GET'];
     for (var i = 0; i < hsMethods.length; i++) {
       try {
         var hs = await window.fetch(targetUrl, {
-          method: hsMethods[i],
+          method: hsMethods[i], signal: signal,
           credentials: 'include',
           headers: {
             'x-secsdk-csrf-request': '1',
@@ -54,7 +54,7 @@ class TikTokMutationTransport {
     return '';
   }
 
-  function runXhr(method, targetUrl, headers, bodyStr) {
+  function runXhr(method, targetUrl, headers, bodyStr, signal) {
     return new Promise(function(resolve) {
       try {
         var xhr = new XMLHttpRequest();
@@ -85,6 +85,9 @@ class TikTokMutationTransport {
         };
         xhr.onerror = function() { resolve({ ok: false, status: 0, url: targetUrl, redirected: false, contentType: '', raw: '' }); };
         xhr.ontimeout = function() { resolve({ ok: false, status: 0, url: targetUrl, redirected: false, contentType: '', raw: '' }); };
+        xhr.onabort = function() { resolve({ok:false, status:0, raw:''}); };
+        if (signal.aborted) { xhr.onabort(); return; }
+        signal.addEventListener('abort', function() { xhr.abort(); }, {once:true});
         xhr.send(bodyStr != null ? bodyStr : '');
       } catch (e) {
         resolve({ ok: false, status: 0, url: targetUrl, redirected: false, contentType: '', raw: '' });
@@ -94,6 +97,8 @@ class TikTokMutationTransport {
 
   async function handleNode(node) {
     node.setAttribute('data-state', 'running');
+    var abort = new AbortController();
+    var deadline = setTimeout(function() { abort.abort(); }, 18000);
     try {
       var req = JSON.parse(node.getAttribute('data-req') || '{}');
       var targetUrl = req.url;
@@ -110,19 +115,21 @@ class TikTokMutationTransport {
       var headers = Object.assign({}, req.headers || {});
       if (csrf) headers['tt-csrf-token'] = csrf;
       if (method === 'POST') {
-        var secToken = await ensureSecToken(targetUrl);
+        var secToken = await ensureSecToken(targetUrl, abort.signal);
         if (secToken) headers['x-secsdk-csrf-token'] = secToken;
       }
 
       var parsed = new URL(targetUrl);
       if (parsed.origin !== location.origin || !['/api/commit/item/digg/', '/api/commit/follow/user/', '/tiktok/v1/upvote/delete'].includes(parsed.pathname) || method !== 'POST') throw new Error('Blocked bridge request');
-      var res = await runXhr(method, targetUrl, headers, req.body || '');
+      if (abort.signal.aborted || node.getAttribute('data-state') !== 'running') { clearTimeout(deadline); return; }
+      var res = await runXhr(method, targetUrl, headers, req.body || '', abort.signal);
       node.setAttribute('data-res', JSON.stringify(res));
     } catch (err) {
       node.setAttribute('data-res', JSON.stringify({
         ok: false, status: -1, url: '', redirected: false, contentType: '', raw: '', error: String(err)
       }));
     }
+    clearTimeout(deadline);
     node.setAttribute('data-state', 'done');
     document.dispatchEvent(new Event('__lapin_mw_res'));
   }
@@ -206,6 +213,7 @@ class TikTokMutationTransport {
               clearInterval(poll); clearTimeout(timeout);
               let result = {ok:false, status:0, raw:''};
               try { if (!expired) result = JSON.parse(node.getAttribute('data-res')); } catch (_) {}
+              node.setAttribute('data-state', 'cancelled');
               node.remove();
               resolve(result);
             };
