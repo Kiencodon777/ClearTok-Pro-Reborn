@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'tiktok_navigation_policy.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../../api/tiktok_client.dart';
 import '../../core/remote_payload_config.dart';
@@ -33,6 +35,8 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
   bool _desktopMode = true;
   bool _switchingMode = false;
   bool _redirectedFromLogin = false;
+  int _missingProfiles = 0;
+  int _sessionGeneration = 0;
 
   // EXACT desktop macOS User-Agent recovered from ClearTok's webview_transport.dart
   static const String desktopUserAgent =
@@ -274,11 +278,12 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
             userAgent: desktopUserAgent,
             preferredContentMode: UserPreferredContentMode.DESKTOP,
             javaScriptEnabled: true,
+            useShouldOverrideUrlLoading: true,
             domStorageEnabled: true,
             databaseEnabled: true,
             thirdPartyCookiesEnabled: true,
-            allowFileAccess: true,
-            allowContentAccess: true,
+            allowFileAccess: false,
+            allowContentAccess: false,
             useWideViewPort: false,
             loadWithOverviewMode: false,
             supportZoom: false,
@@ -287,23 +292,15 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
             supportMultipleWindows: false,
             javaScriptCanOpenWindowsAutomatically: true,
             cacheEnabled: true,
-            mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
-            safeBrowsingEnabled: false,
+            mixedContentMode: MixedContentMode.MIXED_CONTENT_NEVER_ALLOW,
+            safeBrowsingEnabled: true,
             hardwareAcceleration: true,
             allowsInlineMediaPlayback: true,
             mediaPlaybackRequiresUserGesture: false,
           ),
-          onCreateWindow: (controller, createWindowAction) async {
-            final targetUrl = createWindowAction.request.url;
-            if (targetUrl != null) {
-              controller.loadUrl(urlRequest: URLRequest(url: targetUrl));
-            }
+          onCreateWindow: (controller, action) async {
+            await _navigate(controller, action.request.url, popup: true);
             return false;
-          },
-          onReceivedServerTrustAuthRequest: (controller, challenge) async {
-            return ServerTrustAuthResponse(
-              action: ServerTrustAuthResponseAction.PROCEED,
-            );
           },
           onWebViewCreated: (controller) {
             _webViewController = controller;
@@ -314,12 +311,14 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
             widget.onClientReady(controller, _client!);
           },
           onLoadStart: (controller, url) {
+            if (!mounted) return;
             setState(() {
               _isLoading = true;
             });
             _syncViewportForUrl(controller, url);
           },
           onProgressChanged: (controller, progress) {
+            if (!mounted) return;
             setState(() {
               _loadProgress = progress / 100.0;
               if (progress >= 100) _isLoading = false;
@@ -329,33 +328,15 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
             _syncViewportForUrl(controller, url);
           },
           onLoadStop: (controller, url) async {
+            if (!mounted) return;
             setState(() {
               _isLoading = false;
             });
             await _syncViewportForUrl(controller, url);
             await _evaluateUserSession(currentUrl: url);
           },
-          shouldOverrideUrlLoading: (controller, navigationAction) async {
-            final uri = navigationAction.request.url;
-            if (uri == null) return NavigationActionPolicy.ALLOW;
-
-            // Prevent Net::ERR_UNKNOWN_URL_SCHEME on Android
-            if (uri.scheme == 'tiktok' || uri.scheme.startsWith('snssdk')) {
-              final targetUrl = uri.queryParameters['url'];
-              if (targetUrl != null && targetUrl.isNotEmpty) {
-                controller.loadUrl(
-                  urlRequest: URLRequest(url: WebUri(targetUrl)),
-                );
-              }
-              return NavigationActionPolicy.CANCEL;
-            }
-
-            if (uri.scheme == 'http' || uri.scheme == 'https') {
-              return NavigationActionPolicy.ALLOW;
-            }
-
-            return NavigationActionPolicy.CANCEL;
-          },
+          shouldOverrideUrlLoading: (controller, action) =>
+              _navigate(controller, action.request.url),
         ),
       ),
     );
@@ -400,9 +381,12 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
     InAppWebViewController controller,
     WebUri? url,
   ) async {
+    if (!mounted ||
+        classifyTikTokNavigation(url) != TikTokNavigation.internal) {
+      return;
+    }
     final urlStr = url?.toString() ?? '';
-    final isLogin =
-        urlStr.contains('/login') && !urlStr.contains('/qrcode');
+    final isLogin = urlStr.contains('/login') && !urlStr.contains('/qrcode');
     try {
       await controller.setSettings(
         settings: InAppWebViewSettings(
@@ -418,24 +402,59 @@ class _TikTokBrowserScreenState extends State<TikTokBrowserScreen> {
     } catch (_) {}
   }
 
+  Future<NavigationActionPolicy> _navigate(
+    InAppWebViewController controller,
+    Uri? uri, {
+    bool popup = false,
+  }) async {
+    if (uri == null || !mounted) return NavigationActionPolicy.CANCEL;
+    final resolved = resolveTikTokDeepLink(uri) ?? uri;
+    switch (classifyTikTokNavigation(resolved)) {
+      case TikTokNavigation.internal:
+        if (popup || resolved != uri) {
+          await controller.loadUrl(
+            urlRequest: URLRequest(url: WebUri(resolved.toString())),
+          );
+          return NavigationActionPolicy.CANCEL;
+        }
+        return NavigationActionPolicy.ALLOW;
+      case TikTokNavigation.external:
+        await launchUrl(resolved, mode: LaunchMode.externalApplication);
+        return NavigationActionPolicy.CANCEL;
+      case TikTokNavigation.block:
+        return NavigationActionPolicy.CANCEL;
+    }
+  }
+
   Future<void> _evaluateUserSession({WebUri? currentUrl}) async {
-    if (_client == null) return;
-    final profile = await _client!.extractLiveUserProfile();
-    if (profile != null && profile.secUid.isNotEmpty) {
-      widget.onUserStatusChanged(profile);
-      final urlStr =
-          currentUrl?.toString() ??
-          ((await _webViewController?.getUrl())?.toString() ?? '');
-      if (urlStr.contains('/login') &&
-          !_redirectedFromLogin &&
-          _webViewController != null) {
-        _redirectedFromLogin = true;
-        await _webViewController!.loadUrl(
-          urlRequest: URLRequest(
-            url: WebUri('https://www.tiktok.com/@${profile.uniqueId}'),
-          ),
-        );
-      }
+    final client = _client;
+    if (client == null || !mounted) return;
+    final generation = ++_sessionGeneration;
+    final uri = currentUrl ?? await _webViewController?.getUrl();
+    if (!mounted ||
+        generation != _sessionGeneration ||
+        classifyTikTokNavigation(uri) != TikTokNavigation.internal) {
+      return;
+    }
+    if (uri!.path == '/login' || uri.path.startsWith('/login/')) {
+      _missingProfiles = 0;
+      widget.onUserStatusChanged(null);
+    }
+    final profile = await client.extractLiveUserProfile();
+    if (!mounted || generation != _sessionGeneration) return;
+    if (profile == null || profile.secUid.isEmpty) {
+      if (++_missingProfiles >= 2) widget.onUserStatusChanged(null);
+      return;
+    }
+    _missingProfiles = 0;
+    widget.onUserStatusChanged(profile);
+    if (uri.path.startsWith('/login') && !_redirectedFromLogin) {
+      _redirectedFromLogin = true;
+      await _webViewController?.loadUrl(
+        urlRequest: URLRequest(
+          url: WebUri('https://www.tiktok.com/@${profile.uniqueId}'),
+        ),
+      );
     }
   }
 

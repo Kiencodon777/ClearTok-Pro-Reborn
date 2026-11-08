@@ -60,6 +60,8 @@ class TikTokDeletionEngine {
       _progressController.stream;
   StreamSubscription? _accountSubscription;
   Timer? _accountTimer;
+  String? _activeFeature;
+  bool _checkingAccount = false;
 
   TikTokDeletionEngine({required this.client, required this.database}) {
     ClearTokAccount.accessInvalidated.addListener(_onAccessInvalidated);
@@ -73,16 +75,23 @@ class TikTokDeletionEngine {
         }, onError: (Object _) => stop());
     if (ClearTokAccount.client != null) {
       _accountTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
-        if (_isRunning && ClearTokAccount.client?.auth.currentSession != null) {
+        if (_isRunning &&
+            !_checkingAccount &&
+            ClearTokAccount.client?.auth.currentSession != null) {
           try {
-            await ClearTokAccount.check();
+            _checkingAccount = true;
+            await ClearTokAccount.check(feature: _activeFeature);
           } catch (error) {
             if (error is FunctionException &&
-                (error.status == 401 || error.status == 403)) {
+                (error.status == 401 ||
+                    error.status == 403 ||
+                    error.status == 429)) {
               _cancelReason =
                   'Tài khoản hoặc thiết bị không được phép truy cập.';
               stop();
             }
+          } finally {
+            _checkingAccount = false;
           }
         }
       });
@@ -141,6 +150,7 @@ class TikTokDeletionEngine {
     _cancelReason = null;
 
     final isUnlike = mode == 'unlike';
+    _activeFeature = isUnlike ? 'unlike' : 'repost';
     final actionName = isUnlike ? 'bỏ thích' : 'hủy repost';
     final int total = videos.length;
     int deleted = 0;
@@ -149,6 +159,9 @@ class TikTokDeletionEngine {
     int batchStreak = 0;
 
     try {
+      if (clearTokOwner != null) {
+        await ClearTokAccount.check(feature: _activeFeature);
+      }
       _emit(
         BatchDeletionProgress(
           total: total,
@@ -179,7 +192,7 @@ class TikTokDeletionEngine {
           }
         }
 
-        // Anti-Ban deep rest check
+        // Giảm tốc deep rest check
         if (database.pulseJitterEnabled &&
             batchStreak >= database.deepRestBatchCount) {
           batchStreak = 0;
@@ -200,7 +213,7 @@ class TikTokDeletionEngine {
                 failed: failed,
                 status: DeletionStatus.deepResting,
                 message:
-                    '🛡️ Nhịp thở tự nhiên (Anti-Ban): Đang nghỉ ngơi giải nhiệt... ($sec giây)',
+                    '🛡️ Nhịp thở tự nhiên (Giảm tốc): Đang nghỉ ngơi giải nhiệt... ($sec giây)',
                 deepRestRemainingSec: sec,
               ),
             );
@@ -208,7 +221,7 @@ class TikTokDeletionEngine {
             await _notifService.showProgressNotification(
               deleted: deleted,
               total: total,
-              statusText: '🛡️ Tạm nghỉ né quét bot... (${sec}s)',
+              statusText: '🛡️ Tạm nghỉ tạm nghỉ... (${sec}s)',
             );
 
             await Future.delayed(const Duration(seconds: 1));
@@ -256,8 +269,7 @@ class TikTokDeletionEngine {
 
         try {
           if (ClearTokAccount.client != null) {
-            if (clearTokOwner !=
-                ClearTokAccount.client!.auth.currentUser?.id) {
+            if (clearTokOwner != ClearTokAccount.client!.auth.currentUser?.id) {
               _isCancelled = true;
               await _finishStopped(
                 total,
@@ -266,11 +278,6 @@ class TikTokDeletionEngine {
                 'Tài khoản ClearTok đã thay đổi trong khi chạy.',
               );
               return;
-            }
-            if (clearTokOwner != null) {
-              await ClearTokAccount.check(
-                feature: isUnlike ? 'unlike' : 'repost',
-              );
             }
           }
           final result = isUnlike
@@ -299,7 +306,8 @@ class TikTokDeletionEngine {
                 failed: failed,
                 currentTitle: '@${video.authorUsername}',
                 status: DeletionStatus.running,
-                message: '✅ Đã $actionName thành công: @${video.authorUsername}',
+                message:
+                    '✅ Đã $actionName thành công: @${video.authorUsername}',
               ),
             );
           } else {
@@ -339,9 +347,15 @@ class TikTokDeletionEngine {
               return;
             }
 
-            if ([-2, 401, 403, 10402, 3002226, 429].contains(
-              result.statusCode,
-            )) {
+            if ([
+              -1,
+              -2,
+              401,
+              403,
+              10402,
+              3002226,
+              429,
+            ].contains(result.statusCode)) {
               _emit(
                 BatchDeletionProgress(
                   total: total,
@@ -428,6 +442,7 @@ class TikTokDeletionEngine {
     _isPaused = false;
     _cancelReason = null;
 
+    _activeFeature = 'unfollow';
     final int total = users.length;
     int deleted = 0;
     int failed = 0;
@@ -435,6 +450,9 @@ class TikTokDeletionEngine {
     int batchStreak = 0;
 
     try {
+      if (clearTokOwner != null) {
+        await ClearTokAccount.check(feature: _activeFeature);
+      }
       _emit(
         BatchDeletionProgress(
           total: total,
@@ -485,7 +503,7 @@ class TikTokDeletionEngine {
                 failed: failed,
                 status: DeletionStatus.deepResting,
                 message:
-                    '🛡️ Nhịp thở tự nhiên (Anti-Ban): Đang nghỉ ngơi giải nhiệt... ($sec giây)',
+                    '🛡️ Nhịp thở tự nhiên (Giảm tốc): Đang nghỉ ngơi giải nhiệt... ($sec giây)',
                 deepRestRemainingSec: sec,
               ),
             );
@@ -493,7 +511,7 @@ class TikTokDeletionEngine {
             await _notifService.showProgressNotification(
               deleted: deleted,
               total: total,
-              statusText: '🛡️ Tạm nghỉ né quét bot... (${sec}s)',
+              statusText: '🛡️ Tạm nghỉ tạm nghỉ... (${sec}s)',
             );
 
             await Future.delayed(const Duration(seconds: 1));
@@ -534,14 +552,12 @@ class TikTokDeletionEngine {
         await _notifService.showProgressNotification(
           deleted: deleted,
           total: total,
-          statusText:
-              'Đang hủy follow: @${user.uniqueId} ($deleted/$total)',
+          statusText: 'Đang hủy follow: @${user.uniqueId} ($deleted/$total)',
         );
 
         try {
           if (ClearTokAccount.client != null) {
-            if (clearTokOwner !=
-                ClearTokAccount.client!.auth.currentUser?.id) {
+            if (clearTokOwner != ClearTokAccount.client!.auth.currentUser?.id) {
               _isCancelled = true;
               await _finishStopped(
                 total,
@@ -550,9 +566,6 @@ class TikTokDeletionEngine {
                 'Tài khoản ClearTok đã thay đổi trong khi chạy.',
               );
               return;
-            }
-            if (clearTokOwner != null) {
-              await ClearTokAccount.check(feature: 'unfollow');
             }
           }
           final result = await client.unfollowUser(
@@ -617,9 +630,15 @@ class TikTokDeletionEngine {
               return;
             }
 
-            if ([-2, 401, 403, 10402, 3002226, 429].contains(
-              result.statusCode,
-            )) {
+            if ([
+              -1,
+              -2,
+              401,
+              403,
+              10402,
+              3002226,
+              429,
+            ].contains(result.statusCode)) {
               _emit(
                 BatchDeletionProgress(
                   total: total,
