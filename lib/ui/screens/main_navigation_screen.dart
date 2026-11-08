@@ -53,7 +53,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final repostCount = widget.database.getAllReposts().length;
+    final repostCount = widget.database.repostCount;
     final processedCount = widget.database.totalDeletedCount;
     final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 80;
 

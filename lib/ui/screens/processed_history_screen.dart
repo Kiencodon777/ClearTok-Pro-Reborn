@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -29,8 +30,32 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
   bool _multiSelectMode = false;
   final Set<String> _selectedKeys = <String>{};
 
+  Timer? _searchTimer;
+  Object? _sourceKey;
+  Object? _filterKey;
+  List<ProcessedHistoryItem> _source = [];
+  List<ProcessedHistoryItem> _filtered = [];
+  @override
+  void dispose() {
+    _searchTimer?.cancel();
+    super.dispose();
+  }
+
   List<ProcessedHistoryItem> get _items {
-    final all = widget.database.getProcessedHistory(type: _selectedType);
+    final sourceKey = (widget.database.dataVersion, _selectedType);
+    if (_sourceKey != sourceKey) {
+      _source = widget.database.getProcessedHistory(type: _selectedType);
+      _sourceKey = sourceKey;
+    }
+    final key = (
+      sourceKey,
+      _searchQuery,
+      _timeFilter,
+      _sortBy,
+      DateTime.now().minute,
+    );
+    if (_filterKey == key) return _filtered;
+    final all = _source;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     int minTimestamp = 0;
     if (_timeFilter == 'today') {
@@ -64,7 +89,8 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
     } else {
       filtered.sort((a, b) => b.processedAt.compareTo(a.processedAt));
     }
-    return filtered;
+    _filterKey = key;
+    return _filtered = filtered;
   }
 
   void _toggleSelection(String key) {
@@ -531,7 +557,12 @@ class _ProcessedHistoryScreenState extends State<ProcessedHistoryScreen> {
                       : null,
                   contentPadding: const EdgeInsets.symmetric(vertical: 8),
                 ),
-                onChanged: (v) => setState(() => _searchQuery = v),
+                onChanged: (v) {
+                  _searchTimer?.cancel();
+                  _searchTimer = Timer(const Duration(milliseconds: 200), () {
+                    if (mounted) setState(() => _searchQuery = v);
+                  });
+                },
               ),
             ),
 

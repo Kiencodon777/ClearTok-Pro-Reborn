@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive/hive.dart';
 import '../models/tiktok_follow_user.dart';
 import '../models/tiktok_video.dart';
@@ -54,12 +58,100 @@ class LocalDatabase {
   Box? _likesBox;
   Box? _followsBox;
 
+  LocalDatabase({FlutterSecureStorage? storage})
+    : storage = storage ?? const FlutterSecureStorage();
+  final FlutterSecureStorage storage;
+  final _subscriptions = <StreamSubscription<BoxEvent>>[];
+  int _dataVersion = 0;
+  int get dataVersion => _dataVersion;
+  int get repostCount => _repostBox?.length ?? 0;
+  static const _keyName = 'cleartok_hive_key_v1';
+  static const boxNames = [
+    repostBoxName,
+    historyBoxName,
+    settingsBoxName,
+    likesBoxName,
+    followsBoxName,
+  ];
+
   Future<void> init() async {
-    _repostBox = await Hive.openBox(repostBoxName);
-    _historyBox = await Hive.openBox(historyBoxName);
-    _settingsBox = await Hive.openBox(settingsBoxName);
-    _likesBox = await Hive.openBox(likesBoxName);
-    _followsBox = await Hive.openBox(followsBoxName);
+    final boxes = <Box>[];
+    try {
+      var encoded = await storage.read(key: _keyName);
+      if (encoded == null) {
+        for (final name in boxNames) {
+          if (await Hive.boxExists('${name}_secure_v2')) {
+            throw StateError('Secure database key is missing');
+          }
+        }
+        encoded = base64UrlEncode(Hive.generateSecureKey());
+        await storage.write(key: _keyName, value: encoded);
+        if (await storage.read(key: _keyName) != encoded) {
+          throw StateError('Secure key verification failed');
+        }
+      }
+      final key = base64Url.decode(encoded);
+      if (key.length != 32) throw StateError('Invalid secure database key');
+      for (final name in boxNames) {
+        final target = await Hive.openBox(
+          '${name}_secure_v2',
+          encryptionCipher: HiveAesCipher(key),
+        );
+        boxes.add(target);
+        final marker = '${name}_secure_v2_migrated';
+        if (await Hive.boxExists(name)) {
+          final legacy = await Hive.openBox(name);
+          try {
+            if (await storage.read(key: marker) != '1') {
+              await target.putAll(legacy.toMap());
+              await target.flush();
+              if (!mapEquals(
+                target.toMap().map((k, v) => MapEntry(k, jsonEncode(v))),
+                legacy.toMap().map((k, v) => MapEntry(k, jsonEncode(v))),
+              )) {
+                throw StateError('Database migration verification failed');
+              }
+              await storage.write(key: marker, value: '1');
+              if (await storage.read(key: marker) != '1') {
+                throw StateError('Migration marker verification failed');
+              }
+            }
+          } finally {
+            await legacy.close();
+          }
+          await Hive.deleteBoxFromDisk(name);
+        }
+      }
+      _repostBox = boxes[0];
+      _historyBox = boxes[1];
+      _settingsBox = boxes[2];
+      _likesBox = boxes[3];
+      _followsBox = boxes[4];
+      for (final box in boxes) {
+        _subscriptions.add(box.watch().listen((_) => _dataVersion++));
+      }
+    } catch (_) {
+      for (final box in boxes) {
+        await box.close();
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> dispose() async {
+    for (final subscription in _subscriptions) {
+      await subscription.cancel();
+    }
+    _subscriptions.clear();
+    for (final box in [
+      _repostBox,
+      _historyBox,
+      _settingsBox,
+      _likesBox,
+      _followsBox,
+    ]) {
+      await box?.close();
+    }
   }
 
   // ─── Reposts Management ───────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import 'dart:ui';
+import '../../services/studio_scanner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -38,6 +39,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   List<TikTokFollowUser> _followingUsers = [];
   final Set<String> _selectedIds = {};
   bool _isScanning = false;
+  int _scanGeneration = 0;
   bool _toolsExpanded = false;
   String _searchQuery = '';
   String _selectedFilter = 'all';
@@ -60,7 +62,10 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   @override
   void didUpdateWidget(covariant RepostStudioScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.client != widget.client) {
+    if (oldWidget.client != widget.client ||
+        oldWidget.currentUser?.id != widget.currentUser?.id) {
+      _scanGeneration++;
+      _isScanning = false;
       _engine?.dispose();
       _engine = null;
     }
@@ -68,24 +73,23 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
 
   @override
   void dispose() {
+    _scanGeneration++;
     _engine?.dispose();
     super.dispose();
   }
 
   void _loadItems() {
-    setState(() {
-      _selectedIds.clear();
-      if (_currentHub == 'repost') {
-        _videos = widget.database.getAllReposts();
-        _selectedIds.addAll(_videos.map((v) => v.id));
-      } else if (_currentHub == 'unlike') {
-        _videos = widget.database.getAllLikedVideos();
-        _selectedIds.addAll(_videos.map((v) => v.id));
-      } else if (_currentHub == 'unfollow') {
-        _followingUsers = widget.database.getAllFollowing();
-        _selectedIds.addAll(_followingUsers.map((u) => u.id));
-      }
-    });
+    _selectedIds.clear();
+    if (_currentHub == 'repost') {
+      _videos = widget.database.getAllReposts();
+      _selectedIds.addAll(_videos.map((v) => v.id));
+    } else if (_currentHub == 'unlike') {
+      _videos = widget.database.getAllLikedVideos();
+      _selectedIds.addAll(_videos.map((v) => v.id));
+    } else if (_currentHub == 'unfollow') {
+      _followingUsers = widget.database.getAllFollowing();
+      _selectedIds.addAll(_followingUsers.map((u) => u.id));
+    }
   }
 
   TikTokDeletionEngine _freshEngine() {
@@ -112,14 +116,18 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
       _selectedFilter,
       _selectedFilter == 'selected' ? _selectedIds.length : 0,
     );
-    if (_selectedFilter != 'selected' && _videosFilterKey == key && _cachedFilteredVideos != null) {
+    if (_selectedFilter != 'selected' &&
+        _videosFilterKey == key &&
+        _cachedFilteredVideos != null) {
       return _cachedFilteredVideos!;
     }
 
     final hasQuery = _searchQuery.isNotEmpty;
     final q = hasQuery ? _searchQuery.toLowerCase() : '';
     final filterAuthor = _filterAuthor;
-    final filterYearInt = _filterYear != null ? int.tryParse(_filterYear!) : null;
+    final filterYearInt = _filterYear != null
+        ? int.tryParse(_filterYear!)
+        : null;
     final onlySelected = _selectedFilter == 'selected';
 
     final list = <TikTokVideo>[];
@@ -127,7 +135,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
       final v = _videos[i];
       if (onlySelected && !_selectedIds.contains(v.id)) continue;
       if (filterAuthor != null && v.authorUsername != filterAuthor) continue;
-      if (filterYearInt != null && v.repostDateTime.year != filterYearInt) continue;
+      if (filterYearInt != null && v.repostDateTime.year != filterYearInt) {
+        continue;
+      }
       if (hasQuery &&
           !v.authorUsername.toLowerCase().contains(q) &&
           !v.authorNickname.toLowerCase().contains(q) &&
@@ -162,7 +172,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
       _selectedFilter,
       _selectedFilter == 'selected' ? _selectedIds.length : 0,
     );
-    if (_selectedFilter != 'selected' && _followingFilterKey == key && _cachedFilteredFollowing != null) {
+    if (_selectedFilter != 'selected' &&
+        _followingFilterKey == key &&
+        _cachedFilteredFollowing != null) {
       return _cachedFilteredFollowing!;
     }
 
@@ -189,139 +201,50 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   }
 
   Future<void> _startScan() async {
-    if (widget.client == null || widget.currentUser == null) {
-      _showSnack(
-        'Vui lòng qua tab "TikTok Web" đăng nhập trước nhé anh yêu!',
-        isError: true,
-      );
-      return;
-    }
-
+    final client = widget.client;
+    final user = widget.currentUser;
+    if (client == null || user == null || _isScanning) return;
+    final generation = ++_scanGeneration;
+    final hub = _currentHub;
+    bool active() => mounted && generation == _scanGeneration;
     setState(() {
       _isScanning = true;
       _currentScannedCount = 0;
     });
-
-    int cursor = 0;
-    bool hasMore = true;
-    int totalFound = 0;
-    int previousCursor = -1;
-    final seenIds = <String>{};
-    final seenCursors = <int>{0};
-    final int targetLimit = _isGuestMode ? 50 : _scanBatchLimit;
-
     try {
-      if (_currentHub == 'unfollow') {
-        var followingCursor = '0';
-        var followingMinCursor = '0';
-        final followingCursors = <(String, String)>{('0', '0')};
-        // Scan following users with multi-batch pagination
-        while (hasMore && (targetLimit <= 0 || totalFound < targetLimit)) {
-          final res = await widget.client!.fetchFollowingUsersBatch(
-            cursor: followingCursor,
-            minCursor: followingMinCursor,
-            secUid: widget.currentUser!.secUid,
-          );
-
-          if (res.users.isEmpty) break;
-          final items = res.users
-              .where((u) => u.id.isNotEmpty && seenIds.add(u.id))
-              .take(
-                targetLimit > 0 ? targetLimit - totalFound : res.users.length,
-              )
-              .toList();
-          await widget.database.saveFollowing(items);
-          totalFound += items.length;
-
+      final total = await StudioScanner().scan(
+        client: client,
+        database: widget.database,
+        user: user,
+        hub: hub,
+        targetLimit: _isGuestMode ? 50 : _scanBatchLimit,
+        existingIds: hub == 'unfollow'
+            ? _followingUsers.map((u) => u.id).toSet()
+            : _videos.map((v) => v.id).toSet(),
+        isActive: active,
+        onPage: (items, total) {
+          if (!active()) return;
           setState(() {
-            _currentScannedCount = totalFound;
-            _loadItems();
+            if (hub == 'unfollow') {
+              _followingUsers.addAll(items.cast<TikTokFollowUser>());
+            } else {
+              _videos.addAll(items.cast<TikTokVideo>());
+            }
+            _selectedIds.addAll(items.map((v) => v.id as String));
+            _currentScannedCount = total;
           });
-
-          if (targetLimit > 0 && totalFound >= targetLimit) break;
-          if (res.hasMore &&
-              !followingCursors.add((res.nextCursor, res.nextMinCursor))) {
-            throw Exception(
-              'Đã lưu $totalFound tài khoản. TikTok chưa trả cursor mới; mở Log xem scan.following.',
-            );
-          }
-          followingCursor = res.nextCursor;
-          followingMinCursor = res.nextMinCursor;
-          hasMore = res.hasMore;
-
-          await Future.delayed(const Duration(milliseconds: 1500));
-        }
-      } else {
-        // Scan Reposts or Liked Videos with multi-batch pagination
-        while (hasMore && (targetLimit <= 0 || totalFound < targetLimit)) {
-          final res = (_currentHub == 'unlike')
-              ? await widget.client!.fetchLikedVideosBatch(
-                  cursor: cursor,
-                  secUid: widget.currentUser!.secUid,
-                )
-              : await widget.client!.fetchRepostBatch(
-                  cursor: cursor,
-                  secUid: widget.currentUser!.secUid,
-                );
-
-          if (res.videos.isEmpty) break;
-          final items = res.videos
-              .where((v) => v.id.isNotEmpty && seenIds.add(v.id))
-              .take(
-                targetLimit > 0 ? targetLimit - totalFound : res.videos.length,
-              )
-              .toList();
-
-          if (_currentHub == 'unlike') {
-            await widget.database.saveLikedVideos(items);
-          } else {
-            await widget.database.saveReposts(items);
-          }
-
-          totalFound += items.length;
-
-          setState(() {
-            _currentScannedCount = totalFound;
-            _loadItems();
-          });
-
-          if (targetLimit > 0 && totalFound >= targetLimit) break;
-          if (res.hasMore && !seenCursors.add(res.nextCursor)) {
-            throw Exception(
-              'TikTok lặp cursor sau $totalFound mục; chưa quét hết.',
-            );
-          }
-          if (res.nextCursor <= 0 ||
-              res.nextCursor == cursor ||
-              res.nextCursor == previousCursor) {
-            break;
-          }
-
-          previousCursor = cursor;
-          cursor = res.nextCursor;
-          hasMore = res.hasMore;
-
-          await Future.delayed(const Duration(milliseconds: 350));
-        }
-      }
-
-      if (totalFound > 0) {
-        final modeLabel = _currentHub == 'unfollow'
-            ? 'tài khoản đang follow'
-            : (_currentHub == 'unlike' ? 'video đã thích' : 'video repost');
-        final limitDesc = targetLimit > 0
-            ? '$totalFound / $targetLimit'
-            : '$totalFound';
-        _showSnack(
-          'Quét hoàn tất đợt này: $limitDesc $modeLabel! Anh có thể xử lý ngay.',
-        );
+        },
+      );
+      if (!active()) return;
+      if (total > 0) {
+        _showSnack('Đã quét thêm $total mục.');
       } else {
         _showNoItemsDialog();
       }
-    } catch (e) {
-      _showSnack('Lỗi quét: $e', isError: true);
+    } catch (error) {
+      if (active()) _showSnack('Lỗi quét: $error', isError: true);
     } finally {
-      setState(() => _isScanning = false);
+      if (active()) setState(() => _isScanning = false);
     }
   }
 
@@ -457,8 +380,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
         title: const Text('Giới Hạn Chế Độ Khách', style: ClearTokTokens.title),
         content: Text(
           remaining > 0
-              ? 'Bạn đang chọn $selectedCount mục ở chế độ Khách (chưa đăng nhập).\n\n• Chế độ Khách: Còn $remaining/$_guestTrialBatchLimit mục dùng thử.\n• Đăng nhập ClearTok: Mở khóa dọn dẹp hàng loạt và bảo vệ Anti-Ban.'
-              : 'Bạn đã dùng hết $_guestTrialBatchLimit mục dùng thử ở chế độ Khách.\n\n• Đăng nhập ClearTok ngay để mở khóa dọn dẹp hàng loạt và bảo vệ Anti-Ban!',
+              ? 'Bạn đang chọn $selectedCount mục ở chế độ Khách (chưa đăng nhập).\n\n• Chế độ Khách: Còn $remaining/$_guestTrialBatchLimit mục dùng thử.\n• Đăng nhập ClearTok: Mở khóa dọn dẹp hàng loạt và bảo vệ Giảm tốc.'
+              : 'Bạn đã dùng hết $_guestTrialBatchLimit mục dùng thử ở chế độ Khách.\n\n• Đăng nhập ClearTok ngay để mở khóa dọn dẹp hàng loạt và bảo vệ Giảm tốc!',
           style: const TextStyle(color: ClearTokColors.secondary, fontSize: 14),
         ),
         actions: [
@@ -601,7 +524,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Anti-Ban: Nghỉ ${widget.database.deepRestDurationSec}s sau mỗi ${widget.database.deepRestBatchCount} mục',
+                            'Giảm tốc: Nghỉ ${widget.database.deepRestDurationSec}s sau mỗi ${widget.database.deepRestBatchCount} mục',
                             style: const TextStyle(
                               color: ClearTokColors.secondary,
                               fontSize: 11,
@@ -807,7 +730,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                                   children: [
                                     Text(
                                       isDeepResting
-                                          ? 'Anti-Ban: Đang Giải Nhiệt'
+                                          ? 'Giảm tốc: Đang Giải Nhiệt'
                                           : titleText,
                                       style: const TextStyle(
                                         color: Colors.white,
@@ -988,7 +911,10 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              icon: const Icon(Icons.verified_user_rounded, size: 18),
+                              icon: const Icon(
+                                Icons.verified_user_rounded,
+                                size: 18,
+                              ),
                               onPressed: () {
                                 Navigator.pop(ctx);
                                 setState(() => _loadItems());
@@ -1795,6 +1721,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                           ].indexOf(_currentHub),
                           onSegmentSelected: (index) {
                             setState(() {
+                              _scanGeneration++;
+                              _isScanning = false;
                               _currentHub = const [
                                 'repost',
                                 'unlike',
@@ -1834,7 +1762,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                               const SizedBox(width: 10),
                               _buildMetricCard(
                                 title: 'Hạn Mức',
-                                value: _isGuestMode ? 'KHÁCH ($_guestRemaining/5)' : 'VÔ HẠN ∞',
+                                value: _isGuestMode
+                                    ? 'KHÁCH ($_guestRemaining/5)'
+                                    : 'VÔ HẠN ∞',
                                 color: ClearTokColors.pink,
                                 icon: Icons.all_inclusive_rounded,
                               ),
@@ -2223,10 +2153,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
           curve: Curves.easeOutBack,
           reverseCurve: Curves.easeInCubic,
         );
-        final fade = CurvedAnimation(
-          parent: anim,
-          curve: Curves.easeOut,
-        );
+        final fade = CurvedAnimation(parent: anim, curve: Curves.easeOut);
         return FadeTransition(
           opacity: fade,
           child: Transform.translate(
@@ -2250,11 +2177,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
     } else if (selected == 'settings') {
       _showSettingsModal();
     } else if (selected == 'update') {
-      AppUpdates.check(
-        context,
-        widget.database,
-        manual: true,
-      );
+      AppUpdates.check(context, widget.database, manual: true);
     }
   }
 
@@ -2538,7 +2461,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
               shape: gboxSquircleShape(
                 ClearTokTokens.radius,
                 side: BorderSide(
-                  color: isSelected ? ClearTokColors.cyan.withValues(alpha: 0.72) : Colors.white12,
+                  color: isSelected
+                      ? ClearTokColors.cyan.withValues(alpha: 0.72)
+                      : Colors.white12,
                   width: isSelected ? 1.5 : 0.8,
                 ),
               ),
@@ -2588,7 +2513,9 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        isSelected ? Icons.check_rounded : Icons.circle_outlined,
+                        isSelected
+                            ? Icons.check_rounded
+                            : Icons.circle_outlined,
                         size: 16,
                         color: isSelected ? Colors.black : Colors.white,
                       ),
@@ -2663,9 +2590,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
 
   Future<void> _showVideoQuickAccessMenu(TikTokVideo v) async {
     HapticFeedback.mediumImpact();
-    final cleanAuthor = v.authorUsername
-        .replaceFirst(RegExp(r'^@'), '')
-        .trim();
+    final cleanAuthor = v.authorUsername.replaceFirst(RegExp(r'^@'), '').trim();
     final videoUrl = cleanAuthor.isNotEmpty && cleanAuthor != 'unknown'
         ? 'https://www.tiktok.com/@$cleanAuthor/video/${v.id}'
         : 'https://www.tiktok.com/video/${v.id}';

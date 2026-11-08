@@ -1,4 +1,5 @@
-import 'dart:async';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'services/secure_supabase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -28,6 +29,10 @@ void main() async {
         url: url,
         publishableKey: key,
         authOptions: FlutterAuthClientOptions(
+          localStorage: SecureSupabaseStorage(
+            storage: const FlutterSecureStorage(),
+            key: 'sb-${Uri.parse(url).host.split('.').first}-auth-token',
+          ),
           detectSessionInUriPredicate: (uri) {
             if (!isClearTokAuthCallback(uri)) return false;
             ClearTokAccount.client = Supabase.instance.client;
@@ -53,11 +58,46 @@ void main() async {
 
   await Hive.initFlutter();
   final database = LocalDatabase();
-  await database.init();
+  try {
+    await database.init();
+  } catch (_) {
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Không thể mở dữ liệu an toàn. Dữ liệu cũ được giữ lại.',
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    try {
+                      await database.init();
+                      LiquidSoundHaptics.enabled = database.soundEffectsEnabled;
+                      runApp(
+                        ClearTokApp(
+                          database: database,
+                          remoteConfig: const RemotePayloadConfig(),
+                          accountSession: accountSession,
+                        ),
+                      );
+                    } catch (_) {}
+                  },
+                  child: const Text('Thử lại'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return;
+  }
   LiquidSoundHaptics.enabled = database.soundEffectsEnabled;
 
-  final remoteConfig = RemotePayloadConfig();
-  unawaited(remoteConfig.syncConfig());
+  const remoteConfig = RemotePayloadConfig();
 
   runApp(
     ClearTokApp(
