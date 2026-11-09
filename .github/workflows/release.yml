@@ -11,7 +11,18 @@ on:
 permissions:
   contents: read
 jobs:
+  goldens:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.41.9'
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter test --tags golden
   build:
+    needs: goldens
     environment: ${{ github.event_name == 'workflow_dispatch' && 'staging' || 'production' }}
     env:
       SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://jsxxxbspjmpbaomotgcj.supabase.co' }}
@@ -99,7 +110,7 @@ jobs:
         run: dart format --output=none --set-exit-if-changed lib test
       - name: Test Flutter and release scripts
         run: |
-          flutter test
+          flutter test --exclude-tags golden
           python3 -m unittest discover -s test -p '*_test.py'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: matrix.platform == 'android'
