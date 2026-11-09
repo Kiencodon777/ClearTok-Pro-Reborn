@@ -1,7 +1,7 @@
 name: Build and release Android and iOS
 on:
   push:
-    branches: [main]
+    branches: [main, codex/v2.5-ci-release]
   workflow_dispatch:
     inputs:
       android_debug:
@@ -227,7 +227,7 @@ jobs:
           path: dist/*
           if-no-files-found: error
   release:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
     needs: [build, diagnostic-web]
