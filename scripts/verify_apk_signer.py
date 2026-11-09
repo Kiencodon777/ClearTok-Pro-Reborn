@@ -6,17 +6,28 @@ import subprocess
 import sys
 
 
+def fingerprints(output):
+    # SDK 37 labels certificates by signature scheme instead of signer number.
+    return re.findall(
+        r'^(?:Signer #\d+|Signer \([^\r\n]+\)|V[1-4](?:\.\d+)? Signer(?: #\d+)?:'
+        r'(?: \([^\r\n]+\))?) certificate SHA-256 digest: ([0-9a-fA-F]{64})\r?$',
+        output, re.MULTILINE)
+
+
 def verify(output, expected):
-    fingerprints = re.findall(r'Signer #\d+ certificate SHA-256 digest:\s*([0-9a-fA-F]+)', output)
-    return len(fingerprints) == 1 and fingerprints[0].upper() == expected.replace(':', '').upper()
+    actual = fingerprints(output)
+    expected = expected.replace(':', '').upper()
+    counts = re.findall(r'^Number of signers: (\d+)\r?$', output, re.MULTILINE)
+    return (counts == ['1'] and bool(actual) and re.fullmatch(r'[0-9A-F]{64}', expected) is not None
+            and all(digest.upper() == expected for digest in actual))
 
 
 def check_result(result, expected):
     if result.returncode:
         raise RuntimeError('apksigner execution failed (exit ' + str(result.returncode) + '): ' + (result.stderr + '\n' + result.stdout).strip())
     if not verify(result.stdout, expected):
-        actual = re.findall(r'Signer #\d+ certificate SHA-256 digest:\s*([0-9a-fA-F]+)', result.stdout)
-        raise RuntimeError('APK certificate mismatch; expected ' + expected + '; actual ' + ','.join(actual))
+        raise RuntimeError('APK signer verification failed; expected ' + expected
+                           + '; apksigner output:\n' + result.stdout.strip())
 
 
 if __name__ == '__main__':
@@ -25,6 +36,6 @@ if __name__ == '__main__':
     if not candidates:
         raise RuntimeError('apksigner unavailable')
     tool = max(candidates, key=lambda p: tuple(map(int, re.findall(r'\d+', p.parent.name))))
-    result = subprocess.run([str(tool), 'verify', '--print-certs', sys.argv[1]], capture_output=True, text=True)
+    result = subprocess.run([str(tool), 'verify', '--verbose', '--print-certs', sys.argv[1]], capture_output=True, text=True)
     check_result(result, os.environ['ANDROID_EXPECTED_CERT_SHA256'])
     print('Built APK signer verified')
