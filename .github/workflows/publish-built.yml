@@ -1,0 +1,47 @@
+name: Publish verified v2.5 RC installers
+on:
+  push:
+    branches: [codex/v2.5-ci-release]
+    paths: [.github/workflows/publish-built.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: publish-v2.5.0-rc.53
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE_RUN: '42554375873'
+      SOURCE_SHA: a73fdc82932b7a894aa1348c1dc37a46a40cfc66
+      ANDROID_EXPECTED_CERT_SHA256: ${{ vars.ANDROID_EXPECTED_CERT_SHA256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Require the approved source build to succeed
+        run: |
+          test "$(gh run view "$SOURCE_RUN" --json headSha --jq .headSha)" = "$SOURCE_SHA"
+          gh run watch "$SOURCE_RUN" --exit-status --interval 30
+          test "$(gh run view "$SOURCE_RUN" --json conclusion --jq .conclusion)" = success
+      - name: Download installers only
+        run: |
+          gh run download "$SOURCE_RUN" --name release-android --dir dist
+          gh run download "$SOURCE_RUN" --name release-ios --dir dist
+      - name: Verify checksums, APK signer and archive safety
+        run: |
+          (cd dist && sha256sum -c LapinTokk-v2.5.0-rc.53.apk.sha256 && sha256sum -c LapinTokk-v2.5.0-rc.53.ipa.sha256)
+          python3 scripts/verify_apk_signer.py dist/LapinTokk-v2.5.0-rc.53.apk
+          python3 scripts/check_release_files.py
+      - name: Publish a new prerelease without overwriting assets
+        run: |
+          gh release create v2.5.0-rc.53 --target "$SOURCE_SHA" --prerelease \
+            --title 'LapinTokk v2.5.0-rc.53' \
+            --notes 'Source: a73fdc82932b7a894aa1348c1dc37a46a40cfc66. APK and IPA from build 42554375873. Android uses the new production signing identity and may require a fresh install if the old certificate differs. Back up local data first. IPA has ad-hoc signatures for re-signing; use your own iOS signing identity to install. RC: device validation remains pending.' \
+            dist/LapinTokk-v2.5.0-rc.53.apk \
+            dist/LapinTokk-v2.5.0-rc.53.apk.sha256 \
+            dist/LapinTokk-v2.5.0-rc.53.ipa \
+            dist/LapinTokk-v2.5.0-rc.53.ipa.sha256
