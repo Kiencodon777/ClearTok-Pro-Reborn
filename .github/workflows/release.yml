@@ -238,7 +238,7 @@ jobs:
           path: dist/*
           if-no-files-found: error
   release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/v2.5-ci-release')
     permissions:
       contents: write
     needs: [build, diagnostic-web]
@@ -263,6 +263,7 @@ jobs:
           body: |
             Source commit: ${{ github.sha }}
             Android APK and unsigned iOS IPA from the same build.
+            Android uses a new production signing certificate. If an older installation uses a different certificate, back up local data before uninstalling it to install this RC.
             IPA includes verified ad-hoc signatures for re-signing compatibility; sign it with your own iOS certificate before installation.
             Download the .ipa asset directly. Actions artifacts are outer ZIP archives; extract those before installing the IPA.
           files: |

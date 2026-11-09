@@ -3,7 +3,7 @@ test('manual staging builds cannot publish Releases or mix symbols with installe
   const document=yaml.parse(fs.readFileSync('.github/workflows/release.yml','utf8'));
   assert.ok(Object.hasOwn(document.on,'workflow_dispatch'));
   assert.equal(document.on.workflow_dispatch.inputs.android_debug.default,false);
-  assert.equal(document.jobs.release.if,"github.event_name == 'push' && github.ref == 'refs/heads/main'");
+  assert.equal(document.jobs.release.if,"github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/v2.5-ci-release')");
   assert.ok(document.on.push.branches.includes('codex/v2.5-ci-release'));
   assert.equal(document.permissions.contents,'read');
   const build=document.jobs.build;
