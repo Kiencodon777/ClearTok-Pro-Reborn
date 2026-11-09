@@ -440,31 +440,17 @@
         </div>
       </div>
       <div class="topbar-actions">
-        <span id="notice" role="status" class="status-pill">Sẵn sàng kết nối</span>
+        <span id="notice" role="status" class="status-pill">Đang tải trang quản trị</span>
         <button id="open-password-btn" class="btn-sm" hidden>Đổi mật khẩu Admin</button>
         <button id="logout" class="btn-sm btn-danger" hidden>Đăng xuất</button>
       </div>
     </header>
 
-    <!-- Step 1: Connect to Supabase -->
-    <form id="connect" class="auth-card glass">
-      <h2>Kết nối máy chủ Supabase</h2>
-      <p class="sub">Sử dụng HTTPS Project URL và Publishable Key công khai. Tuyệt đối không nhập Service Role Key.</p>
-      <div class="field-stack">
-        <div class="field-group">
-          <label for="url">Supabase Project URL</label>
-          <input id="url" type="url" placeholder="https://jsxxxbspjmpbaomotgcj.supabase.co" required>
-          <div class="preset-row">
-            <button type="button" id="fill-staging" class="btn-sm">Điền nhanh Staging URL</button>
-          </div>
-        </div>
-        <div class="field-group">
-          <label for="key">Publishable / Anon Key</label>
-          <input id="key" placeholder="sb_publishable_... hoặc eyJ..." required>
-        </div>
-        <button type="submit" class="btn-primary">Kết nối máy chủ</button>
-      </div>
-    </form>
+    <section id="startup" class="auth-card glass" role="status">
+      <h2>Mở trang quản trị</h2>
+      <p class="sub">Nếu màn hình này không chuyển sang đăng nhập, hãy mở <strong>Open-Admin.cmd</strong> trong thư mục dự án. Trình duyệt sẽ tự mở trang đúng địa chỉ.</p>
+      <p class="sub">Không mở trực tiếp file admin/index.html. Không cần nhập URL hay key Supabase.</p>
+    </section>
 
     <!-- Step 2: Admin Sign In -->
     <form id="login" class="auth-card glass" hidden>
@@ -480,7 +466,6 @@
           <input name="password" type="password" placeholder="••••••••••••" required>
         </div>
         <div style="display:flex;gap:10px">
-          <button type="button" id="back-connect" style="flex:1">Đổi máy chủ</button>
           <button type="submit" class="btn-primary" style="flex:2">Đăng nhập Admin</button>
         </div>
       </div>

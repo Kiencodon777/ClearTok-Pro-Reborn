@@ -1,7 +1,11 @@
 import {createClient} from '@supabase/supabase-js';
 
 const $ = id => document.getElementById(id);
-let client;
+const client = createClient(
+  'https://jsxxxbspjmpbaomotgcj.supabase.co',
+  'sb_publishable_OgS5NTFXDFZ0OTB1DTxDFA_Bh7YDyQ5',
+  {auth: {persistSession: false}},
+);
 let section = 'dashboard';
 let currentAdminId = null;
 let searchDebounce = null;
@@ -734,16 +738,6 @@ function switchSection(next) {
   run(render);
 }
 
-$('fill-staging').onclick = () => {
-  $('url').value = 'https://jsxxxbspjmpbaomotgcj.supabase.co';
-  $('key').focus();
-};
-
-$('back-connect').onclick = () => {
-  $('login').hidden = true;
-  $('connect').hidden = false;
-};
-
 $('open-password-btn').onclick = () => {
   const drawer = $('password-drawer');
   drawer.open = true;
@@ -751,25 +745,6 @@ $('open-password-btn').onclick = () => {
 };
 
 $('refresh-btn').onclick = () => run(render);
-
-$('connect').onsubmit = e => {
-  e.preventDefault();
-  run(async () => {
-    const uri = new URL($('url').value.trim());
-    if (uri.protocol !== 'https:' && uri.hostname !== '127.0.0.1') {
-      throw Error('Cần HTTPS cho kết nối Supabase');
-    }
-    client = createClient(uri.href, $('key').value.trim(), {
-      auth: {persistSession: false},
-    });
-    $('login').hidden = false;
-    $('connect').hidden = true;
-  });
-};
-
-$('url').value = 'https://jsxxxbspjmpbaomotgcj.supabase.co';
-$('key').value = 'sb_publishable_OgS5NTFXDFZ0OTB1DTxDFA_Bh7YDyQ5';
-$('connect').requestSubmit();
 
 $('login').onsubmit = e => {
   e.preventDefault();
@@ -864,3 +839,7 @@ $('logout').onclick = () =>
     $('detail').hidden = true;
     closeModal();
   });
+
+$('startup').hidden = true;
+$('login').hidden = false;
+notice('Đăng nhập bằng tài khoản Admin ClearTok');
