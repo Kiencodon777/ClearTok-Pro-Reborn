@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/studio_chrome_slide.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../../api/tiktok_client.dart';
 import '../../core/remote_payload_config.dart';
@@ -35,6 +36,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   int _currentIndex = 0;
+  bool _studioChromeVisible = true;
   InAppWebViewController? _webViewController;
   TikTokClient? _client;
   TikTokUserProfile? _currentUser;
@@ -89,6 +91,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
             // Tab 1: LapinTokk Studio / Reposts, Un-Like, Un-Follow Manager
             RepostStudioScreen(
+              active: _currentIndex == 1,
+              onChromeVisibilityChanged: (visible) {
+                if (mounted) setState(() => _studioChromeVisible = visible);
+              },
               database: widget.database,
               client: _client,
               currentUser: _currentUser,
@@ -111,65 +117,72 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ),
       bottomNavigationBar: keyboardOpen
           ? null
-          : SafeArea(
-              key: const ValueKey('creator-dock'),
-              top: false,
-              minimum: const EdgeInsets.only(bottom: 6),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GBoxLiquidDock(
-                    selectedIndex: _currentIndex,
-                    onTabSelected: (idx) => setState(() => _currentIndex = idx),
-                    items: [
-                      const GBoxDockItem(
-                        icon: Icon(Icons.public_rounded),
-                        activeIcon: Icon(Icons.public_rounded),
-                        label: 'TikTok Web',
-                      ),
-                      GBoxDockItem(
-                        icon: Badge(
-                          isLabelVisible: repostCount > 0,
-                          label: Text('$repostCount'),
-                          backgroundColor: ClearTokColors.neonCyan,
-                          textColor: Colors.black,
-                          child: const Icon(Icons.grid_view_rounded),
+          : StudioChromeSlide(
+              visible: _currentIndex != 1 || _studioChromeVisible,
+              bottom: true,
+              child: SafeArea(
+                key: const ValueKey('creator-dock'),
+                top: false,
+                minimum: const EdgeInsets.only(bottom: 6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GBoxLiquidDock(
+                      selectedIndex: _currentIndex,
+                      onTabSelected: (idx) => setState(() {
+                        _currentIndex = idx;
+                        _studioChromeVisible = true;
+                      }),
+                      items: [
+                        const GBoxDockItem(
+                          icon: Icon(Icons.public_rounded),
+                          activeIcon: Icon(Icons.public_rounded),
+                          label: 'TikTok Web',
                         ),
-                        activeIcon: Badge(
-                          isLabelVisible: repostCount > 0,
-                          label: Text('$repostCount'),
-                          backgroundColor: ClearTokColors.neonCyan,
-                          textColor: Colors.black,
-                          child: const Icon(Icons.grid_view_rounded),
+                        GBoxDockItem(
+                          icon: Badge(
+                            isLabelVisible: repostCount > 0,
+                            label: Text('$repostCount'),
+                            backgroundColor: ClearTokColors.neonCyan,
+                            textColor: Colors.black,
+                            child: const Icon(Icons.grid_view_rounded),
+                          ),
+                          activeIcon: Badge(
+                            isLabelVisible: repostCount > 0,
+                            label: Text('$repostCount'),
+                            backgroundColor: ClearTokColors.neonCyan,
+                            textColor: Colors.black,
+                            child: const Icon(Icons.grid_view_rounded),
+                          ),
+                          label: 'Studio Reposts',
                         ),
-                        label: 'Studio Reposts',
-                      ),
-                      GBoxDockItem(
-                        icon: Badge(
-                          isLabelVisible: processedCount > 0,
-                          label: Text('$processedCount'),
-                          backgroundColor: ClearTokColors.pink,
-                          textColor: Colors.white,
-                          child: const Icon(Icons.history_edu_rounded),
+                        GBoxDockItem(
+                          icon: Badge(
+                            isLabelVisible: processedCount > 0,
+                            label: Text('$processedCount'),
+                            backgroundColor: ClearTokColors.pink,
+                            textColor: Colors.white,
+                            child: const Icon(Icons.history_edu_rounded),
+                          ),
+                          activeIcon: Badge(
+                            isLabelVisible: processedCount > 0,
+                            label: Text('$processedCount'),
+                            backgroundColor: ClearTokColors.pink,
+                            textColor: Colors.white,
+                            child: const Icon(Icons.history_edu_rounded),
+                          ),
+                          label: 'Đã Xử Lý',
                         ),
-                        activeIcon: Badge(
-                          isLabelVisible: processedCount > 0,
-                          label: Text('$processedCount'),
-                          backgroundColor: ClearTokColors.pink,
-                          textColor: Colors.white,
-                          child: const Icon(Icons.history_edu_rounded),
+                        const GBoxDockItem(
+                          icon: Icon(Icons.receipt_long_rounded),
+                          activeIcon: Icon(Icons.receipt_long_rounded),
+                          label: 'Log',
                         ),
-                        label: 'Đã Xử Lý',
-                      ),
-                      const GBoxDockItem(
-                        icon: Icon(Icons.receipt_long_rounded),
-                        activeIcon: Icon(Icons.receipt_long_rounded),
-                        label: 'Log',
-                      ),
-                    ],
-                  ),
-                  if (_currentIndex == 1) const ProjectCreditFooter(),
-                ],
+                      ],
+                    ),
+                    if (_currentIndex == 1) const ProjectCreditFooter(),
+                  ],
+                ),
               ),
             ),
     );

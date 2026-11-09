@@ -58,12 +58,15 @@ class LocalDatabase {
   Box? _likesBox;
   Box? _followsBox;
 
-  LocalDatabase({FlutterSecureStorage? storage})
-    : storage = storage ?? const FlutterSecureStorage();
+  LocalDatabase({FlutterSecureStorage? storage, DateTime Function()? now})
+    : storage = storage ?? const FlutterSecureStorage(),
+      now = now ?? DateTime.now;
+  final DateTime Function() now;
   final FlutterSecureStorage storage;
   final _subscriptions = <StreamSubscription<BoxEvent>>[];
   int _dataVersion = 0;
   int get dataVersion => _dataVersion;
+  bool get isInitialized => _settingsBox?.isOpen == true;
   int get repostCount => _repostBox?.length ?? 0;
   static const _keyName = 'cleartok_hive_key_v1';
   static const boxNames = [
@@ -127,6 +130,7 @@ class LocalDatabase {
       _settingsBox = boxes[2];
       _likesBox = boxes[3];
       _followsBox = boxes[4];
+      await resetGuestTrialIfNeeded();
       for (final box in boxes) {
         _subscriptions.add(box.watch().listen((_) => _dataVersion++));
       }
@@ -407,19 +411,36 @@ class LocalDatabase {
       await _settingsBox?.put('sound_effects_enabled', enabled);
 
   // ─── Scan Batch Limit & Freemium Guest Settings ───────────────────────────
-  int get guestTrialUsedCount =>
-      (_settingsBox?.get('guest_trial_used_count', defaultValue: 0) as int?) ??
-      0;
+  String get guestTrialDay {
+    final date = now();
+    return DateTime(date.year, date.month, date.day).toIso8601String();
+  }
 
+  Future<void> resetGuestTrialIfNeeded() async {
+    if (_settingsBox == null ||
+        _settingsBox!.get('guest_trial_day') == guestTrialDay) {
+      return;
+    }
+    await _settingsBox!.putAll({
+      'guest_trial_day': guestTrialDay,
+      'guest_trial_used_count': 0,
+    });
+  }
+
+  int get guestTrialUsedCount =>
+      _settingsBox?.get('guest_trial_day') == guestTrialDay
+      ? (_settingsBox?.get('guest_trial_used_count', defaultValue: 0) as int? ??
+            0)
+      : 0;
   int get guestTrialRemaining =>
       (maxGuestTrialItems - guestTrialUsedCount).clamp(0, maxGuestTrialItems);
-
   Future<void> incrementGuestTrialUsed([int count = 1]) async {
     if (_settingsBox == null || count <= 0) return;
-    await _settingsBox!.put(
-      'guest_trial_used_count',
-      guestTrialUsedCount + count,
-    );
+    final used = guestTrialUsedCount;
+    await _settingsBox!.putAll({
+      'guest_trial_day': guestTrialDay,
+      'guest_trial_used_count': (used + count).clamp(0, maxGuestTrialItems),
+    });
   }
 
   int get scanBatchLimit =>

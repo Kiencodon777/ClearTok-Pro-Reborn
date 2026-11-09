@@ -767,6 +767,10 @@ $('connect').onsubmit = e => {
   });
 };
 
+$('url').value = 'https://jsxxxbspjmpbaomotgcj.supabase.co';
+$('key').value = 'sb_publishable_OgS5NTFXDFZ0OTB1DTxDFA_Bh7YDyQ5';
+$('connect').requestSubmit();
+
 $('login').onsubmit = e => {
   e.preventDefault();
   run(async () => {

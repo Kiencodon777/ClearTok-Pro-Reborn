@@ -180,6 +180,28 @@ void main() {
     expect(await Hive.boxExists(LocalDatabase.repostBoxName), false);
     await db.dispose();
   });
+  test(
+    'guest quota resets at local midnight and migrates legacy counts',
+    () async {
+      var time = DateTime(2026, 11, 9, 23, 59);
+      final db = LocalDatabase(storage: MemoryStorage(), now: () => time);
+      await db.init();
+      final settings = Hive.box('${LocalDatabase.settingsBoxName}_secure_v2');
+      await settings.delete('guest_trial_day');
+      await settings.put('guest_trial_used_count', 5);
+      await db.resetGuestTrialIfNeeded();
+      expect(db.guestTrialRemaining, 5);
+      await db.incrementGuestTrialUsed(5);
+      expect(db.guestTrialRemaining, 0);
+      time = DateTime(2026, 11, 10);
+      expect(db.guestTrialRemaining, 5);
+      await db.incrementGuestTrialUsed();
+      expect(db.guestTrialRemaining, 4);
+      await db.resetGuestTrialIfNeeded();
+      expect(db.guestTrialRemaining, 4);
+      await db.dispose();
+    },
+  );
   test('count does not decode 10000 cached records', () async {
     final db = LocalDatabase(storage: MemoryStorage());
     await db.init();

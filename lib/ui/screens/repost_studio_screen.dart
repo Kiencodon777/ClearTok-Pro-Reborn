@@ -1,4 +1,6 @@
 import 'dart:ui';
+import 'dart:async';
+import '../widgets/studio_chrome_slide.dart';
 import '../../services/studio_scanner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +17,8 @@ import '../../services/cleartok_account.dart';
 import 'cleartok_account_screen.dart';
 
 class RepostStudioScreen extends StatefulWidget {
+  final bool active;
+  final ValueChanged<bool>? onChromeVisibilityChanged;
   final LocalDatabase database;
   final TikTokClient? client;
   final TikTokUserProfile? currentUser;
@@ -23,6 +27,8 @@ class RepostStudioScreen extends StatefulWidget {
 
   const RepostStudioScreen({
     super.key,
+    this.onChromeVisibilityChanged,
+    this.active = true,
     required this.database,
     required this.client,
     required this.currentUser,
@@ -34,7 +40,69 @@ class RepostStudioScreen extends StatefulWidget {
   State<RepostStudioScreen> createState() => _RepostStudioScreenState();
 }
 
-class _RepostStudioScreenState extends State<RepostStudioScreen> {
+class _RepostStudioScreenState extends State<RepostStudioScreen>
+    with WidgetsBindingObserver {
+  Timer? _quotaTimer;
+  bool _chromeVisible = true;
+  double _scrollDelta = 0;
+  bool _draggingList = false;
+
+  void _showChrome(bool visible) {
+    if (_chromeVisible == visible || !mounted) return;
+    setState(() => _chromeVisible = visible);
+    widget.onChromeVisibilityChanged?.call(visible);
+  }
+
+  void _watchQuota() {
+    _quotaTimer?.cancel();
+    if (!widget.database.isInitialized) return;
+    final now = DateTime.now();
+    _quotaTimer = Timer(
+      DateTime(now.year, now.month, now.day + 1).difference(now),
+      () async {
+        await widget.database.resetGuestTrialIfNeeded();
+        if (!mounted) return;
+        setState(() {});
+        _watchQuota();
+      },
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.database.resetGuestTrialIfNeeded().then((_) {
+        if (mounted) setState(() {});
+      });
+      _watchQuota();
+    }
+  }
+
+  bool _onListScroll(ScrollNotification event) {
+    if (event.depth != 0 || event.metrics.axis != Axis.vertical) return false;
+    if (event is ScrollStartNotification) {
+      _draggingList = event.dragDetails != null;
+    }
+    if (event is ScrollEndNotification) {
+      _draggingList = false;
+      _scrollDelta = 0;
+    }
+    if (event is ScrollUpdateNotification && _draggingList) {
+      if (event.metrics.pixels <= event.metrics.minScrollExtent) {
+        _showChrome(true);
+        return false;
+      }
+      final delta = event.scrollDelta ?? 0;
+      if (delta.sign != _scrollDelta.sign) _scrollDelta = 0;
+      _scrollDelta += delta;
+      if (_scrollDelta.abs() >= 24) {
+        _showChrome(_scrollDelta < 0);
+        _scrollDelta = 0;
+      }
+    }
+    return false;
+  }
+
   List<TikTokVideo> _videos = [];
   List<TikTokFollowUser> _followingUsers = [];
   final Set<String> _selectedIds = {};
@@ -54,6 +122,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _watchQuota();
     _scanBatchLimit = widget.database.scanBatchLimit;
     _toolsExpanded = widget.database.studioToolsExpanded;
     _loadItems();
@@ -62,6 +132,11 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
   @override
   void didUpdateWidget(covariant RepostStudioScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showChrome(true);
+      });
+    }
     if (oldWidget.client != widget.client ||
         oldWidget.currentUser?.id != widget.currentUser?.id) {
       _scanGeneration++;
@@ -73,6 +148,8 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
 
   @override
   void dispose() {
+    _quotaTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _scanGeneration++;
     _engine?.dispose();
     super.dispose();
@@ -1559,443 +1636,456 @@ class _RepostStudioScreenState extends State<RepostStudioScreen> {
         child: LayoutBuilder(
           builder: (context, constraints) => Column(
             children: [
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: constraints.maxHeight * .58,
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      // Top App Bar
-                      LiquidGlassContainer(
-                        blur: false,
-                        borderRadius: 26,
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: ClearTokTokens.inset,
-                          vertical: 8,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.asset(
-                                'assets/brand/app_icon.jpg',
-                                width: 40,
-                                height: 40,
-                                fit: BoxFit.cover,
-                                semanticLabel: 'LapinTokk',
+              StudioChromeSlide(
+                visible: _chromeVisible,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: constraints.maxHeight * .58,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        // Top App Bar
+                        LiquidGlassContainer(
+                          blur: false,
+                          borderRadius: 26,
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: ClearTokTokens.inset,
+                            vertical: 8,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.asset(
+                                  'assets/brand/app_icon.jpg',
+                                  width: 40,
+                                  height: 40,
+                                  fit: BoxFit.cover,
+                                  semanticLabel: 'LapinTokk',
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'LapinTokk Studio',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  Row(
-                                    children: [
-                                      Container(
-                                        width: 8,
-                                        height: 8,
-                                        decoration: BoxDecoration(
-                                          color: user != null
-                                              ? ClearTokColors.success
-                                              : ClearTokColors.warning,
-                                          shape: BoxShape.circle,
-                                        ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'LapinTokk Studio',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
                                       ),
-                                      const SizedBox(width: 6),
-                                      Flexible(
-                                        child: Text(
-                                          user != null
-                                              ? '@${user.uniqueId}'
-                                              : 'Chưa kết nối tài khoản',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 12,
+                                    ),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: BoxDecoration(
                                             color: user != null
-                                                ? ClearTokColors.secondary
+                                                ? ClearTokColors.success
                                                 : ClearTokColors.warning,
+                                            shape: BoxShape.circle,
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                        const SizedBox(width: 6),
+                                        Flexible(
+                                          child: Text(
+                                            user != null
+                                                ? '@${user.uniqueId}'
+                                                : 'Chưa kết nối tài khoản',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: user != null
+                                                  ? ClearTokColors.secondary
+                                                  : ClearTokColors.warning,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            if (ClearTokAccount.client != null)
+                              if (ClearTokAccount.client != null)
+                                BouncyTapWrapper(
+                                  pressedScale: 0.88,
+                                  onTap: () {},
+                                  child: IconButton(
+                                    tooltip: _isGuestMode
+                                        ? 'Đăng nhập ClearTok'
+                                        : 'Tài khoản ClearTok',
+                                    icon: Icon(
+                                      _isGuestMode
+                                          ? Icons.person_outline_rounded
+                                          : Icons.account_circle_outlined,
+                                      color: ClearTokColors.cyan,
+                                    ),
+                                    onPressed: () =>
+                                        ClearTokAccountGate.openAccount(
+                                          context,
+                                        ),
+                                  ),
+                                ),
                               BouncyTapWrapper(
                                 pressedScale: 0.88,
                                 onTap: () {},
                                 child: IconButton(
-                                  tooltip: 'Mở tài khoản ClearTok',
+                                  tooltip: _toolsExpanded
+                                      ? 'Thu gọn công cụ'
+                                      : 'Mở rộng công cụ',
                                   icon: Icon(
-                                    _isGuestMode
-                                        ? Icons.login_rounded
-                                        : Icons.account_circle_outlined,
+                                    _toolsExpanded
+                                        ? Icons.expand_less
+                                        : Icons.tune,
                                     color: ClearTokColors.cyan,
                                   ),
-                                  onPressed: () =>
-                                      ClearTokAccountGate.openAccount(context),
+                                  onPressed: () {
+                                    setState(
+                                      () => _toolsExpanded = !_toolsExpanded,
+                                    );
+                                    widget.database.setStudioToolsExpanded(
+                                      _toolsExpanded,
+                                    );
+                                  },
                                 ),
                               ),
-                            BouncyTapWrapper(
-                              pressedScale: 0.88,
-                              onTap: () {},
-                              child: IconButton(
-                                tooltip: _toolsExpanded
-                                    ? 'Thu gọn công cụ'
-                                    : 'Mở rộng công cụ',
-                                icon: Icon(
-                                  _toolsExpanded
-                                      ? Icons.expand_less
-                                      : Icons.tune,
-                                  color: ClearTokColors.cyan,
+                              BouncyTapWrapper(
+                                pressedScale: 0.88,
+                                onTap: () {},
+                                child: IconButton(
+                                  tooltip: 'Menu Studio',
+                                  icon: const Icon(
+                                    Icons.more_horiz_rounded,
+                                    color: ClearTokColors.cyan,
+                                  ),
+                                  onPressed: _openStudioMenuPopover,
                                 ),
-                                onPressed: () {
-                                  setState(
-                                    () => _toolsExpanded = !_toolsExpanded,
-                                  );
-                                  widget.database.setStudioToolsExpanded(
-                                    _toolsExpanded,
-                                  );
-                                },
-                              ),
-                            ),
-                            BouncyTapWrapper(
-                              pressedScale: 0.88,
-                              onTap: () {},
-                              child: IconButton(
-                                tooltip: 'Menu Studio',
-                                icon: const Icon(
-                                  Icons.more_horiz_rounded,
-                                  color: ClearTokColors.cyan,
-                                ),
-                                onPressed: _openStudioMenuPopover,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Studio Hub Switcher: Reposts | Mass Un-Like | Mass Un-Follow
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        child: GBoxSegmentedControl(
-                          segments: const [
-                            GBoxSegment(
-                              label: 'Reposts',
-                              icon: Icons.repeat_rounded,
-                            ),
-                            GBoxSegment(
-                              label: 'Mass Un-Like',
-                              icon: Icons.favorite_border_rounded,
-                            ),
-                            GBoxSegment(
-                              label: 'Mass Un-Follow',
-                              icon: Icons.person_remove_rounded,
-                            ),
-                          ],
-                          selectedIndex: const [
-                            'repost',
-                            'unlike',
-                            'unfollow',
-                          ].indexOf(_currentHub),
-                          onSegmentSelected: (index) {
-                            setState(() {
-                              _scanGeneration++;
-                              _isScanning = false;
-                              _currentHub = const [
-                                'repost',
-                                'unlike',
-                                'unfollow',
-                              ][index];
-                              _searchQuery = '';
-                              _filterAuthor = null;
-                              _filterYear = null;
-                            });
-                            _loadItems();
-                          },
-                        ),
-                      ),
-
-                      const SizedBox(height: 6),
-
-                      if (_toolsExpanded) ...[
-                        // Hero Metric Cards
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Row(
-                            children: [
-                              _buildMetricCard(
-                                title: 'Đã Quét',
-                                value: '$itemCount',
-                                color: ClearTokColors.cyan,
-                                icon: Icons.video_library_rounded,
-                              ),
-                              const SizedBox(width: 10),
-                              _buildMetricCard(
-                                title: 'Đã Xử Lý',
-                                value:
-                                    '${widget.database.deletedCountForHub(_currentHub)}',
-                                color: ClearTokColors.cyan,
-                                icon: Icons.delete_sweep_rounded,
-                              ),
-                              const SizedBox(width: 10),
-                              _buildMetricCard(
-                                title: 'Hạn Mức',
-                                value: _isGuestMode
-                                    ? 'KHÁCH ($_guestRemaining/5)'
-                                    : 'VÔ HẠN ∞',
-                                color: ClearTokColors.pink,
-                                icon: Icons.all_inclusive_rounded,
                               ),
                             ],
+                          ),
+                        ),
+
+                        // Studio Hub Switcher: Reposts | Mass Un-Like | Mass Un-Follow
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
+                          child: GBoxSegmentedControl(
+                            segments: const [
+                              GBoxSegment(
+                                label: 'Reposts',
+                                icon: Icons.repeat_rounded,
+                              ),
+                              GBoxSegment(
+                                label: 'Mass Un-Like',
+                                icon: Icons.favorite_border_rounded,
+                              ),
+                              GBoxSegment(
+                                label: 'Mass Un-Follow',
+                                icon: Icons.person_remove_rounded,
+                              ),
+                            ],
+                            selectedIndex: const [
+                              'repost',
+                              'unlike',
+                              'unfollow',
+                            ].indexOf(_currentHub),
+                            onSegmentSelected: (index) {
+                              setState(() {
+                                _showChrome(true);
+                                _scanGeneration++;
+                                _isScanning = false;
+                                _currentHub = const [
+                                  'repost',
+                                  'unlike',
+                                  'unfollow',
+                                ][index];
+                                _searchQuery = '';
+                                _filterAuthor = null;
+                                _filterYear = null;
+                              });
+                              _loadItems();
+                            },
                           ),
                         ),
 
                         const SizedBox(height: 6),
 
-                        // Scan Batch Limit Selector Bar (50 | 100⭐ | 200 | Tất cả)
+                        if (_toolsExpanded) ...[
+                          // Hero Metric Cards
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Row(
+                              children: [
+                                _buildMetricCard(
+                                  title: 'Đã Quét',
+                                  value: '$itemCount',
+                                  color: ClearTokColors.cyan,
+                                  icon: Icons.video_library_rounded,
+                                ),
+                                const SizedBox(width: 10),
+                                _buildMetricCard(
+                                  title: 'Đã Xử Lý',
+                                  value:
+                                      '${widget.database.deletedCountForHub(_currentHub)}',
+                                  color: ClearTokColors.cyan,
+                                  icon: Icons.delete_sweep_rounded,
+                                ),
+                                const SizedBox(width: 10),
+                                _buildMetricCard(
+                                  title: 'Hạn Mức',
+                                  value: _isGuestMode
+                                      ? 'KHÁCH ($_guestRemaining/5)'
+                                      : 'VÔ HẠN ∞',
+                                  color: ClearTokColors.pink,
+                                  icon: Icons.all_inclusive_rounded,
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 6),
+
+                          // Scan Batch Limit Selector Bar (50 | 100⭐ | 200 | Tất cả)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 2,
+                            ),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.tune_rounded,
+                                  size: 14,
+                                  color: ClearTokColors.cyan,
+                                ),
+                                const Text(
+                                  'Đợt quét:',
+                                  style: TextStyle(
+                                    color: ClearTokColors.muted,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                                _buildScanLimitPill('50', 50),
+                                _buildScanLimitPill('100', 100),
+                                _buildScanLimitPill('200', 200),
+                                _buildScanLimitPill('Hết ∞', 0),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        // Quick Actions: Scan & Action
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 2,
-                          ),
-                          child: Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.tune_rounded,
-                                size: 14,
-                                color: ClearTokColors.cyan,
-                              ),
-                              const Text(
-                                'Đợt quét:',
-                                style: TextStyle(
-                                  color: ClearTokColors.muted,
-                                  fontSize: 11,
-                                ),
-                              ),
-                              _buildScanLimitPill('50', 50),
-                              _buildScanLimitPill('100', 100),
-                              _buildScanLimitPill('200', 200),
-                              _buildScanLimitPill('Hết ∞', 0),
-                            ],
-                          ),
-                        ),
-                      ],
-
-                      // Quick Actions: Scan & Action
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 6,
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: GlassActionButton(
-                                icon: _isScanning
-                                    ? const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Icon(Icons.sync_rounded),
-                                label: scanBtnText,
-                                onPressed: _isScanning ? null : _startScan,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: GlassActionButton(
-                                primary: true,
-                                icon: const Icon(Icons.delete_forever_rounded),
-                                label: actionBtnText,
-                                onPressed: _triggerBatchAction,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      if (_toolsExpanded) ...[
-                        // Filter Chips Bar
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 4,
+                            vertical: 6,
                           ),
                           child: Row(
                             children: [
-                              _buildFilterChip('Tất cả ($itemCount)', 'all'),
-                              _buildFilterChip(
-                                'Đã chọn (${_selectedIds.length})',
-                                'selected',
+                              Expanded(
+                                child: GlassActionButton(
+                                  icon: _isScanning
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Icon(Icons.sync_rounded),
+                                  label: scanBtnText,
+                                  onPressed: _isScanning ? null : _startScan,
+                                ),
                               ),
-                              if (_currentHub != 'unfollow') ...[
-                                _buildFilterChip('Nhiều Like', 'most_liked'),
-                                _buildFilterChip('Mới nhất', 'newest'),
-                                _buildFilterChip('Cũ nhất', 'oldest'),
-                                ActionChip(
-                                  avatar: const Icon(
-                                    Icons.person_search_rounded,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: GlassActionButton(
+                                  primary: true,
+                                  icon: const Icon(
+                                    Icons.delete_forever_rounded,
+                                  ),
+                                  label: actionBtnText,
+                                  onPressed: _triggerBatchAction,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        if (_toolsExpanded) ...[
+                          // Filter Chips Bar
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
+                            child: Row(
+                              children: [
+                                _buildFilterChip('Tất cả ($itemCount)', 'all'),
+                                _buildFilterChip(
+                                  'Đã chọn (${_selectedIds.length})',
+                                  'selected',
+                                ),
+                                if (_currentHub != 'unfollow') ...[
+                                  _buildFilterChip('Nhiều Like', 'most_liked'),
+                                  _buildFilterChip('Mới nhất', 'newest'),
+                                  _buildFilterChip('Cũ nhất', 'oldest'),
+                                  ActionChip(
+                                    avatar: const Icon(
+                                      Icons.person_search_rounded,
+                                      size: 16,
+                                      color: ClearTokColors.cyan,
+                                    ),
+                                    label: Text(
+                                      _filterAuthor != null
+                                          ? '@$_filterAuthor'
+                                          : 'Theo Tác Giả',
+                                      style: TextStyle(
+                                        color: _filterAuthor != null
+                                            ? Colors.white
+                                            : ClearTokColors.secondary,
+                                        fontSize: 12,
+                                        fontWeight: _filterAuthor != null
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                      ),
+                                    ),
+                                    backgroundColor: _filterAuthor != null
+                                        ? ClearTokColors.pink
+                                        : ClearTokColors.surface,
+                                    onPressed: _showAuthorFilterModal,
+                                  ),
+                                ],
+                                const SizedBox(width: 8),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      if (_selectedIds.length == itemCount) {
+                                        _selectedIds.clear();
+                                      } else {
+                                        _selectedIds.clear();
+                                        if (_currentHub == 'unfollow') {
+                                          _selectedIds.addAll(
+                                            _followingUsers.map((u) => u.id),
+                                          );
+                                        } else {
+                                          _selectedIds.addAll(
+                                            _videos.map((v) => v.id),
+                                          );
+                                        }
+                                      }
+                                    });
+                                  },
+                                  icon: Icon(
+                                    _selectedIds.length == itemCount
+                                        ? Icons.deselect
+                                        : Icons.select_all,
                                     size: 16,
                                     color: ClearTokColors.cyan,
                                   ),
                                   label: Text(
-                                    _filterAuthor != null
-                                        ? '@$_filterAuthor'
-                                        : 'Theo Tác Giả',
-                                    style: TextStyle(
-                                      color: _filterAuthor != null
-                                          ? Colors.white
-                                          : ClearTokColors.secondary,
+                                    _selectedIds.length == itemCount
+                                        ? 'Bỏ chọn'
+                                        : 'Chọn hết',
+                                    style: const TextStyle(
+                                      color: ClearTokColors.cyan,
                                       fontSize: 12,
-                                      fontWeight: _filterAuthor != null
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
                                     ),
                                   ),
-                                  backgroundColor: _filterAuthor != null
-                                      ? ClearTokColors.pink
-                                      : ClearTokColors.surface,
-                                  onPressed: _showAuthorFilterModal,
                                 ),
                               ],
-                              const SizedBox(width: 8),
-                              TextButton.icon(
-                                onPressed: () {
-                                  setState(() {
-                                    if (_selectedIds.length == itemCount) {
-                                      _selectedIds.clear();
-                                    } else {
-                                      _selectedIds.clear();
-                                      if (_currentHub == 'unfollow') {
-                                        _selectedIds.addAll(
-                                          _followingUsers.map((u) => u.id),
-                                        );
-                                      } else {
-                                        _selectedIds.addAll(
-                                          _videos.map((v) => v.id),
-                                        );
-                                      }
-                                    }
-                                  });
-                                },
-                                icon: Icon(
-                                  _selectedIds.length == itemCount
-                                      ? Icons.deselect
-                                      : Icons.select_all,
-                                  size: 16,
-                                  color: ClearTokColors.cyan,
+                            ),
+                          ),
+
+                          // Search Bar
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
+                            child: TextField(
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: _currentHub == 'unfollow'
+                                    ? 'Tìm kiếm theo tên kênh @username...'
+                                    : 'Tìm theo tác giả hoặc nội dung...',
+                                hintStyle: const TextStyle(
+                                  color: ClearTokColors.muted,
+                                  fontSize: 13,
                                 ),
-                                label: Text(
-                                  _selectedIds.length == itemCount
-                                      ? 'Bỏ chọn'
-                                      : 'Chọn hết',
-                                  style: const TextStyle(
-                                    color: ClearTokColors.cyan,
-                                    fontSize: 12,
+                                prefixIcon: const Icon(
+                                  Icons.search,
+                                  color: ClearTokColors.muted,
+                                  size: 20,
+                                ),
+                                suffixIcon:
+                                    (_searchQuery.isNotEmpty ||
+                                        _filterAuthor != null)
+                                    ? IconButton(
+                                        icon: const Icon(
+                                          Icons.clear,
+                                          color: ClearTokColors.muted,
+                                          size: 18,
+                                        ),
+                                        onPressed: () => setState(() {
+                                          _searchQuery = '';
+                                          _filterAuthor = null;
+                                        }),
+                                      )
+                                    : null,
+                                filled: true,
+                                fillColor: ClearTokColors.surface,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    ClearTokTokens.radius,
+                                  ),
+                                  borderSide: const BorderSide(
+                                    color: ClearTokColors.border,
                                   ),
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-
-                        // Search Bar
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 4,
-                          ),
-                          child: TextField(
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
+                              onChanged: (val) =>
+                                  setState(() => _searchQuery = val),
                             ),
-                            decoration: InputDecoration(
-                              hintText: _currentHub == 'unfollow'
-                                  ? 'Tìm kiếm theo tên kênh @username...'
-                                  : 'Tìm theo tác giả hoặc nội dung...',
-                              hintStyle: const TextStyle(
-                                color: ClearTokColors.muted,
-                                fontSize: 13,
-                              ),
-                              prefixIcon: const Icon(
-                                Icons.search,
-                                color: ClearTokColors.muted,
-                                size: 20,
-                              ),
-                              suffixIcon:
-                                  (_searchQuery.isNotEmpty ||
-                                      _filterAuthor != null)
-                                  ? IconButton(
-                                      icon: const Icon(
-                                        Icons.clear,
-                                        color: ClearTokColors.muted,
-                                        size: 18,
-                                      ),
-                                      onPressed: () => setState(() {
-                                        _searchQuery = '';
-                                        _filterAuthor = null;
-                                      }),
-                                    )
-                                  : null,
-                              filled: true,
-                              fillColor: ClearTokColors.surface,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 8,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(
-                                  ClearTokTokens.radius,
-                                ),
-                                borderSide: const BorderSide(
-                                  color: ClearTokColors.border,
-                                ),
-                              ),
-                            ),
-                            onChanged: (val) =>
-                                setState(() => _searchQuery = val),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
               // Main Content Area: Videos Grid or Following Users List
               Expanded(
-                child: _currentHub == 'unfollow'
-                    ? _buildFollowingList()
-                    : _buildVideosGrid(),
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: _onListScroll,
+                  child: _currentHub == 'unfollow'
+                      ? _buildFollowingList()
+                      : _buildVideosGrid(),
+                ),
               ),
             ],
           ),
