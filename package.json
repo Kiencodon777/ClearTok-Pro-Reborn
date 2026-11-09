@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "pretest": "node scripts/build_diagnostic_web.cjs && node scripts/build_web_extension.cjs",
     "test": "node --test test/*.cjs",
     "build:admin": "node scripts/build_admin.cjs",
     "build:extension": "node scripts/build_extension_production.cjs"

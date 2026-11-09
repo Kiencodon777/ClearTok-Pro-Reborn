@@ -14,13 +14,9 @@ export async function pageExecute(command, input, expectedUser) {
   if(command==='mutate') {
     if(!/^\d+$/.test(input.item?.id||''))throw Error('ID thao tác không hợp lệ.');
     const aid=1988;
-    if(input.mode==='repost') {
-      const itemId=input.item.id;
-      const deleteEndpoint='https://www.tiktok.com/tiktok/v1/upvote/delete';
-      return JSON.parse(await (async()=>{ /* MOBILE_REPOST */ })());
-    }
-    const path=input.mode==='unlike'?'/api/commit/item/digg/':'/api/commit/follow/user/';
-    const params=input.mode==='unlike'?{aweme_id:input.item.id,type:'0',_author:input.item.author}:
+    /* MOBILE_BRIDGE */
+    const path=input.mode==='repost'?'/tiktok/v1/upvote/delete':input.mode==='unlike'?'/api/commit/item/digg/':'/api/commit/follow/user/';
+    const params=input.mode==='repost'?{item_id:input.item.id,type:'1'}:input.mode==='unlike'?{aweme_id:input.item.id,type:'0',_author:input.item.author}:
       {user_id:input.item.id,sec_user_id:input.item.secUid||'',type:'0',action_type:'0',channel_id:'0',from:'18',fromWeb:'1',from_pre:'0'};
     return JSON.parse(await (async()=>{ /* MOBILE_TRANSPORT */ })());
   }

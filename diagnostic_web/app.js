@@ -28,9 +28,22 @@ byId('tests').onclick = async () => {
   try {
     for (const [name,raw,status,code] of [['OK','{"status_code":0}',200,0],['Empty 200','',200,-2],['CSRF','{"status_code":10402}',200,10402],['HTML','<html>',200,-2],['HTTP 403','{}',403,403]]) {
       let requests=0;
-      const fetch=async url=>{requests++;return {ok:status===200,status,url,headers:{get:()=>null},text:async()=>raw};};
-      const fakeDocument={getElementById:()=>({textContent:JSON.stringify({__DEFAULT_SCOPE__:{'webapp.app-context':{csrfToken:'test',wid:'test-device'}}})})};
-      const result=JSON.parse(await window.mobileTransport({fetch},fakeDocument,{origin:'https://www.tiktok.com'},{language:'vi',platform:'iPhone',userAgent:'test'},'/api/commit/item/digg/',{aweme_id:'test-video',type:'0'},1988));
+      const fetch=async()=>({headers:{get:()=>null}});
+      const nodes=[],listeners={};
+      const node=()=>({attrs:{},style:{},setAttribute(k,v){this.attrs[k]=String(v);},getAttribute(k){return this.attrs[k];},remove(){nodes.splice(nodes.indexOf(this),1);}});
+      const bus=node();bus.appendChild=n=>nodes.push(n);
+      bus.querySelectorAll=()=>nodes.filter(n=>n.getAttribute('data-state')==='pending');
+      const fakeDocument={cookie:'',documentElement:node(),createElement:node,
+        getElementById:id=>id==='__lapin_mw_bus'?bus:{textContent:JSON.stringify({__DEFAULT_SCOPE__:{'webapp.app-context':{csrfToken:'test',wid:'test-device'}}})},
+        addEventListener:(key,fn)=>listeners[key]=fn,dispatchEvent:e=>listeners[e.type]?.()};
+      class Xhr {
+        open(method,url){this.responseURL=url;} setRequestHeader(){} getResponseHeader(){return '';}
+        send(){requests++;this.status=status;this.responseText=raw;this.onload();} abort(){this.onabort();}
+      }
+      class Observer {observe(){}}
+      const fakeWindow={fetch},location={origin:'https://www.tiktok.com'};
+      window.installMobileBridge(fakeWindow,fakeDocument,location,Xhr,Observer);
+      const result=JSON.parse(await window.mobileTransport(fakeWindow,fakeDocument,location,{language:'vi',platform:'iPhone',userAgent:'test'},'/api/commit/item/digg/',{aweme_id:'test-video',type:'0'},1988));
       lines.push(`${result.status_code===code && requests===1 ? 'PASS':'FAIL'} · ${name} · code ${result.status_code} · ${requests} request`);
     }
   } catch(e) { lines.push('FAIL · '+e.message); }

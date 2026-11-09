@@ -33,10 +33,23 @@ test('stop interrupts waits even when paused',async()=>{
 async function execute(command,input,expected='owner',response={status_code:0,itemList:[],hasMore:false}){
   const {pageExecute}=await load('page-api.mjs');let captured;
   const app={user:{id:'123',secUid:'owner',uniqueId:'tester'},csrfToken:'test-token',wid:'device'};
+  const nodes=[],listeners={};
+  const node=()=>({attrs:{},style:{},setAttribute(k,v){this.attrs[k]=String(v);},getAttribute(k){return this.attrs[k];},remove(){nodes.splice(nodes.indexOf(this),1);}});
+  const bus=node();bus.appendChild=n=>nodes.push(n);bus.querySelectorAll=()=>nodes.filter(n=>n.getAttribute('data-state')==='pending');
+  const document={cookie:'',documentElement:node(),createElement:node,
+    getElementById:id=>id==='__lapin_mw_bus'?bus:{textContent:JSON.stringify({__DEFAULT_SCOPE__:{'webapp.app-context':app}})},
+    addEventListener:(k,fn)=>listeners[k]=fn,dispatchEvent:e=>listeners[e.type]?.()};
+  class XHR {
+    open(method,url){this.method=method;this.responseURL=url;this.headers={};}
+    setRequestHeader(k,v){this.headers[k]=v;} getResponseHeader(){return '';}
+    send(body){captured={url:this.responseURL,options:{method:this.method,body,headers:this.headers}};this.status=200;this.responseText=JSON.stringify(response);this.onload();}
+    abort(){this.onabort();}
+  }
+  class Observer {observe(){}}
   const context=vm.createContext({location:{origin:'https://www.tiktok.com'},
     window:{__UNIVERSAL_DATA_FOR_REHYDRATION__:{__DEFAULT_SCOPE__:{'webapp.app-context':app}}},
-    document:{getElementById:()=>null},navigator:{language:'en',platform:'test',userAgent:'browser'},
-    URL,AbortController,setTimeout,clearTimeout,command,input,expected});
+    document,navigator:{language:'en',platform:'test',userAgent:'browser'},XMLHttpRequest:XHR,MutationObserver:Observer,Event,
+    URL,AbortController,setTimeout,clearTimeout,setInterval,clearInterval,command,input,expected});
   context.fetch=async(url,options)=>{captured={url:String(url),options};return {ok:true,status:200,url:String(url),headers:{get:()=>null},text:async()=>JSON.stringify(response)};};
   context.window.fetch=context.fetch;
   const value=await vm.runInContext(`(${pageExecute.toString()})(command,input,expected)`,context);
