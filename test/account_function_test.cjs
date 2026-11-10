@@ -13,9 +13,9 @@ test('account handler rejects unverified tokens, maps rate limit to 429, and enf
     Deno:{serve:f=>handler=f,env:{get:()=> 'test-only'}},
     createClient:()=>client,Response,Request,JSON,TextEncoder,
   });
-  const request=(token,payload={})=>new Request('https://test.invalid/account',{
+  const request=(token,payload={},action='current',admin=false)=>new Request('https://test.invalid/account',{
     method:'POST',headers:token?{Authorization:'Bearer '+token}:{},
-    body:JSON.stringify({action:'current',payload}),
+    body:JSON.stringify({action,payload,admin}),
   });
   assert.equal((await handler(request())).status,401);
   assert.equal((await handler(request('invalid'))).status,401);
@@ -29,6 +29,24 @@ test('account handler rejects unverified tokens, maps rate limit to 429, and enf
   const rateRes=await handler(request('test-session'));
   assert.equal(rateRes.status,429);
   assert.deepEqual(await rateRes.json(),{error:'Rate limit exceeded'});
+
+  rpcError={message:'Device limit reached',code:'42501'};
+  const restore=new Request('https://test.invalid/account',{method:'POST',
+    headers:{Authorization:'Bearer test-session'},
+    body:JSON.stringify({admin:true,action:'restore_device',payload:{id:'device-row'}})});
+  const slotRes=await handler(restore);
+  assert.equal(slotRes.status,409);
+  assert.deepEqual(await slotRes.json(),{code:'DEVICE_LIMIT_REACHED',devices:[]});
+
+  rpcError={message:'QUOTA_EXHAUSTED',code:'PT409'};
+  const quotaRes=await handler(request('test-session',{},'reserve_operation'));
+  assert.equal(quotaRes.status,409);
+  assert.deepEqual(await quotaRes.json(),{code:'QUOTA_EXHAUSTED',quota_remaining:0});
+
+  rpcError={message:'Device limit reached',code:'42501'};
+  const full=await handler(request('test-session',{},'restore_device',true));
+  assert.equal(full.status,409);
+  assert.deepEqual(await full.json(),{code:'DEVICE_LIMIT_REACHED',devices:[]});
 
   // Other RPC errors still map to 403
   rpcError={message:'Account unavailable',code:'42501'};

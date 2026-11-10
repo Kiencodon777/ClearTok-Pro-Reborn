@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'tiktok_mutation_transport.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -50,17 +51,76 @@ class ScanResult {
   });
 }
 
+class MutationCancelled implements Exception {}
+
+class MutationToken {
+  bool cancelled = false;
+  final _listeners = <void Function()>{};
+
+  void check() {
+    if (cancelled) throw MutationCancelled();
+  }
+
+  void cancel() {
+    if (cancelled) return;
+    cancelled = true;
+    for (final listener in _listeners.toList()) {
+      listener();
+    }
+    _listeners.clear();
+  }
+
+  void addListener(void Function() listener) {
+    if (cancelled) {
+      listener();
+    } else {
+      _listeners.add(listener);
+    }
+  }
+
+  void removeListener(void Function() listener) => _listeners.remove(listener);
+
+  Future<T> wait<T>(Future<T> work) async {
+    final stopped = Completer<T>();
+    void interrupt() {
+      if (!stopped.isCompleted) stopped.completeError(MutationCancelled());
+    }
+
+    addListener(interrupt);
+    try {
+      final value = await Future.any([work, stopped.future]);
+      check();
+      return value;
+    } finally {
+      removeListener(interrupt);
+    }
+  }
+
+  Future<void> delay(Duration duration) async {
+    check();
+    final done = Completer<void>();
+    final timer = Timer(duration, done.complete);
+    try {
+      await wait(done.future);
+    } finally {
+      timer.cancel();
+    }
+  }
+}
+
 class DeleteResult {
   final bool success;
   final int statusCode;
   final String message;
   final String rawResponse;
+  final bool confirmedUnchanged;
 
   DeleteResult({
     required this.success,
     required this.statusCode,
     required this.message,
     required this.rawResponse,
+    this.confirmedUnchanged = false,
   });
 }
 
@@ -98,7 +158,10 @@ class TikTokClient {
     } catch (_) {}
   }
 
-  Future<void> ensureActiveWebappPage({String? uniqueId}) async {
+  Future<void> ensureActiveWebappPage({
+    String? uniqueId,
+    MutationToken? token,
+  }) async {
     try {
       final url = (await webViewController.getUrl())?.toString() ?? '';
       if (url.isEmpty ||
@@ -107,10 +170,13 @@ class TikTokClient {
         final target = (uniqueId != null && uniqueId.isNotEmpty)
             ? 'https://www.tiktok.com/@$uniqueId'
             : 'https://www.tiktok.com/foryou';
+        token?.check();
         await webViewController.loadUrl(
           urlRequest: URLRequest(url: WebUri(target)),
         );
-        await Future.delayed(const Duration(milliseconds: 1600));
+        await (token ?? MutationToken()).delay(
+          const Duration(milliseconds: 1600),
+        );
       }
     } catch (_) {}
   }
@@ -485,24 +551,28 @@ class TikTokClient {
   }
 
   // ─── 4. DELETE SINGLE REPOST ──────────────────────────────────────────────
-  Future<DeleteResult> deleteSingleRepost({required String itemId}) =>
-      _commitWebAction('/tiktok/v1/upvote/delete', {
-        'item_id': itemId,
-        'type': '1',
-      });
+  Future<DeleteResult> deleteSingleRepost({
+    required String itemId,
+    MutationToken? token,
+  }) => _commitWebAction('/tiktok/v1/upvote/delete', {
+    'item_id': itemId,
+    'type': '1',
+  }, token);
 
   Future<DeleteResult> unlikeVideo({
     required String awemeId,
     String author = '',
+    MutationToken? token,
   }) => _commitWebAction('/api/commit/item/digg/', {
     'aweme_id': awemeId,
     'type': '0',
     '_author': author,
-  });
+  }, token);
 
   Future<DeleteResult> unfollowUser({
     required String userId,
     String secUid = '',
+    MutationToken? token,
   }) => _commitWebAction('/api/commit/follow/user/', {
     'user_id': userId,
     'sec_user_id': secUid,
@@ -512,19 +582,24 @@ class TikTokClient {
     'from': '18',
     'fromWeb': '1',
     'from_pre': '0',
-  });
+  }, token);
 
   Future<DeleteResult> _commitWebAction(
     String path,
     Map<String, String> params,
+    MutationToken? cancellation,
   ) async {
     final watch = Stopwatch()..start();
     final action = path.contains('digg') ? 'unlike' : 'unfollow';
     DiagnosticLog.instance.record('$action.start', 0);
     try {
-      await ensureActiveWebappPage();
-      await ensureMainWorldBridge();
-      final result = await _performWebAction(path, params);
+      final token = cancellation ?? MutationToken();
+      token.check();
+      await token.wait(ensureActiveWebappPage(token: token));
+      token.check();
+      final result = await TikTokMutationTransport(
+        webViewController,
+      ).perform(path, params, remoteConfig.aid, token);
       Map<String, dynamic> details = {};
       try {
         details = Map<String, dynamic>.from(
@@ -546,13 +621,6 @@ class TikTokClient {
       rethrow;
     }
   }
-
-  Future<DeleteResult> _performWebAction(
-    String path,
-    Map<String, String> params,
-  ) => TikTokMutationTransport(
-    webViewController,
-  ).perform(path, params, remoteConfig.aid);
 
   static void _checkScanResponse(Map<String, dynamic> data) {
     final code = int.tryParse(data['status_code']?.toString() ?? '');

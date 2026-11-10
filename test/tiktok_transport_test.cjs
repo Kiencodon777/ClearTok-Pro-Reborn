@@ -4,8 +4,9 @@ const source = require('node:fs').readFileSync('lib/api/tiktok_mutation_transpor
 const bridge = source.match(/mainWorldBridgeJs = r'''([\s\S]*?)''';/)[1];
 const body = source.match(/const functionBody = r'''([\s\S]*?)''';/)[1];
 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-async function request({raw='{"status_code":0}',status=200,liked=false,same=true,spa=false,timeout=false,cancelHandshake=false,path='/api/commit/item/digg/'}={}) {
+async function request({raw='{"status_code":0}',status=200,liked=false,same=true,spa=false,timeout=false,cancelHandshake=false,cancelAt=null,path='/api/commit/item/digg/'}={}) {
   let posts=0;
+  const cancellation = new AbortController();
   const app={csrfToken:'secret',wid:'device',user:{id:'account'}};
   const nodes=[];
   function node(){return {attrs:{},style:{},setAttribute(k,v){this.attrs[k]=String(v);},
@@ -20,14 +21,21 @@ async function request({raw='{"status_code":0}',status=200,liked=false,same=true
   const location={origin:'https://www.tiktok.com'};
   const window={fetch:async(url,opts={})=>{
     if(opts.method==='POST') throw Error('isolated-world POST forbidden');
-    if(opts.method==='HEAD'||opts.method==='GET'){if(cancelHandshake)await new Promise(r=>setTimeout(r,30));return {headers:{get:()=>null}};}
+    if(opts.method==='HEAD'||opts.method==='GET'){
+      if(cancelAt==='handshake'){cancellation.abort();await new Promise(r=>setTimeout(r,10));}
+      if(cancelHandshake)await new Promise(r=>setTimeout(r,30));return {headers:{get:()=>null}};
+    }
+    if(cancelAt==='readback'){cancellation.abort();throw new DOMException('Cancelled','AbortError');}
     return {ok:true,status:200,redirected:false,text:async()=>'<html>',json:async()=>({itemInfo:{itemStruct:{id:'123',digged:liked}}})};
-  }};
+  },__lapinRequests:new Map([['test',cancellation]])};
   class XHR {
     open(method,url){this.method=method;this.responseURL=url;}
     setRequestHeader(){}
     getResponseHeader(){return '';}
-    send(){posts++;this.status=status;this.responseText=raw;timeout?this.ontimeout():this.onload();}
+    send(){posts++;this.status=status;this.responseText=raw;
+      if(cancelAt==='xhr'){cancellation.abort();return;}
+      timeout?this.ontimeout():this.onload();}
+    abort(){this.onabort?.();}
   }
   class Observer {observe(){}}
   const deadline = (fn, ms) => setTimeout(fn,cancelHandshake ? (ms===18000?5:10) : ms);
@@ -35,13 +43,14 @@ async function request({raw='{"status_code":0}',status=200,liked=false,same=true
   class Parser {parseFromString(){return {getElementById:()=>spa?null:{textContent:JSON.stringify({__DEFAULT_SCOPE__:{
     'webapp.app-context':{user:{id:same?'account':'other'}},
     'webapp.video-detail':{itemInfo:{itemStruct:{id:'123',digged:liked}}}}})}};}}
-  const result=JSON.parse(await new AsyncFunction('window','document','location','navigator','path','params','aid','DOMParser','setTimeout',body)(
+  const result=JSON.parse(await new AsyncFunction('window','document','location','navigator','path','params','aid','DOMParser','setTimeout','requestId',body)(
     window,document,location,{language:'vi',platform:'iPhone',userAgent:'test'},path,
-    {aweme_id:'123',type:'0',_author:'creator'},1988,Parser,deadline));
+    {aweme_id:'123',type:'0',_author:'creator'},1988,Parser,deadline,'test'));
   if(cancelHandshake)await new Promise(r=>setTimeout(r,70));
-  assert.equal(posts,cancelHandshake?0:1);
+  assert.equal(posts,cancelHandshake||cancelAt==='handshake'?0:1);
   assert.ok(!result.raw.includes('secret'));
   assert.equal(nodes.length,0);
+  assert.equal(window.__lapinRequests.size,0);
   return result;
 }
 for(const raw of ['{"status_code":0}','{"status_code":"0"}']) test('structured success '+raw,async()=>assert.equal((await request({raw})).success,true));
@@ -60,4 +69,6 @@ test('malformed JSON stays unverified',async()=>assert.equal((await request({raw
 
 
 test('expired handshake never sends a delayed POST',async()=>assert.equal((await request({cancelHandshake:true})).success,false));
+for(const cancelAt of ['handshake','xhr','readback'])test('cancel during '+cancelAt+' cleans bridge and never replays',async()=>assert.equal((await request({cancelAt,raw:''})).success,false));
+test('readback true explicitly reports unchanged',async()=>assert.equal((await request({raw:'',liked:true})).status_code,-3));
 

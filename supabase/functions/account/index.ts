@@ -21,6 +21,15 @@ Deno.serve(async request => {
     const {data,error} = await client.rpc(input.admin === true ? 'admin_api' : 'account_api',
       {action:input.action,payload:input.payload});
     if (error) {
+      if (input.admin === true && input.action === 'restore_device' &&
+          error.code === '42501' && error.message === 'Device limit reached') {
+        let devices = [];
+        try { devices = JSON.parse(error.details || '[]'); } catch (_) {}
+        return Response.json({code:'DEVICE_LIMIT_REACHED', devices: Array.isArray(devices) ? devices : []}, {status:409, headers});
+      }
+      if (error.code === 'PT409' && error.message === 'QUOTA_EXHAUSTED') {
+        return Response.json({code:'QUOTA_EXHAUSTED', quota_remaining:0}, {status:409, headers});
+      }
       const isRateLimit = String(error.message || '').includes('Rate limit exceeded') || error.code === '429';
       return Response.json(
         {error: isRateLimit ? 'Rate limit exceeded' : 'Request denied'},

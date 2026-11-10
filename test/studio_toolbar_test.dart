@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'account_fixture.dart';
 import 'package:cleartok_reborn/database/local_database.dart';
 import 'package:cleartok_reborn/models/tiktok_video.dart';
 import 'package:cleartok_reborn/models/tiktok_follow_user.dart';
@@ -39,6 +40,9 @@ void main() {
   testWidgets('glass menu sheets fit a compact phone and close normally', (
     tester,
   ) async {
+    final account = AccountFixture();
+    await account.signedIn();
+    addTearDown(account.dispose);
     tester.view.physicalSize = const Size(320, 568);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);

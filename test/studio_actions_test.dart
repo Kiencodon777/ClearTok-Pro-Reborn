@@ -44,7 +44,10 @@ class ActionClient implements TikTokClient {
     required String secUid,
   }) async => ScanResult(videos: videos, nextCursor: 0, hasMore: false);
   @override
-  Future<DeleteResult> deleteSingleRepost({required String itemId}) async {
+  Future<DeleteResult> deleteSingleRepost({
+    required String itemId,
+    MutationToken? token,
+  }) async {
     deleted.add(itemId);
     await gate?.future;
     await Future<void>.delayed(const Duration(milliseconds: 20));

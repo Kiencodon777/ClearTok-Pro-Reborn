@@ -10,6 +10,15 @@ let section = 'dashboard';
 let currentAdminId = null;
 let searchDebounce = null;
 let renderSeq = 0;
+let session = 0;
+let modalSeq = 0;
+let signingIn = false;
+const sectionCache = new Map();
+
+function invalidate() {
+  ++renderSeq;
+  sectionCache.clear();
+}
 
 const sections = {
   dashboard: 'Dashboard',
@@ -95,32 +104,48 @@ function planBadge(plan, expiresAt) {
 }
 
 async function rpc(action, payload = {}) {
+  const started = session;
   const {data, error} = await client.functions.invoke('account', {
     body: {admin: true, action, payload},
   });
+  if (started !== session) throw Error('Phiên đã kết thúc');
   if (error) {
+    if (action === 'restore_device') {
+      const body = await error.context?.json?.().catch(() => null);
+      if (body?.code === 'DEVICE_LIMIT_REACHED') {
+        const names = (body.devices || []).map(d => d.device_name || d.platform).filter(Boolean);
+        throw Error('Đã đạt giới hạn thiết bị. Thiết bị đang hoạt động: ' + (names.join(', ') || 'xem danh sách thiết bị') + '. Hãy thu hồi một thiết bị trước khi khôi phục.');
+      }
+    }
     throw Error('Yêu cầu bị từ chối. Kiểm tra quyền Admin và trạng thái tài khoản.');
   }
+  if (!(action in sections) && action !== 'details') invalidate();
   return data;
 }
 
 async function run(work) {
+  const started = session;
   try {
     notice('Đang xử lý…');
     await work();
-    notice('Hoàn tất');
+    if (started === session) notice('Hoàn tất');
   } catch (e) {
-    notice(e.message || 'Đã xảy ra lỗi');
+    if (started === session) {
+      notice(e.message || 'Đã xảy ra lỗi');
+      if (!$('modal-backdrop').hidden) $('modal-error').textContent = e.message;
+    }
   }
 }
 
 function openModal(title, contentNode) {
+  $('modal-error').textContent = '';
   $('modal-title').textContent = title;
   $('modal-body').replaceChildren(contentNode);
   $('modal-backdrop').hidden = false;
 }
 
 function closeModal() {
+  ++modalSeq;
   $('modal-backdrop').hidden = true;
   $('modal-body').replaceChildren();
 }
@@ -131,8 +156,10 @@ $('modal-backdrop').onclick = e => {
 };
 
 async function openUserDetailModal(userId, emailHint = '') {
+  const seq = ++modalSeq;
   await run(async () => {
     const detail = await rpc('details', {user_id: userId});
+    if (seq !== modalSeq) return;
     const profile = detail.profile || {};
     const ent = detail.entitlement || {};
     const devices = Array.isArray(detail.devices) ? detail.devices : [];
@@ -236,24 +263,7 @@ async function openUserDetailModal(userId, emailHint = '') {
                     el('div', {style: 'font-weight:600'}, `${d.device_name || d.platform} (${d.platform})`),
                     el('div', {className: 'mono'}, `Version: ${d.app_version || '—'} · Hoạt động: ${fmtDate(d.last_seen_at)}`),
                   ),
-                  d.is_active
-                    ? el(
-                        'button',
-                        {
-                          type: 'button',
-                          className: 'btn-sm btn-danger',
-                          onClick: async () => {
-                            if (!confirm('Thu hồi thiết bị này?')) return;
-                            await run(async () => {
-                              await rpc('revoke_device', {id: d.id});
-                              await openUserDetailModal(userId, emailHint);
-                              await render();
-                            });
-                          },
-                        },
-                        'Thu hồi',
-                      )
-                    : el('span', {className: 'badge badge-locked'}, 'Đã thu hồi'),
+                  deviceButton(d, () => openUserDetailModal(userId, emailHint)),
                 ),
               ),
             ),
@@ -444,6 +454,23 @@ function renderUsers(rows) {
   $('records').replaceChildren(table);
 }
 
+function deviceButton(device, reloadDetail) {
+  const label = device.is_active ? 'Thu hồi' : 'Khôi phục';
+  return el('button', {
+    type: 'button',
+    className: device.is_active ? 'btn-sm btn-danger' : 'btn-sm btn-primary',
+    onClick: async () => {
+      if (!confirm(`${label} thiết bị này?`)) return;
+      const seq = modalSeq;
+      await run(async () => {
+        await rpc(device.is_active ? 'revoke_device' : 'restore_device', {id: device.id});
+        if (reloadDetail && seq === modalSeq) await reloadDetail();
+        await render();
+      });
+    },
+  }, label);
+}
+
 function renderDevices(rows) {
   $('summary').textContent = `${rows.length} thiết bị ghi nhận (tối đa 100)`;
   if (rows.length === 0) {
@@ -508,23 +535,7 @@ function renderDevices(rows) {
             el(
               'td',
               {},
-              d.is_active
-                ? el(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'btn-sm btn-danger',
-                      onClick: async () => {
-                        if (!confirm('Xác nhận thu hồi quyền truy cập của thiết bị này?')) return;
-                        await run(async () => {
-                          await rpc('revoke_device', {id: d.id});
-                          await render();
-                        });
-                      },
-                    },
-                    'Thu hồi',
-                  )
-                : el('span', {style: 'color:var(--muted);font-size:12px'}, '—'),
+              deviceButton(d),
             ),
           ),
         ),
@@ -712,30 +723,65 @@ function renderLogs(rows) {
   $('records').replaceChildren(table);
 }
 
-async function render() {
+function loadSection(key, search, refresh = false) {
+  const cacheKey = JSON.stringify([key, search]);
+  const now = Date.now();
+  for (const [id, entry] of sectionCache) {
+    if (entry.updated != null && now - entry.updated >= 15_000) sectionCache.delete(id);
+  }
+  const cached = sectionCache.get(cacheKey);
+  if (cached && (!refresh || cached.updated == null)) return cached.request;
+  const entry = {};
+  entry.request = rpc(key, {search}).then(data => {
+    entry.updated = Date.now();
+    return {data, updated: entry.updated};
+  }).catch(error => {
+    if (sectionCache.get(cacheKey) === entry) sectionCache.delete(cacheKey);
+    throw error;
+  });
+  sectionCache.set(cacheKey, entry);
+  return entry.request;
+}
+
+function showLoading() {
+  $('summary').textContent = 'Đang tải…';
+  $('records').replaceChildren();
+}
+
+async function render(refresh = false) {
+  if (!currentAdminId) return;
   const seq = ++renderSeq;
   const activeSection = section;
   $('heading').textContent = sections[activeSection] || activeSection;
   for (const btn of $('navigation').querySelectorAll('button')) {
     btn.classList.toggle('active', btn.dataset.key === activeSection);
   }
-  const data = await rpc(activeSection, {search: $('search').query.value.trim()});
-  if (seq !== renderSeq || activeSection !== section) return;
-  if (activeSection === 'dashboard') {
-    renderDashboard(data || {});
-    return;
+  const search = section === 'users' ? $('search').query.value.trim() : '';
+  showLoading();
+  try {
+    const {data, updated} = await loadSection(activeSection, search, refresh);
+    if (seq !== renderSeq) return;
+    if (section === 'dashboard') renderDashboard(data || {});
+    else {
+      const rows = Array.isArray(data) ? data : [data];
+      if (section === 'users') renderUsers(rows);
+      else if (section === 'devices') renderDevices(rows);
+      else if (section === 'entitlements') renderEntitlements(rows);
+      else if (section === 'flags') renderFlags(rows);
+      else if (section === 'logs') renderLogs(rows);
+    }
+    $('summary').textContent += ` · Cập nhật lúc ${new Date(updated).toLocaleTimeString('vi-VN')}`;
+  } catch (error) {
+    if (seq !== renderSeq) return;
+    $('summary').textContent = error.message;
+    $('records').replaceChildren(el('button', {type: 'button', onClick: () => render(true)}, 'Thử lại'));
   }
-  const rows = Array.isArray(data) ? data : [data];
-  if (activeSection === 'users') renderUsers(rows);
-  else if (activeSection === 'devices') renderDevices(rows);
-  else if (activeSection === 'entitlements') renderEntitlements(rows);
-  else if (activeSection === 'flags') renderFlags(rows);
-  else if (activeSection === 'logs') renderLogs(rows);
 }
 
 function switchSection(next) {
+  clearTimeout(searchDebounce);
   section = next;
-  run(render);
+  return render();
 }
 
 $('open-password-btn').onclick = () => {
@@ -744,11 +790,13 @@ $('open-password-btn').onclick = () => {
   drawer.scrollIntoView({behavior: 'smooth'});
 };
 
-$('refresh-btn').onclick = () => run(render);
+$('refresh-btn').onclick = () => render(true);
 
 $('login').onsubmit = e => {
   e.preventDefault();
-  run(async () => {
+  if (signingIn) return;
+  signingIn = true;
+  return run(async () => {
     const {data, error} = await client.auth.signInWithPassword({
       email: e.target.email.value.trim(),
       password: e.target.password.value,
@@ -757,8 +805,11 @@ $('login').onsubmit = e => {
     if (error) throw Error('Đăng nhập thất bại. Kiểm tra lại email và mật khẩu.');
     currentAdminId = data?.user?.id || null;
     try {
-      await rpc('dashboard');
+      section = 'dashboard';
+      await loadSection(section, '');
     } catch (err) {
+      invalidate();
+      currentAdminId = null;
       await client.auth.signOut();
       throw err;
     }
@@ -767,7 +818,7 @@ $('login').onsubmit = e => {
     $('logout').hidden = false;
     $('open-password-btn').hidden = false;
     await render();
-  });
+  }).finally(() => { signingIn = false; });
 };
 
 for (const [key, label] of Object.entries(sections)) {
@@ -786,14 +837,16 @@ for (const [key, label] of Object.entries(sections)) {
 
 $('search').onsubmit = e => {
   e.preventDefault();
-  if (section !== 'users') section = 'users';
-  run(render);
+  return switchSection('users');
 };
 
 $('search').query.oninput = () => {
   clearTimeout(searchDebounce);
+  if (section !== 'users') return;
+  ++renderSeq;
+  showLoading();
   searchDebounce = setTimeout(() => {
-    if (section === 'users') run(render);
+    if (section === 'users') render();
   }, 320);
 };
 
@@ -828,16 +881,25 @@ $('password').onsubmit = e => {
 
 $('logout').onclick = () =>
   run(async () => {
-    await client.auth.signOut();
+    ++session;
+    invalidate();
+    clearTimeout(searchDebounce);
     currentAdminId = null;
     $('panel').hidden = true;
     $('logout').hidden = true;
     $('open-password-btn').hidden = true;
-    $('login').hidden = false;
+    $('search').query.value = '';
+    $('summary').textContent = '';
     $('records').replaceChildren();
     $('detail').textContent = '';
     $('detail').hidden = true;
     closeModal();
+    try {
+      await client.auth.signOut();
+    } finally {
+      $('login').hidden = false;
+      notice('Đăng nhập bằng tài khoản Admin ClearTok');
+    }
   });
 
 $('startup').hidden = true;

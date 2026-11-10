@@ -24,6 +24,9 @@ class AccountFixture {
   bool denied = false;
   bool rateLimited = false;
   bool invalidPassword = false;
+  String plan = 'free';
+  int remaining = 20;
+  final operations = <String, String>{};
   Completer<void>? hold;
   final requestBodies = <Map<String, dynamic>>[];
   AccountFixture() {
@@ -77,9 +80,34 @@ class AccountFixture {
           if (denied) {
             return reply({'error': 'raw response cookie=never-render'}, 403);
           }
+          final id = body['payload']?['operation_id'] as String?;
+          if (body['action'] == 'reserve_operation' && id != null) {
+            if (!operations.containsKey(id)) {
+              if (remaining == 0) {
+                return reply({'code': 'QUOTA_EXHAUSTED'}, 409);
+              }
+              remaining--;
+              operations[id] = 'reserved';
+            }
+            return reply({
+              'status': operations[id],
+              'quota_remaining': remaining,
+            });
+          }
+          if (body['action'] == 'settle_operation' && id != null) {
+            if (operations[id] == 'reserved') {
+              operations[id] = body['payload']['outcome'] as String;
+              if (operations[id] == 'released') remaining++;
+            }
+            return reply({
+              'status': operations[id],
+              'quota_remaining': remaining,
+            });
+          }
           return reply({
             'profile': user,
-            'effective_plan': 'free',
+            'effective_plan': plan,
+            'quota_remaining': plan == 'premium' ? null : remaining,
             'entitlement': {'expires_at': null},
             'devices': [
               {

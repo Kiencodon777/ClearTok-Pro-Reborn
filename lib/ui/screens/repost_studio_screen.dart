@@ -43,6 +43,24 @@ class RepostStudioScreen extends StatefulWidget {
 class _RepostStudioScreenState extends State<RepostStudioScreen>
     with WidgetsBindingObserver {
   Timer? _quotaTimer;
+  ValueNotifier<bool>? _pauseControl;
+
+  void _refreshAccountQuota() {
+    if (ClearTokAccount.client?.auth.currentUser != null) {
+      ClearTokAccount.check().ignore();
+    }
+  }
+
+  String get _quotaLabel {
+    if (_isGuestMode) return 'KHÁCH ($_guestRemaining/5)';
+    final quota = ClearTokAccount.quota.value;
+    if (quota == null ||
+        quota.user != ClearTokAccount.client?.auth.currentUser?.id) {
+      return '—';
+    }
+    return quota.unlimited ? 'VÔ HẠN ∞' : '${quota.remaining}/20';
+  }
+
   bool _chromeVisible = true;
   double _scrollDelta = 0;
   bool _draggingList = false;
@@ -56,16 +74,19 @@ class _RepostStudioScreenState extends State<RepostStudioScreen>
   void _watchQuota() {
     _quotaTimer?.cancel();
     if (!widget.database.isInitialized) return;
-    final now = DateTime.now();
-    _quotaTimer = Timer(
-      DateTime(now.year, now.month, now.day + 1).difference(now),
-      () async {
-        await widget.database.resetGuestTrialIfNeeded();
-        if (!mounted) return;
-        setState(() {});
-        _watchQuota();
-      },
-    );
+    final now = _isGuestMode
+        ? DateTime.now()
+        : DateTime.now().toUtc().add(const Duration(hours: 7));
+    final midnight = _isGuestMode
+        ? DateTime(now.year, now.month, now.day + 1)
+        : DateTime.utc(now.year, now.month, now.day + 1);
+    _quotaTimer = Timer(midnight.difference(now), () async {
+      await widget.database.resetGuestTrialIfNeeded();
+      if (!mounted) return;
+      setState(() {});
+      _refreshAccountQuota();
+      _watchQuota();
+    });
   }
 
   @override
@@ -75,6 +96,13 @@ class _RepostStudioScreenState extends State<RepostStudioScreen>
         if (mounted) setState(() {});
       });
       _watchQuota();
+      _refreshAccountQuota();
+    } else if (state == AppLifecycleState.detached) {
+      _engine?.stop();
+    } else if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused) {
+      _engine?.pause();
+      _pauseControl?.value = true;
     }
   }
 
@@ -132,6 +160,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen>
   @override
   void didUpdateWidget(covariant RepostStudioScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!widget.active && oldWidget.active) _engine?.stop();
     if (widget.active && !oldWidget.active) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showChrome(true);
@@ -530,6 +559,24 @@ class _RepostStudioScreenState extends State<RepostStudioScreen>
       return;
     }
 
+    if (!_isGuestMode) {
+      final quota = ClearTokAccount.quota.value;
+      if (quota == null ||
+          quota.user != ClearTokAccount.client?.auth.currentUser?.id) {
+        _refreshAccountQuota();
+        _showSnack('Đang xác minh hạn mức. Vui lòng thử lại.', isError: true);
+        return;
+      }
+      if (!quota.unlimited && selectedCount > quota.remaining) {
+        _refreshAccountQuota();
+        _showSnack(
+          'Bạn còn ${quota.remaining}/20 lượt hôm nay. Hãy chọn ít mục hơn.',
+          isError: true,
+        );
+        return;
+      }
+    }
+
     final actionLabel = _currentHub == 'unfollow'
         ? 'hủy theo dõi $selectedCount tài khoản'
         : (_currentHub == 'unlike'
@@ -707,7 +754,7 @@ class _RepostStudioScreenState extends State<RepostStudioScreen>
     final engine = _freshEngine();
     final int total = _selectedIds.length;
     final hubMode = _currentHub;
-    final pausedByUser = ValueNotifier(false);
+    final pausedByUser = _pauseControl = ValueNotifier(false);
 
     showModalBottomSheet(
       context: context,
@@ -1033,10 +1080,17 @@ class _RepostStudioScreenState extends State<RepostStudioScreen>
           },
         ),
       ),
-    ).whenComplete(pausedByUser.dispose);
+    ).whenComplete(() {
+      if (identical(_pauseControl, pausedByUser)) {
+        _pauseControl = null;
+        if (mounted && identical(_engine, engine)) engine.stop();
+      }
+      pausedByUser.dispose();
+    });
 
     // Launch appropriate batch runner
     Future.microtask(() {
+      if (!mounted || !widget.active || !identical(engine, _engine)) return;
       if (hubMode == 'unfollow') {
         final targetUsers = _followingUsers
             .where((u) => _selectedIds.contains(u.id))
@@ -1844,13 +1898,14 @@ class _RepostStudioScreenState extends State<RepostStudioScreen>
                                   icon: Icons.delete_sweep_rounded,
                                 ),
                                 const SizedBox(width: 10),
-                                _buildMetricCard(
-                                  title: 'Hạn Mức',
-                                  value: _isGuestMode
-                                      ? 'KHÁCH ($_guestRemaining/5)'
-                                      : 'VÔ HẠN ∞',
-                                  color: ClearTokColors.pink,
-                                  icon: Icons.all_inclusive_rounded,
+                                ValueListenableBuilder(
+                                  valueListenable: ClearTokAccount.quota,
+                                  builder: (_, _, _) => _buildMetricCard(
+                                    title: 'Hạn Mức',
+                                    value: _quotaLabel,
+                                    color: ClearTokColors.pink,
+                                    icon: Icons.all_inclusive_rounded,
+                                  ),
                                 ),
                               ],
                             ),

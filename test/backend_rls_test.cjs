@@ -40,8 +40,61 @@ test('PostgreSQL migrations enforce ownership, privileges, device limits and adm
     const staleReplaced = (await db.query("select account_api('register_device',$1) as data",[JSON.stringify({device_id:b,platform:'ios'})])).rows[0].data;
     assert.equal(staleReplaced.devices.filter(d => d.is_active).length, 1);
     assert.equal(staleReplaced.devices.find(d => d.is_active).device_id, b);
+    const account = async (action,payload) => (await db.query(
+      'select account_api($1,$2) as data',[action,JSON.stringify(payload)])).rows[0].data;
+    const restored = staleReplaced.devices.find(d => !d.is_active);
+    const active = staleReplaced.devices.find(d => d.is_active);
+    const restore = () => db.query("select admin_api('restore_device',$1)",[JSON.stringify({id:restored.id})]);
+    assert.equal(staleReplaced.quota_remaining,20);
+    const updated = await account('register_device',{device_id:b,platform:'extension',device_name:'Browser',app_version:'2'});
+    const metadata = updated.devices.find(d => d.id === active.id);
+    assert.deepEqual([metadata.platform,metadata.device_name,metadata.app_version],['extension','Browser','2']);
+    await assert.rejects(restore(),/Administrator required/);
+    await as(admin);
+    await assert.rejects(restore(),/Device limit reached/);
+    await as(a);
+    const operations = Array.from({length:21},(_,n) => ({
+      device_id:b,operation_id:require('node:crypto').randomUUID(),feature:n%2?'repost':'unfollow',
+    }));
+    const reserve = payload => account('reserve_operation',payload);
+    const settle = (payload,outcome) => account('settle_operation',{...payload,outcome});
+    await assert.rejects(reserve({...operations[0],operation_id:'bad'}),/uuid/);
+    await assert.rejects(settle(operations[0],'consumed'),/Invalid settlement/);
+    await assert.rejects(reserve({...operations[0],device_id:a}),/Device unavailable/);
+    await assert.rejects(db.query('select * from account_operations'),/permission denied/);
+    for (const [n,op] of operations.slice(0,20).entries())
+      assert.deepEqual(await reserve(op),{status:'reserved',quota_remaining:19-n});
+    await assert.rejects(reserve(operations[20]),{code:'PT409',message:'QUOTA_EXHAUSTED'});
+    assert.deepEqual(await reserve(operations[0]),{status:'reserved',quota_remaining:0});
+    await assert.rejects(reserve({...operations[0],feature:'unlike'}),/identity mismatch/);
+    assert.deepEqual(await settle(operations[0],'consumed'),{status:'consumed',quota_remaining:0});
+    assert.equal((await reserve(operations[0])).status,'consumed');
+    await assert.rejects(settle(operations[0],'released'),/already settled/);
+    for(let retry=0;retry<2;retry++)
+      assert.deepEqual(await settle(operations[1],'released'),{status:'released',quota_remaining:1});
+    await account('revoke_device',{id:active.id});
+    await as(admin);
+    await restore();
+    const log=(await db.query("select admin_api('logs') as data")).rows[0].data.find(l=>l.action==='restore_device');
+    assert.deepEqual([log.admin_id,log.target_user_id,log.metadata.device_id],[admin,a,a]);
+    await as(a);
+    assert.deepEqual(await reserve({...operations[20],device_id:a}),{status:'reserved',quota_remaining:0});
+    await db.exec('reset role');
+    assert.equal((await db.query("select bool_and(quota_day = (now() at time zone 'Asia/Ho_Chi_Minh')::date) as ok from account_operations")).rows[0].ok,true);
+    await db.exec("update account_operations set quota_day = quota_day - 1");
+    await as(a);
+    assert.deepEqual(await settle(operations[2],'released'),{status:'released',quota_remaining:20});
+    await account('revoke_device',{id:restored.id});
     await as(admin);
     await db.query("select admin_api('premium',$1)",[JSON.stringify({user_id:a,plan:'premium'})]);
+    await as(a);
+    const unlimited = {...operations[0],operation_id:require('node:crypto').randomUUID()};
+    const registered = await account('register_device',{device_id:admin,platform:'ios'});
+    unlimited.device_id = admin;
+    assert.equal(registered.quota_remaining,null);
+    assert.deepEqual(await reserve(unlimited),{status:'reserved',quota_remaining:null});
+    assert.deepEqual(await settle(unlimited,'consumed'),{status:'consumed',quota_remaining:null});
+    await as(admin);
     assert.equal((await db.query("select admin_api('users') as data")).rows[0].data.length,3);
     assert.ok((await db.query("select admin_api('logs') as data")).rows[0].data.length>=2);
     await db.query("select admin_api('premium',$1)",[JSON.stringify({user_id:a,plan:'premium',expires_at:'2000-01-01T00:00:00Z'})]);

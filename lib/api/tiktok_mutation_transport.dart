@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'tiktok_client.dart' show DeleteResult;
+import 'tiktok_client.dart' show DeleteResult, MutationToken, MutationCancelled;
 
 class TikTokMutationTransport {
   TikTokMutationTransport(this.controller);
   final InAppWebViewController controller;
+  static int _sequence = 0;
   static const String mainWorldBridgeJs = r'''
 (function() {
   if (location.origin !== 'https://www.tiktok.com') return;
@@ -31,6 +32,7 @@ class TikTokMutationTransport {
     if (window.__lapinSecToken) return window.__lapinSecToken;
     var hsMethods = ['HEAD', 'GET'];
     for (var i = 0; i < hsMethods.length; i++) {
+      if (signal.aborted) return '';
       try {
         var hs = await window.fetch(targetUrl, {
           method: hsMethods[i], signal: signal,
@@ -54,7 +56,7 @@ class TikTokMutationTransport {
     return '';
   }
 
-  function runXhr(method, targetUrl, headers, bodyStr, signal) {
+  function runXhr(method, targetUrl, headers, bodyStr, signal, node) {
     return new Promise(function(resolve) {
       try {
         var xhr = new XMLHttpRequest();
@@ -88,6 +90,7 @@ class TikTokMutationTransport {
         xhr.onabort = function() { resolve({ok:false, status:0, raw:''}); };
         if (signal.aborted) { xhr.onabort(); return; }
         signal.addEventListener('abort', function() { xhr.abort(); }, {once:true});
+        node.setAttribute('data-sent', '1');
         xhr.send(bodyStr != null ? bodyStr : '');
       } catch (e) {
         resolve({ ok: false, status: 0, url: targetUrl, redirected: false, contentType: '', raw: '' });
@@ -97,10 +100,11 @@ class TikTokMutationTransport {
 
   async function handleNode(node) {
     node.setAttribute('data-state', 'running');
-    var abort = new AbortController();
+    var req = JSON.parse(node.getAttribute('data-req') || '{}');
+    var abort = window.__lapinRequests?.get(req.requestId);
+    if (!abort || abort.signal.aborted) return;
     var deadline = setTimeout(function() { abort.abort(); }, 18000);
     try {
-      var req = JSON.parse(node.getAttribute('data-req') || '{}');
       var targetUrl = req.url;
       var checked = new URL(targetUrl);
       if (checked.origin !== location.origin || !['/api/commit/item/digg/', '/api/commit/follow/user/', '/tiktok/v1/upvote/delete'].includes(checked.pathname)) throw new Error('Blocked bridge request');
@@ -122,7 +126,7 @@ class TikTokMutationTransport {
       var parsed = new URL(targetUrl);
       if (parsed.origin !== location.origin || !['/api/commit/item/digg/', '/api/commit/follow/user/', '/tiktok/v1/upvote/delete'].includes(parsed.pathname) || method !== 'POST') throw new Error('Blocked bridge request');
       if (abort.signal.aborted || node.getAttribute('data-state') !== 'running') { clearTimeout(deadline); return; }
-      var res = await runXhr(method, targetUrl, headers, req.body || '', abort.signal);
+      var res = await runXhr(method, targetUrl, headers, req.body || '', abort.signal, node);
       node.setAttribute('data-res', JSON.stringify(res));
     } catch (err) {
       node.setAttribute('data-res', JSON.stringify({
@@ -151,14 +155,34 @@ class TikTokMutationTransport {
     String path,
     Map<String, String> params,
     int aid,
+    MutationToken token,
   ) async {
+    token.check();
+    final requestId = ++_sequence;
+    // Register before starting the async script so a queued call cannot miss stop.
     await controller.evaluateJavascript(source: mainWorldBridgeJs);
+    token.check();
+    await controller.evaluateJavascript(
+      source:
+          """
+      (window.__lapinRequests ??= new Map()).set($requestId, new AbortController()); true;
+    """,
+    );
+    Future<void> abortRequest() async {
+      try {
+        await controller.evaluateJavascript(
+          source: 'window.__lapinRequests?.get($requestId)?.abort();',
+        );
+      } catch (_) {}
+    }
+
+    token.addListener(abortRequest);
     const functionBody = r'''
       const failure = (code, message, detail = {}) =>
         JSON.stringify({success: false, status_code: code, message, raw: JSON.stringify(detail)});
       try {
         if (location.origin !== 'https://www.tiktok.com') {
-          return failure(401, 'Mở trang TikTok chính thức và đăng nhập trước.');
+          return failure(401, 'Mở trang TikTok chính thức và đăng nhập trước.', {unsent:true});
         }
         // Read current page state; never substitute passport/SecSDK tokens.
         const candidates = [
@@ -171,7 +195,7 @@ class TikTokMutationTransport {
         const contexts = candidates.map(x => x?.__DEFAULT_SCOPE__?.['webapp.app-context']).filter(Boolean);
         const app = contexts.find(x => x.csrfToken) || {};
         if (!app.csrfToken) {
-          return failure(10402, 'Trang hiện tại thiếu CSRF web. Tải lại TikTok Web sau khi đăng nhập.');
+          return failure(10402, 'Trang hiện tại thiếu CSRF web. Tải lại TikTok Web sau khi đăng nhập.', {unsent:true});
         }
         const url = new URL(path, location.origin);
         for (const [key, value] of Object.entries(params)) {
@@ -192,15 +216,21 @@ class TikTokMutationTransport {
         url.searchParams.set('browser_platform', navigator.platform || '');
         url.searchParams.set('browser_version', navigator.userAgent || '');
         // Use the page SDK once; do not replay ambiguous writes on guessed endpoints.
-        const abort = new AbortController();
+        const registry = window.__lapinRequests ??= new Map();
+        const webId = 'web-' + (window.__lapinWebId = (window.__lapinWebId || 0) + 1);
+        const key = typeof requestId === 'undefined' ? webId : requestId;
+        // Web builds call this body directly without a mobile cancellation handle.
+        if (typeof requestId === 'undefined') registry.set(key, new AbortController());
+        const abort = registry.get(key);
+        if (!abort || abort.signal.aborted) return failure(-1, 'Cancelled', {unsent:true});
         const timer = setTimeout(() => abort.abort(), 20000);
         try {
           const bus = document.getElementById('__lapin_mw_bus');
-          if (!bus) return failure(-2, 'Main-world bridge chưa sẵn sàng.');
+          if (!bus) return failure(-2, 'Main-world bridge chưa sẵn sàng.', {unsent:true});
           const response = await new Promise(resolve => {
             const node = document.createElement('div');
             node.setAttribute('data-req', JSON.stringify({
-              url: url.toString(), method: 'POST', csrf: app.csrfToken,
+              requestId: key, url: url.toString(), method: 'POST', csrf: app.csrfToken,
               headers: {'tt-csrf-token': app.csrfToken, 'Content-Type': path === '/tiktok/v1/upvote/delete' ? 'application/json' : 'application/x-www-form-urlencoded'},
               body: path === '/tiktok/v1/upvote/delete' ? JSON.stringify({item_id: params.item_id, type: 1}) : ''
             }));
@@ -214,15 +244,20 @@ class TikTokMutationTransport {
               let result = {ok:false, status:0, raw:''};
               try { if (!expired) result = JSON.parse(node.getAttribute('data-res')); } catch (_) {}
               node.setAttribute('data-state', 'cancelled');
+              result.sent = node.getAttribute('data-sent') === '1';
+              abort.signal.removeEventListener('abort', interrupt);
               node.remove();
               resolve(result);
             };
+            const interrupt = () => done(true);
+            abort.signal.addEventListener('abort', interrupt, {once:true});
             poll = setInterval(done, 40);
             timeout = setTimeout(() => done(true), 20000);
             bus.appendChild(node);
             document.dispatchEvent(new Event('__lapin_mw_req'));
             done();
           });
+          if (!response.sent) return failure(-1, 'Request chưa gửi.', {unsent:true});
           const raw = response.raw || '';
           const detail = {
             http_status: response.status, redirected: response.redirected,
@@ -275,7 +310,7 @@ class TikTokMutationTransport {
                     message: 'Đã xác nhận video không còn được thích.', raw: JSON.stringify(detail)});
                 }
                 // Fallback JSON readback via /api/item/detail/ when HTML is a 1499-byte SPA shell
-                if (expectedUser && !detail.readback_hydration_present) {
+                if (!abort.signal.aborted && expectedUser && !detail.readback_hydration_present) {
                   try {
                     const detailUrl = new URL('/api/item/detail/', location.origin);
                     detailUrl.searchParams.set('aid', String(aid));
@@ -301,6 +336,9 @@ class TikTokMutationTransport {
                 }
               } catch (_) { detail.readback_exception = true; }
             }
+            if (detail.readback_confirmed && detail.readback_liked === true) {
+              return failure(-3, 'Video vẫn đang được thích.', detail);
+            }
             return failure(response.ok ? -2 : (response.status || -2),
               'TikTok chưa xác nhận kết quả. Mở tab Log để xem chi tiết; kiểm tra video trước khi thử lại.', detail);
           }
@@ -312,33 +350,60 @@ class TikTokMutationTransport {
           }
           return failure(Number.isFinite(Number(code)) && code != null ? Number(code) : -2,
             String(data?.status_msg || data?.message || 'Thiếu mã xác nhận từ TikTok'), detail);
-        } finally { clearTimeout(timer); }
+        } finally { clearTimeout(timer); registry.delete(key); }
       } catch (e) {
         return failure(-1, e.name === 'AbortError'
           ? 'Request quá hạn; chưa xác nhận được kết quả. Kiểm tra trên TikTok trước khi thử lại.'
           : String(e));
       }
     ''';
-    final result = await controller.callAsyncJavaScript(
-      functionBody: functionBody,
-      arguments: {'path': path, 'params': params, 'aid': aid},
-    );
     try {
-      if (result == null || result.error != null) throw const FormatException();
-      final data = jsonDecode(result.value.toString()) as Map<String, dynamic>;
-      return DeleteResult(
-        success: data['success'] == true,
-        statusCode: int.tryParse(data['status_code'].toString()) ?? -2,
-        message: data['message']?.toString() ?? '',
-        rawResponse: data['raw']?.toString() ?? '',
+      token.check();
+      token.check();
+      final result = await controller.callAsyncJavaScript(
+        functionBody: functionBody,
+        arguments: {
+          'path': path,
+          'params': params,
+          'aid': aid,
+          'requestId': requestId,
+        },
       );
-    } catch (_) {
-      return DeleteResult(
-        success: false,
-        statusCode: -2,
-        message: 'Chưa xác minh được kết quả từ WebView.',
-        rawResponse: '',
-      );
+      try {
+        if (result == null || result.error != null) {
+          throw const FormatException();
+        }
+        final data =
+            jsonDecode(result.value.toString()) as Map<String, dynamic>;
+        final detail = jsonDecode(data['raw'] as String);
+        final unsent = detail['unsent'] == true;
+        if (token.cancelled && unsent) throw MutationCancelled();
+        return DeleteResult(
+          confirmedUnchanged:
+              unsent ||
+              data['status_code'] == -3 && detail['readback_liked'] == true,
+          success: data['success'] == true,
+          statusCode: int.tryParse(data['status_code'].toString()) ?? -2,
+          message: data['message']?.toString() ?? '',
+          rawResponse: data['raw']?.toString() ?? '',
+        );
+      } on MutationCancelled {
+        rethrow;
+      } catch (_) {
+        return DeleteResult(
+          success: false,
+          statusCode: -2,
+          message: 'Chưa xác minh được kết quả từ WebView.',
+          rawResponse: '',
+        );
+      }
+    } finally {
+      token.removeListener(abortRequest);
+      try {
+        await controller.evaluateJavascript(
+          source: 'window.__lapinRequests?.delete($requestId);',
+        );
+      } catch (_) {}
     }
   }
 }

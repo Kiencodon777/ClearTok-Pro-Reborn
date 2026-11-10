@@ -21,7 +21,10 @@ class GuestDatabase extends ActionDatabase {
 
 class CaptchaClient extends ActionClient {
   @override
-  Future<DeleteResult> deleteSingleRepost({required String itemId}) async {
+  Future<DeleteResult> deleteSingleRepost({
+    required String itemId,
+    MutationToken? token,
+  }) async {
     deleted.add(itemId);
     return DeleteResult(
       success: false,
@@ -33,10 +36,72 @@ class CaptchaClient extends ActionClient {
 }
 
 void main() {
+  testWidgets(
+    'stop completes promptly during a pending write and ignores its late result',
+    (tester) async {
+      ClearTokAccount.client = null;
+      final client = ActionClient()..gate = Completer<void>();
+      final db = ActionDatabase()..items.addAll(client.videos);
+      final engine = TikTokDeletionEngine(client: client, database: db);
+      final progress = <BatchDeletionProgress>[];
+      final subscription = engine.progressStream.listen(progress.add);
+      addTearDown(subscription.cancel);
+      var done = false;
+      final batch = engine
+          .executeBatch(client.videos)
+          .whenComplete(() => done = true);
+      await tester.pump();
+      expect(client.deleted.length, 1);
+      engine.stop();
+      engine.stop();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(done, true);
+      expect(progress.last.status, DeletionStatus.stopped);
+      expect(db.items.length, 2);
+      client.gate!.complete();
+      await tester.pump(const Duration(seconds: 1));
+      await batch;
+      expect(client.deleted.length, 1);
+      expect(db.items.length, 2);
+      engine.dispose();
+    },
+  );
+
+  testWidgets(
+    'Free cannot send item 21 and quota exhaustion does not invalidate auth',
+    (tester) async {
+      final fixture = AccountFixture();
+      await fixture.signedIn();
+      final client = ActionClient();
+      final engine = TikTokDeletionEngine(
+        client: client,
+        database: ActionDatabase(),
+      );
+      final invalidated = ClearTokAccount.accessInvalidated.value;
+      var done = false;
+      final batch = engine
+          .executeBatch(List.generate(21, (i) => client.videos[i % 2]))
+          .whenComplete(() => done = true);
+      for (var i = 0; i < 500 && !done; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await batch;
+      expect(client.deleted.length, 20);
+      expect(fixture.remaining, 0);
+      expect(
+        fixture.operations.values.every((status) => status == 'consumed'),
+        true,
+      );
+      expect(ClearTokAccount.accessInvalidated.value, invalidated);
+      engine.dispose();
+      await tester.runAsync(fixture.dispose);
+    },
+  );
+
   testWidgets('500 items use initial enrollment plus 30-second checks only', (
     tester,
   ) async {
-    final fixture = AccountFixture();
+    final fixture = AccountFixture()..plan = 'premium';
     await fixture.signedIn();
     final client = ActionClient();
     final items = List.generate(500, (i) => client.videos[i % 2]);
@@ -100,7 +165,7 @@ void main() {
       }
       await batch;
       expect(client.deleted.length, 1);
-      expect(db.items.length, 1);
+      expect(db.items.length, 2);
     },
   );
 

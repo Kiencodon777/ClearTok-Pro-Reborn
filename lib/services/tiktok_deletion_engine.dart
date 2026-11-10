@@ -48,6 +48,10 @@ class TikTokDeletionEngine {
   final BackgroundNotificationService _notifService =
       BackgroundNotificationService();
 
+  MutationToken? _token;
+  String? _owner;
+  bool _metered = false;
+  bool _disposed = false;
   bool _isCancelled = false;
   bool _isPaused = false;
   bool _isRunning = false;
@@ -68,7 +72,7 @@ class TikTokDeletionEngine {
     _notifService.init();
     _accountSubscription = ClearTokAccount.client?.auth.onAuthStateChange
         .listen((event) {
-          if (event.session == null) {
+          if (_isRunning && event.session?.user.id != _owner) {
             _cancelReason = 'Đã đăng xuất khỏi tài khoản ClearTok.';
             stop();
           }
@@ -78,14 +82,18 @@ class TikTokDeletionEngine {
         if (_isRunning &&
             !_checkingAccount &&
             ClearTokAccount.client?.auth.currentSession != null) {
+          final token = _token!;
           try {
             _checkingAccount = true;
-            await ClearTokAccount.check(feature: _activeFeature);
+            await _enroll(token);
           } catch (error) {
-            if (error is FunctionException &&
-                (error.status == 401 ||
-                    error.status == 403 ||
-                    error.status == 429)) {
+            if (!token.cancelled &&
+                identical(_token, token) &&
+                (error is StateError ||
+                    error is FunctionException &&
+                        (error.status == 401 ||
+                            error.status == 403 ||
+                            error.status == 429))) {
               _cancelReason =
                   'Tài khoản hoặc thiết bị không được phép truy cập.';
               stop();
@@ -105,7 +113,65 @@ class TikTokDeletionEngine {
 
   void stop() {
     _isCancelled = true;
+    _token?.cancel();
     _notifService.cancelAll();
+  }
+
+  void _checkOwner(MutationToken token) {
+    token.check();
+    if (_owner != ClearTokAccount.client?.auth.currentUser?.id) {
+      _cancelReason = 'Tài khoản ClearTok đã thay đổi trong khi chạy.';
+      stop();
+      throw MutationCancelled();
+    }
+  }
+
+  Future<void> _enroll(MutationToken token) async {
+    final account = await ClearTokAccount.check(feature: _activeFeature);
+    _checkOwner(token);
+    final profile = account['profile'];
+    _metered =
+        account['effective_plan'] != 'premium' &&
+        !(profile is Map && profile['role'] == 'admin');
+    if (_metered && account['quota_remaining'] is! int) {
+      throw StateError('Không xác nhận được hạn mức Free.');
+    }
+  }
+
+  Future<DeleteResult> _operate(
+    MutationToken token,
+    Future<DeleteResult> Function() send,
+  ) async {
+    _checkOwner(token);
+    final owner = _owner;
+    final feature = _activeFeature!;
+    final id = _metered ? ClearTokAccount.newOperationId() : null;
+    if (id != null) {
+      await ClearTokAccount.reserveOperation(feature, id);
+    }
+    Future<void> settle(String outcome) async {
+      if (id != null && owner == ClearTokAccount.client?.auth.currentUser?.id) {
+        await ClearTokAccount.settleOperation(feature, id, outcome);
+      }
+    }
+
+    late DeleteResult result;
+    try {
+      _checkOwner(token);
+      result = await send();
+    } on MutationCancelled {
+      // The transport only throws this before dispatch is possible.
+      await settle('released');
+      rethrow;
+    }
+    _checkOwner(token);
+    if (result.success) {
+      await settle('consumed');
+    } else if (result.confirmedUnchanged) {
+      await settle('released');
+    }
+    _checkOwner(token);
+    return result;
   }
 
   void pause() => _isPaused = true;
@@ -143,7 +209,9 @@ class TikTokDeletionEngine {
     List<TikTokVideo> videos, {
     String mode = 'repost',
   }) async {
-    if (_isRunning) return;
+    if (_isRunning || _disposed) return;
+    final token = _token = MutationToken();
+    _metered = false;
     _isRunning = true;
     _isCancelled = false;
     _isPaused = false;
@@ -155,12 +223,12 @@ class TikTokDeletionEngine {
     final int total = videos.length;
     int deleted = 0;
     int failed = 0;
-    final clearTokOwner = ClearTokAccount.client?.auth.currentUser?.id;
+    final clearTokOwner = _owner = ClearTokAccount.client?.auth.currentUser?.id;
     int batchStreak = 0;
 
     try {
       if (clearTokOwner != null) {
-        await ClearTokAccount.check(feature: _activeFeature);
+        await token.wait(_enroll(token));
       }
       _emit(
         BatchDeletionProgress(
@@ -172,10 +240,12 @@ class TikTokDeletionEngine {
         ),
       );
 
-      await _notifService.showProgressNotification(
-        deleted: deleted,
-        total: total,
-        statusText: 'Đang chuẩn bị $actionName $total video...',
+      await token.wait(
+        _notifService.showProgressNotification(
+          deleted: deleted,
+          total: total,
+          statusText: 'Đang chuẩn bị $actionName $total video...',
+        ),
       );
 
       for (int i = 0; i < total; i++) {
@@ -185,7 +255,7 @@ class TikTokDeletionEngine {
         }
 
         while (_isPaused) {
-          await Future.delayed(const Duration(milliseconds: 300));
+          await token.delay(const Duration(milliseconds: 300));
           if (_isCancelled) {
             await _finishStopped(total, deleted, failed);
             return;
@@ -201,7 +271,7 @@ class TikTokDeletionEngine {
           for (int sec = restDuration; sec > 0; sec--) {
             if (_isCancelled) break;
             while (_isPaused) {
-              await Future.delayed(const Duration(milliseconds: 300));
+              await token.delay(const Duration(milliseconds: 300));
               if (_isCancelled) break;
             }
             if (_isCancelled) break;
@@ -218,13 +288,15 @@ class TikTokDeletionEngine {
               ),
             );
 
-            await _notifService.showProgressNotification(
-              deleted: deleted,
-              total: total,
-              statusText: '🛡️ Tạm nghỉ tạm nghỉ... (${sec}s)',
+            await token.wait(
+              _notifService.showProgressNotification(
+                deleted: deleted,
+                total: total,
+                statusText: '🛡️ Tạm nghỉ tạm nghỉ... (${sec}s)',
+              ),
             );
 
-            await Future.delayed(const Duration(seconds: 1));
+            await token.delay(const Duration(seconds: 1));
           }
 
           if (_isCancelled) {
@@ -260,39 +332,36 @@ class TikTokDeletionEngine {
           ),
         );
 
-        await _notifService.showProgressNotification(
-          deleted: deleted,
-          total: total,
-          statusText:
-              'Đang $actionName: @${video.authorUsername} ($deleted/$total)',
+        await token.wait(
+          _notifService.showProgressNotification(
+            deleted: deleted,
+            total: total,
+            statusText:
+                'Đang $actionName: @${video.authorUsername} ($deleted/$total)',
+          ),
         );
 
         try {
-          if (ClearTokAccount.client != null) {
-            if (clearTokOwner != ClearTokAccount.client!.auth.currentUser?.id) {
-              _isCancelled = true;
-              await _finishStopped(
-                total,
-                deleted,
-                failed,
-                'Tài khoản ClearTok đã thay đổi trong khi chạy.',
-              );
-              return;
-            }
-          }
-          final result = isUnlike
-              ? await client.unlikeVideo(
-                  awemeId: video.id,
-                  author: video.authorUsername,
-                )
-              : await client.deleteSingleRepost(itemId: video.id);
-
+          final result = await token.wait(
+            _operate(
+              token,
+              () => isUnlike
+                  ? client.unlikeVideo(
+                      awemeId: video.id,
+                      author: video.authorUsername,
+                      token: token,
+                    )
+                  : client.deleteSingleRepost(itemId: video.id, token: token),
+            ),
+          );
+          _checkOwner(token);
           if (result.success) {
             deleted++;
             batchStreak++;
             if (isGuest) {
               await database.incrementGuestTrialUsed();
             }
+            _checkOwner(token);
             if (isUnlike) {
               await database.removeLikedVideo(video.id);
             } else {
@@ -350,6 +419,7 @@ class TikTokDeletionEngine {
             if ([
               -1,
               -2,
+              -3,
               401,
               403,
               10402,
@@ -370,7 +440,10 @@ class TikTokDeletionEngine {
               return;
             }
           }
+        } on MutationCancelled {
+          rethrow;
         } catch (e) {
+          if (_metered) rethrow;
           if (e is FunctionException && (e.status == 401 || e.status == 403)) {
             _isCancelled = true;
             await _finishStopped(
@@ -411,7 +484,7 @@ class TikTokDeletionEngine {
 
         final baseDelay = database.customDelayMs;
         final jitter = _random.nextInt(300);
-        await Future.delayed(Duration(milliseconds: baseDelay + jitter));
+        await token.delay(Duration(milliseconds: baseDelay + jitter));
       }
 
       _emit(
@@ -429,14 +502,32 @@ class TikTokDeletionEngine {
         deleted: deleted,
         failed: failed,
       );
+    } on MutationCancelled {
+      if (!_disposed) await _finishStopped(total, deleted, failed);
+    } catch (e) {
+      if (!_disposed) {
+        _emit(
+          BatchDeletionProgress(
+            total: total,
+            deleted: deleted,
+            failed: failed,
+            status: DeletionStatus.error,
+            message: e.toString(),
+          ),
+        );
+        await _notifService.cancelAll();
+      }
     } finally {
+      _token = null;
       _isRunning = false;
     }
   }
 
   /// Executes batch for Following Users (mode: 'unfollow')
   Future<void> executeUnfollowBatch(List<TikTokFollowUser> users) async {
-    if (_isRunning) return;
+    if (_isRunning || _disposed) return;
+    final token = _token = MutationToken();
+    _metered = false;
     _isRunning = true;
     _isCancelled = false;
     _isPaused = false;
@@ -446,12 +537,12 @@ class TikTokDeletionEngine {
     final int total = users.length;
     int deleted = 0;
     int failed = 0;
-    final clearTokOwner = ClearTokAccount.client?.auth.currentUser?.id;
+    final clearTokOwner = _owner = ClearTokAccount.client?.auth.currentUser?.id;
     int batchStreak = 0;
 
     try {
       if (clearTokOwner != null) {
-        await ClearTokAccount.check(feature: _activeFeature);
+        await token.wait(_enroll(token));
       }
       _emit(
         BatchDeletionProgress(
@@ -463,10 +554,12 @@ class TikTokDeletionEngine {
         ),
       );
 
-      await _notifService.showProgressNotification(
-        deleted: deleted,
-        total: total,
-        statusText: 'Đang hủy theo dõi $total tài khoản...',
+      await token.wait(
+        _notifService.showProgressNotification(
+          deleted: deleted,
+          total: total,
+          statusText: 'Đang hủy theo dõi $total tài khoản...',
+        ),
       );
 
       for (int i = 0; i < total; i++) {
@@ -476,7 +569,7 @@ class TikTokDeletionEngine {
         }
 
         while (_isPaused) {
-          await Future.delayed(const Duration(milliseconds: 300));
+          await token.delay(const Duration(milliseconds: 300));
           if (_isCancelled) {
             await _finishStopped(total, deleted, failed);
             return;
@@ -491,7 +584,7 @@ class TikTokDeletionEngine {
           for (int sec = restDuration; sec > 0; sec--) {
             if (_isCancelled) break;
             while (_isPaused) {
-              await Future.delayed(const Duration(milliseconds: 300));
+              await token.delay(const Duration(milliseconds: 300));
               if (_isCancelled) break;
             }
             if (_isCancelled) break;
@@ -508,13 +601,15 @@ class TikTokDeletionEngine {
               ),
             );
 
-            await _notifService.showProgressNotification(
-              deleted: deleted,
-              total: total,
-              statusText: '🛡️ Tạm nghỉ tạm nghỉ... (${sec}s)',
+            await token.wait(
+              _notifService.showProgressNotification(
+                deleted: deleted,
+                total: total,
+                statusText: '🛡️ Tạm nghỉ tạm nghỉ... (${sec}s)',
+              ),
             );
 
-            await Future.delayed(const Duration(seconds: 1));
+            await token.delay(const Duration(seconds: 1));
           }
 
           if (_isCancelled) {
@@ -549,36 +644,33 @@ class TikTokDeletionEngine {
           ),
         );
 
-        await _notifService.showProgressNotification(
-          deleted: deleted,
-          total: total,
-          statusText: 'Đang hủy follow: @${user.uniqueId} ($deleted/$total)',
+        await token.wait(
+          _notifService.showProgressNotification(
+            deleted: deleted,
+            total: total,
+            statusText: 'Đang hủy follow: @${user.uniqueId} ($deleted/$total)',
+          ),
         );
 
         try {
-          if (ClearTokAccount.client != null) {
-            if (clearTokOwner != ClearTokAccount.client!.auth.currentUser?.id) {
-              _isCancelled = true;
-              await _finishStopped(
-                total,
-                deleted,
-                failed,
-                'Tài khoản ClearTok đã thay đổi trong khi chạy.',
-              );
-              return;
-            }
-          }
-          final result = await client.unfollowUser(
-            userId: user.id,
-            secUid: user.secUid,
+          final result = await token.wait(
+            _operate(
+              token,
+              () => client.unfollowUser(
+                userId: user.id,
+                secUid: user.secUid,
+                token: token,
+              ),
+            ),
           );
-
+          _checkOwner(token);
           if (result.success) {
             deleted++;
             batchStreak++;
             if (isGuest) {
               await database.incrementGuestTrialUsed();
             }
+            _checkOwner(token);
             await database.removeFollowing(user.id);
 
             _emit(
@@ -633,6 +725,7 @@ class TikTokDeletionEngine {
             if ([
               -1,
               -2,
+              -3,
               401,
               403,
               10402,
@@ -653,7 +746,10 @@ class TikTokDeletionEngine {
               return;
             }
           }
+        } on MutationCancelled {
+          rethrow;
         } catch (e) {
+          if (_metered) rethrow;
           if (e is FunctionException && (e.status == 401 || e.status == 403)) {
             _isCancelled = true;
             await _finishStopped(
@@ -694,7 +790,7 @@ class TikTokDeletionEngine {
 
         final baseDelay = database.customDelayMs;
         final jitter = _random.nextInt(300);
-        await Future.delayed(Duration(milliseconds: baseDelay + jitter));
+        await token.delay(Duration(milliseconds: baseDelay + jitter));
       }
 
       _emit(
@@ -712,12 +808,33 @@ class TikTokDeletionEngine {
         deleted: deleted,
         failed: failed,
       );
+    } on MutationCancelled {
+      if (!_disposed) await _finishStopped(total, deleted, failed);
+    } catch (e) {
+      if (!_disposed) {
+        _emit(
+          BatchDeletionProgress(
+            total: total,
+            deleted: deleted,
+            failed: failed,
+            status: DeletionStatus.error,
+            message: e.toString(),
+          ),
+        );
+        await _notifService.cancelAll();
+      }
     } finally {
+      _token = null;
       _isRunning = false;
     }
   }
 
   void _emit(BatchDeletionProgress progress) {
+    if (_disposed ||
+        (_token?.cancelled == true &&
+            progress.status != DeletionStatus.stopped)) {
+      return;
+    }
     if ([
       DeletionStatus.captchaRequired,
       DeletionStatus.completed,
@@ -735,6 +852,8 @@ class TikTokDeletionEngine {
   }
 
   void dispose() {
+    _disposed = true;
+    _token?.cancel();
     ClearTokAccount.accessInvalidated.removeListener(_onAccessInvalidated);
     _accountSubscription?.cancel();
     _accountTimer?.cancel();
